@@ -22,7 +22,7 @@ import (
 type InsightClient struct {
 	httpClient      http.Client
 	apiUrl          url.URL
-	blockNotifyChan chan struct{}
+	blockNotifyChan chan Block
 	txNotifyChan    chan Transaction
 	socketClient    *gosocketio.Client
 }
@@ -67,9 +67,9 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	}
 	socketClient.Emit("subscribe", "inv")
 
-	bch := make(chan struct{})
-	socketClient.On("block", func(h *gosocketio.Channel, args Block) {
-		bch <- struct{}{}
+	bch := make(chan Block)
+	socketClient.On("block", func(h *gosocketio.Channel, arg Block) {
+		bch <- arg
 	})
 	tch := make(chan Transaction)
 	tbTransport := &http.Transport{Dial: dial}
@@ -238,7 +238,7 @@ func (i *InsightClient) GetUtxos(addrs []btcutil.Address) ([]Utxo, error) {
 	return utxos, nil
 }
 
-func (i *InsightClient) BlockNotify() <-chan struct{} {
+func (i *InsightClient) BlockNotify() <-chan Block {
 	return i.blockNotifyChan
 }
 
