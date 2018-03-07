@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-type coinDB struct {
+type MockDatastore struct {
 	keys           wallet.Keys
 	utxos          wallet.Utxos
 	stxos          wallet.Stxos
@@ -21,61 +21,65 @@ type coinDB struct {
 	watchedScripts wallet.WatchedScripts
 }
 
-type MockDatastore struct {
-	db map[wallet.CoinType]coinDB
+type MockMultiwalletDatastore struct {
+	db map[wallet.CoinType]wallet.Datastore
 }
 
-func NewMockDatastore() *MockDatastore {
-	db := make(map[wallet.CoinType]coinDB)
-	db[wallet.Bitcoin] = coinDB{
+func(m *MockMultiwalletDatastore) GetDatastoreForWallet(coinType wallet.CoinType) wallet.Datastore {
+	return m.db[coinType]
+}
+
+func NewMockMultiwalletDatastore() *MockMultiwalletDatastore {
+	db := make(map[wallet.CoinType]wallet.Datastore)
+	db[wallet.Bitcoin] = wallet.Datastore(&MockDatastore{
 		&MockKeyStore{make(map[string]*KeyStoreEntry)},
 		&MockUtxoStore{make(map[string]*wallet.Utxo)},
 		&MockStxoStore{make(map[string]*wallet.Stxo)},
 		&MockTxnStore{make(map[string]*txnStoreEntry)},
 		&MockWatchedScriptsStore{make(map[string][]byte)},
-	}
-	db[wallet.BitcoinCash] = coinDB{
+	})
+	db[wallet.BitcoinCash] = wallet.Datastore(&MockDatastore{
 		&MockKeyStore{make(map[string]*KeyStoreEntry)},
 		&MockUtxoStore{make(map[string]*wallet.Utxo)},
 		&MockStxoStore{make(map[string]*wallet.Stxo)},
 		&MockTxnStore{make(map[string]*txnStoreEntry)},
 		&MockWatchedScriptsStore{make(map[string][]byte)},
-	}
-	db[wallet.Zcash] = coinDB{
+	})
+	db[wallet.Zcash] = wallet.Datastore(&MockDatastore{
 		&MockKeyStore{make(map[string]*KeyStoreEntry)},
 		&MockUtxoStore{make(map[string]*wallet.Utxo)},
 		&MockStxoStore{make(map[string]*wallet.Stxo)},
 		&MockTxnStore{make(map[string]*txnStoreEntry)},
 		&MockWatchedScriptsStore{make(map[string][]byte)},
-	}
-	db[wallet.Litecoin] = coinDB{
+	})
+	db[wallet.Litecoin] = wallet.Datastore(&MockDatastore{
 		&MockKeyStore{make(map[string]*KeyStoreEntry)},
 		&MockUtxoStore{make(map[string]*wallet.Utxo)},
 		&MockStxoStore{make(map[string]*wallet.Stxo)},
 		&MockTxnStore{make(map[string]*txnStoreEntry)},
 		&MockWatchedScriptsStore{make(map[string][]byte)},
-	}
-	return &MockDatastore{db}
+	})
+	return &MockMultiwalletDatastore{db}
 }
 
-func (m *MockDatastore) Keys(coinType wallet.CoinType) wallet.Keys {
-	return m.db[coinType].keys
+func (m *MockDatastore) Keys() wallet.Keys {
+	return m.keys
 }
 
-func (m *MockDatastore) Utxos(coinType wallet.CoinType) wallet.Utxos {
-	return m.db[coinType].utxos
+func (m *MockDatastore) Utxos() wallet.Utxos {
+	return m.utxos
 }
 
-func (m *MockDatastore) Stxos(coinType wallet.CoinType) wallet.Stxos {
-	return m.db[coinType].stxos
+func (m *MockDatastore) Stxos() wallet.Stxos {
+	return m.stxos
 }
 
-func (m *MockDatastore) Txns(coinType wallet.CoinType) wallet.Txns {
-	return m.db[coinType].txns
+func (m *MockDatastore) Txns() wallet.Txns {
+	return m.txns
 }
 
-func (m *MockDatastore) WatchedScripts(coinType wallet.CoinType) wallet.WatchedScripts {
-	return m.db[coinType].watchedScripts
+func (m *MockDatastore) WatchedScripts() wallet.WatchedScripts {
+	return m.watchedScripts
 }
 
 type KeyStoreEntry struct {
