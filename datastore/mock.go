@@ -28,32 +28,32 @@ type MockDatastore struct {
 func NewMockDatastore() *MockDatastore {
 	db := make(map[wallet.CoinType]coinDB)
 	db[wallet.Bitcoin] = coinDB{
-		&mockKeyStore{make(map[string]*keyStoreEntry)},
-		&mockUtxoStore{make(map[string]*wallet.Utxo)},
-		&mockStxoStore{make(map[string]*wallet.Stxo)},
-		&mockTxnStore{make(map[string]*txnStoreEntry)},
-		&mockWatchedScriptsStore{make(map[string][]byte)},
+		&MockKeyStore{make(map[string]*KeyStoreEntry)},
+		&MockUtxoStore{make(map[string]*wallet.Utxo)},
+		&MockStxoStore{make(map[string]*wallet.Stxo)},
+		&MockTxnStore{make(map[string]*txnStoreEntry)},
+		&MockWatchedScriptsStore{make(map[string][]byte)},
 	}
 	db[wallet.BitcoinCash] = coinDB{
-		&mockKeyStore{make(map[string]*keyStoreEntry)},
-		&mockUtxoStore{make(map[string]*wallet.Utxo)},
-		&mockStxoStore{make(map[string]*wallet.Stxo)},
-		&mockTxnStore{make(map[string]*txnStoreEntry)},
-		&mockWatchedScriptsStore{make(map[string][]byte)},
+		&MockKeyStore{make(map[string]*KeyStoreEntry)},
+		&MockUtxoStore{make(map[string]*wallet.Utxo)},
+		&MockStxoStore{make(map[string]*wallet.Stxo)},
+		&MockTxnStore{make(map[string]*txnStoreEntry)},
+		&MockWatchedScriptsStore{make(map[string][]byte)},
 	}
 	db[wallet.Zcash] = coinDB{
-		&mockKeyStore{make(map[string]*keyStoreEntry)},
-		&mockUtxoStore{make(map[string]*wallet.Utxo)},
-		&mockStxoStore{make(map[string]*wallet.Stxo)},
-		&mockTxnStore{make(map[string]*txnStoreEntry)},
-		&mockWatchedScriptsStore{make(map[string][]byte)},
+		&MockKeyStore{make(map[string]*KeyStoreEntry)},
+		&MockUtxoStore{make(map[string]*wallet.Utxo)},
+		&MockStxoStore{make(map[string]*wallet.Stxo)},
+		&MockTxnStore{make(map[string]*txnStoreEntry)},
+		&MockWatchedScriptsStore{make(map[string][]byte)},
 	}
 	db[wallet.Litecoin] = coinDB{
-		&mockKeyStore{make(map[string]*keyStoreEntry)},
-		&mockUtxoStore{make(map[string]*wallet.Utxo)},
-		&mockStxoStore{make(map[string]*wallet.Stxo)},
-		&mockTxnStore{make(map[string]*txnStoreEntry)},
-		&mockWatchedScriptsStore{make(map[string][]byte)},
+		&MockKeyStore{make(map[string]*KeyStoreEntry)},
+		&MockUtxoStore{make(map[string]*wallet.Utxo)},
+		&MockStxoStore{make(map[string]*wallet.Stxo)},
+		&MockTxnStore{make(map[string]*txnStoreEntry)},
+		&MockWatchedScriptsStore{make(map[string][]byte)},
 	}
 	return &MockDatastore{db}
 }
@@ -78,44 +78,44 @@ func (m *MockDatastore) WatchedScripts(coinType wallet.CoinType) wallet.WatchedS
 	return m.db[coinType].watchedScripts
 }
 
-type keyStoreEntry struct {
-	scriptAddress []byte
-	path          wallet.KeyPath
-	used          bool
-	key           *btcec.PrivateKey
+type KeyStoreEntry struct {
+	ScriptAddress []byte
+	Path          wallet.KeyPath
+	Used          bool
+	Key           *btcec.PrivateKey
 }
 
-type mockKeyStore struct {
-	keys map[string]*keyStoreEntry
+type MockKeyStore struct {
+	Keys map[string]*KeyStoreEntry
 }
 
-func (m *mockKeyStore) Put(scriptAddress []byte, keyPath wallet.KeyPath) error {
-	m.keys[hex.EncodeToString(scriptAddress)] = &keyStoreEntry{scriptAddress, keyPath, false, nil}
+func (m *MockKeyStore) Put(scriptAddress []byte, keyPath wallet.KeyPath) error {
+	m.Keys[hex.EncodeToString(scriptAddress)] = &KeyStoreEntry{scriptAddress, keyPath, false, nil}
 	return nil
 }
 
-func (m *mockKeyStore) ImportKey(scriptAddress []byte, key *btcec.PrivateKey) error {
+func (m *MockKeyStore) ImportKey(scriptAddress []byte, key *btcec.PrivateKey) error {
 	kp := wallet.KeyPath{Purpose: wallet.EXTERNAL, Index: -1}
-	m.keys[hex.EncodeToString(scriptAddress)] = &keyStoreEntry{scriptAddress, kp, false, key}
+	m.Keys[hex.EncodeToString(scriptAddress)] = &KeyStoreEntry{scriptAddress, kp, false, key}
 	return nil
 }
 
-func (m *mockKeyStore) MarkKeyAsUsed(scriptAddress []byte) error {
-	key, ok := m.keys[hex.EncodeToString(scriptAddress)]
+func (m *MockKeyStore) MarkKeyAsUsed(scriptAddress []byte) error {
+	key, ok := m.Keys[hex.EncodeToString(scriptAddress)]
 	if !ok {
 		return errors.New("key does not exist")
 	}
-	key.used = true
+	key.Used = true
 	return nil
 }
 
-func (m *mockKeyStore) GetLastKeyIndex(purpose wallet.KeyPurpose) (int, bool, error) {
+func (m *MockKeyStore) GetLastKeyIndex(purpose wallet.KeyPurpose) (int, bool, error) {
 	i := -1
 	used := false
-	for _, key := range m.keys {
-		if key.path.Purpose == purpose && key.path.Index > i {
-			i = key.path.Index
-			used = key.used
+	for _, key := range m.Keys {
+		if key.Path.Purpose == purpose && key.Path.Index > i {
+			i = key.Path.Index
+			used = key.Used
 		}
 	}
 	if i == -1 {
@@ -124,70 +124,70 @@ func (m *mockKeyStore) GetLastKeyIndex(purpose wallet.KeyPurpose) (int, bool, er
 	return i, used, nil
 }
 
-func (m *mockKeyStore) GetPathForKey(scriptAddress []byte) (wallet.KeyPath, error) {
-	key, ok := m.keys[hex.EncodeToString(scriptAddress)]
-	if !ok || key.path.Index == -1 {
+func (m *MockKeyStore) GetPathForKey(scriptAddress []byte) (wallet.KeyPath, error) {
+	key, ok := m.Keys[hex.EncodeToString(scriptAddress)]
+	if !ok || key.Path.Index == -1 {
 		return wallet.KeyPath{}, errors.New("key does not exist")
 	}
-	return key.path, nil
+	return key.Path, nil
 }
 
-func (m *mockKeyStore) GetKey(scriptAddress []byte) (*btcec.PrivateKey, error) {
-	for _, k := range m.keys {
-		if k.path.Index == -1 && bytes.Equal(scriptAddress, k.scriptAddress) {
-			return k.key, nil
+func (m *MockKeyStore) GetKey(scriptAddress []byte) (*btcec.PrivateKey, error) {
+	for _, k := range m.Keys {
+		if k.Path.Index == -1 && bytes.Equal(scriptAddress, k.ScriptAddress) {
+			return k.Key, nil
 		}
 	}
 	return nil, errors.New("Not found")
 }
 
-func (m *mockKeyStore) GetImported() ([]*btcec.PrivateKey, error) {
+func (m *MockKeyStore) GetImported() ([]*btcec.PrivateKey, error) {
 	var keys []*btcec.PrivateKey
-	for _, k := range m.keys {
-		if k.path.Index == -1 {
-			keys = append(keys, k.key)
+	for _, k := range m.Keys {
+		if k.Path.Index == -1 {
+			keys = append(keys, k.Key)
 		}
 	}
 	return keys, nil
 }
 
-func (m *mockKeyStore) GetUnused(purpose wallet.KeyPurpose) ([]int, error) {
+func (m *MockKeyStore) GetUnused(purpose wallet.KeyPurpose) ([]int, error) {
 	var i []int
-	for _, key := range m.keys {
-		if !key.used && key.path.Purpose == purpose {
-			i = append(i, key.path.Index)
+	for _, key := range m.Keys {
+		if !key.Used && key.Path.Purpose == purpose {
+			i = append(i, key.Path.Index)
 		}
 	}
 	sort.Ints(i)
 	return i, nil
 }
 
-func (m *mockKeyStore) GetAll() ([]wallet.KeyPath, error) {
+func (m *MockKeyStore) GetAll() ([]wallet.KeyPath, error) {
 	var kp []wallet.KeyPath
-	for _, key := range m.keys {
-		kp = append(kp, key.path)
+	for _, key := range m.Keys {
+		kp = append(kp, key.Path)
 	}
 	return kp, nil
 }
 
-func (m *mockKeyStore) GetLookaheadWindows() map[wallet.KeyPurpose]int {
+func (m *MockKeyStore) GetLookaheadWindows() map[wallet.KeyPurpose]int {
 	internalLastUsed := -1
 	externalLastUsed := -1
-	for _, key := range m.keys {
-		if key.path.Purpose == wallet.INTERNAL && key.used && key.path.Index > internalLastUsed {
-			internalLastUsed = key.path.Index
+	for _, key := range m.Keys {
+		if key.Path.Purpose == wallet.INTERNAL && key.Used && key.Path.Index > internalLastUsed {
+			internalLastUsed = key.Path.Index
 		}
-		if key.path.Purpose == wallet.EXTERNAL && key.used && key.path.Index > externalLastUsed {
-			externalLastUsed = key.path.Index
+		if key.Path.Purpose == wallet.EXTERNAL && key.Used && key.Path.Index > externalLastUsed {
+			externalLastUsed = key.Path.Index
 		}
 	}
 	internalUnused := 0
 	externalUnused := 0
-	for _, key := range m.keys {
-		if key.path.Purpose == wallet.INTERNAL && !key.used && key.path.Index > internalLastUsed {
+	for _, key := range m.Keys {
+		if key.Path.Purpose == wallet.INTERNAL && !key.Used && key.Path.Index > internalLastUsed {
 			internalUnused++
 		}
-		if key.path.Purpose == wallet.EXTERNAL && !key.used && key.path.Index > externalLastUsed {
+		if key.Path.Purpose == wallet.EXTERNAL && !key.Used && key.Path.Index > externalLastUsed {
 			externalUnused++
 		}
 	}
@@ -197,17 +197,17 @@ func (m *mockKeyStore) GetLookaheadWindows() map[wallet.KeyPurpose]int {
 	return mp
 }
 
-type mockUtxoStore struct {
+type MockUtxoStore struct {
 	utxos map[string]*wallet.Utxo
 }
 
-func (m *mockUtxoStore) Put(utxo wallet.Utxo) error {
+func (m *MockUtxoStore) Put(utxo wallet.Utxo) error {
 	key := utxo.Op.Hash.String() + ":" + strconv.Itoa(int(utxo.Op.Index))
 	m.utxos[key] = &utxo
 	return nil
 }
 
-func (m *mockUtxoStore) GetAll() ([]wallet.Utxo, error) {
+func (m *MockUtxoStore) GetAll() ([]wallet.Utxo, error) {
 	var utxos []wallet.Utxo
 	for _, v := range m.utxos {
 		utxos = append(utxos, *v)
@@ -215,7 +215,7 @@ func (m *mockUtxoStore) GetAll() ([]wallet.Utxo, error) {
 	return utxos, nil
 }
 
-func (m *mockUtxoStore) SetWatchOnly(utxo wallet.Utxo) error {
+func (m *MockUtxoStore) SetWatchOnly(utxo wallet.Utxo) error {
 	key := utxo.Op.Hash.String() + ":" + strconv.Itoa(int(utxo.Op.Index))
 	u, ok := m.utxos[key]
 	if !ok {
@@ -225,7 +225,7 @@ func (m *mockUtxoStore) SetWatchOnly(utxo wallet.Utxo) error {
 	return nil
 }
 
-func (m *mockUtxoStore) Delete(utxo wallet.Utxo) error {
+func (m *MockUtxoStore) Delete(utxo wallet.Utxo) error {
 	key := utxo.Op.Hash.String() + ":" + strconv.Itoa(int(utxo.Op.Index))
 	_, ok := m.utxos[key]
 	if !ok {
@@ -235,16 +235,16 @@ func (m *mockUtxoStore) Delete(utxo wallet.Utxo) error {
 	return nil
 }
 
-type mockStxoStore struct {
+type MockStxoStore struct {
 	stxos map[string]*wallet.Stxo
 }
 
-func (m *mockStxoStore) Put(stxo wallet.Stxo) error {
+func (m *MockStxoStore) Put(stxo wallet.Stxo) error {
 	m.stxos[stxo.SpendTxid.String()] = &stxo
 	return nil
 }
 
-func (m *mockStxoStore) GetAll() ([]wallet.Stxo, error) {
+func (m *MockStxoStore) GetAll() ([]wallet.Stxo, error) {
 	var stxos []wallet.Stxo
 	for _, v := range m.stxos {
 		stxos = append(stxos, *v)
@@ -252,7 +252,7 @@ func (m *mockStxoStore) GetAll() ([]wallet.Stxo, error) {
 	return stxos, nil
 }
 
-func (m *mockStxoStore) Delete(stxo wallet.Stxo) error {
+func (m *MockStxoStore) Delete(stxo wallet.Stxo) error {
 	_, ok := m.stxos[stxo.SpendTxid.String()]
 	if !ok {
 		return errors.New("Not found")
@@ -269,11 +269,11 @@ type txnStoreEntry struct {
 	watchOnly bool
 }
 
-type mockTxnStore struct {
+type MockTxnStore struct {
 	txns map[string]*txnStoreEntry
 }
 
-func (m *mockTxnStore) Put(txn *wire.MsgTx, value, height int, timestamp time.Time, watchOnly bool) error {
+func (m *MockTxnStore) Put(txn *wire.MsgTx, value, height int, timestamp time.Time, watchOnly bool) error {
 	m.txns[txn.TxHash().String()] = &txnStoreEntry{
 		txn:       txn,
 		value:     value,
@@ -284,7 +284,7 @@ func (m *mockTxnStore) Put(txn *wire.MsgTx, value, height int, timestamp time.Ti
 	return nil
 }
 
-func (m *mockTxnStore) Get(txid chainhash.Hash) (*wire.MsgTx, wallet.Txn, error) {
+func (m *MockTxnStore) Get(txid chainhash.Hash) (*wire.MsgTx, wallet.Txn, error) {
 	t, ok := m.txns[txid.String()]
 	if !ok {
 		return nil, wallet.Txn{}, errors.New("Not found")
@@ -294,7 +294,7 @@ func (m *mockTxnStore) Get(txid chainhash.Hash) (*wire.MsgTx, wallet.Txn, error)
 	return t.txn, wallet.Txn{txid.String(), int64(t.value), int32(t.height), t.timestamp, t.watchOnly, buf.Bytes()}, nil
 }
 
-func (m *mockTxnStore) GetAll(includeWatchOnly bool) ([]wallet.Txn, error) {
+func (m *MockTxnStore) GetAll(includeWatchOnly bool) ([]wallet.Txn, error) {
 	var txns []wallet.Txn
 	for _, t := range m.txns {
 		var buf bytes.Buffer
@@ -305,7 +305,7 @@ func (m *mockTxnStore) GetAll(includeWatchOnly bool) ([]wallet.Txn, error) {
 	return txns, nil
 }
 
-func (m *mockTxnStore) UpdateHeight(txid chainhash.Hash, height int) error {
+func (m *MockTxnStore) UpdateHeight(txid chainhash.Hash, height int) error {
 	txn, ok := m.txns[txid.String()]
 	if !ok {
 		return errors.New("Not found")
@@ -314,7 +314,7 @@ func (m *mockTxnStore) UpdateHeight(txid chainhash.Hash, height int) error {
 	return nil
 }
 
-func (m *mockTxnStore) Delete(txid *chainhash.Hash) error {
+func (m *MockTxnStore) Delete(txid *chainhash.Hash) error {
 	_, ok := m.txns[txid.String()]
 	if !ok {
 		return errors.New("Not found")
@@ -323,16 +323,16 @@ func (m *mockTxnStore) Delete(txid *chainhash.Hash) error {
 	return nil
 }
 
-type mockWatchedScriptsStore struct {
+type MockWatchedScriptsStore struct {
 	scripts map[string][]byte
 }
 
-func (m *mockWatchedScriptsStore) Put(scriptPubKey []byte) error {
+func (m *MockWatchedScriptsStore) Put(scriptPubKey []byte) error {
 	m.scripts[hex.EncodeToString(scriptPubKey)] = scriptPubKey
 	return nil
 }
 
-func (m *mockWatchedScriptsStore) GetAll() ([][]byte, error) {
+func (m *MockWatchedScriptsStore) GetAll() ([][]byte, error) {
 	var ret [][]byte
 	for _, b := range m.scripts {
 		ret = append(ret, b)
@@ -340,7 +340,7 @@ func (m *mockWatchedScriptsStore) GetAll() ([][]byte, error) {
 	return ret, nil
 }
 
-func (m *mockWatchedScriptsStore) Delete(scriptPubKey []byte) error {
+func (m *MockWatchedScriptsStore) Delete(scriptPubKey []byte) error {
 	enc := hex.EncodeToString(scriptPubKey)
 	_, ok := m.scripts[enc]
 	if !ok {
