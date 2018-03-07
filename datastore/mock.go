@@ -25,8 +25,12 @@ type MockMultiwalletDatastore struct {
 	db map[wallet.CoinType]wallet.Datastore
 }
 
-func (m *MockMultiwalletDatastore) GetDatastoreForWallet(coinType wallet.CoinType) wallet.Datastore {
-	return m.db[coinType]
+func (m *MockMultiwalletDatastore) GetDatastoreForWallet(coinType wallet.CoinType) (wallet.Datastore, error) {
+	db, ok := m.db[coinType]
+	if !ok {
+		return nil, errors.New("Cointype not supported")
+	}
+	return db, nil
 }
 
 func NewMockMultiwalletDatastore() *MockMultiwalletDatastore {
