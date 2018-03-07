@@ -9,26 +9,15 @@ import (
 
 const LOOKAHEADWINDOW = 20
 
-type CoinType uint32
-
-const (
-	Bitcoin     CoinType = 0
-	Litecoin             = 1
-	Zcash                = 133
-	BitcoinCash CoinType = 145
-)
-
 type KeyManager struct {
 	datastore wallet.Keys
 	params    *chaincfg.Params
 
 	internalKey *hd.ExtendedKey
 	externalKey *hd.ExtendedKey
-
-	coinType CoinType
 }
 
-func NewKeyManager(db wallet.Keys, params *chaincfg.Params, masterPrivKey *hd.ExtendedKey, coinType CoinType) (*KeyManager, error) {
+func NewKeyManager(db wallet.Keys, params *chaincfg.Params, masterPrivKey *hd.ExtendedKey, coinType wallet.CoinType) (*KeyManager, error) {
 	internal, external, err := Bip44Derivation(masterPrivKey, coinType)
 	if err != nil {
 		return nil, err
@@ -46,7 +35,7 @@ func NewKeyManager(db wallet.Keys, params *chaincfg.Params, masterPrivKey *hd.Ex
 }
 
 // m / purpose' / coin_type' / account' / change / address_index
-func Bip44Derivation(masterPrivKey *hd.ExtendedKey, coinType CoinType) (internal, external *hd.ExtendedKey, err error) {
+func Bip44Derivation(masterPrivKey *hd.ExtendedKey, coinType wallet.CoinType) (internal, external *hd.ExtendedKey, err error) {
 	// Purpose = bip44
 	fourtyFour, err := masterPrivKey.Child(hd.HardenedKeyStart + 44)
 	if err != nil {
