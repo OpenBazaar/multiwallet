@@ -1,15 +1,15 @@
 package bitcoin
 
 import (
-	"github.com/OpenBazaar/wallet-interface"
 	"github.com/OpenBazaar/multiwallet/keys"
-	"github.com/btcsuite/btcutil/hdkeychain"
+	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcutil/hdkeychain"
 )
 
 type BitcoinWallet struct {
-	db wallet.Datastore
-	km *keys.KeyManager
+	db     wallet.Datastore
+	km     *keys.KeyManager
 	params *chaincfg.Params
 }
 

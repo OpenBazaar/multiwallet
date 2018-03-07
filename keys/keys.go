@@ -4,7 +4,11 @@ import (
 	"errors"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
+	"github.com/cpacia/bchutil"
+	"github.com/OpenBazaar/multiwallet/zcash"
+	"github.com/OpenBazaar/multiwallet/litecoin"
 )
 
 const LOOKAHEADWINDOW = 20
@@ -15,6 +19,8 @@ type KeyManager struct {
 
 	internalKey *hd.ExtendedKey
 	externalKey *hd.ExtendedKey
+
+	coinType wallet.CoinType
 }
 
 func NewKeyManager(db wallet.Keys, params *chaincfg.Params, masterPrivKey *hd.ExtendedKey, coinType wallet.CoinType) (*KeyManager, error) {
@@ -27,6 +33,7 @@ func NewKeyManager(db wallet.Keys, params *chaincfg.Params, masterPrivKey *hd.Ex
 		params:      params,
 		internalKey: internal,
 		externalKey: external,
+		coinType:    coinType,
 	}
 	if err := km.lookahead(); err != nil {
 		return nil, err
@@ -171,4 +178,23 @@ func (km *KeyManager) lookahead() error {
 		}
 	}
 	return nil
+}
+
+func (km *KeyManager) KeyToAddress(key *hd.ExtendedKey) (btcutil.Address, error) {
+	addr, err := key.Address(km.params)
+	if err != nil {
+		return nil, err
+	}
+	var newAddr btcutil.Address
+	switch km.coinType {
+	case wallet.Bitcoin:
+		newAddr = btcutil.Address(addr)
+	case wallet.BitcoinCash:
+		newAddr, err = bchutil.NewCashAddressPubKeyHash(addr.ScriptAddress(), km.params)
+	case wallet.Zcash:
+		newAddr, err = zcash.NewAddressPubKeyHash(addr.ScriptAddress(), km.params)
+	case wallet.Litecoin:
+		newAddr, err = litecoin.NewAddressPubKeyHash(addr.ScriptAddress(), km.params)
+	}
+	return newAddr, err
 }

@@ -25,7 +25,7 @@ type MockMultiwalletDatastore struct {
 	db map[wallet.CoinType]wallet.Datastore
 }
 
-func(m *MockMultiwalletDatastore) GetDatastoreForWallet(coinType wallet.CoinType) wallet.Datastore {
+func (m *MockMultiwalletDatastore) GetDatastoreForWallet(coinType wallet.CoinType) wallet.Datastore {
 	return m.db[coinType]
 }
 
