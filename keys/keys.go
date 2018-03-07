@@ -1,10 +1,10 @@
 package keys
 
 import (
+	"errors"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
-	"errors"
 )
 
 const LOOKAHEADWINDOW = 20
@@ -12,9 +12,9 @@ const LOOKAHEADWINDOW = 20
 type CoinType uint32
 
 const (
-	Bitcoin CoinType = 0
-	Litecoin = 1
-	Zcash = 133
+	Bitcoin     CoinType = 0
+	Litecoin             = 1
+	Zcash                = 133
 	BitcoinCash CoinType = 145
 )
 

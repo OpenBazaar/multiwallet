@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/OpenBazaar/multiwallet/client/transport"
 	"github.com/btcsuite/btcutil"
 	"github.com/graarh/golang-socketio"
 	"golang.org/x/net/proxy"
@@ -16,7 +17,6 @@ import (
 	"path"
 	"strconv"
 	"time"
-	"github.com/OpenBazaar/multiwallet/client/transport"
 )
 
 type InsightClient struct {
@@ -265,12 +265,16 @@ func (i *InsightClient) Broadcast(tx []byte) (string, error) {
 	}
 	resp, err := i.doRequest("tx/send", http.MethodPost, bytes.NewBuffer(txJson), nil)
 	decoder := json.NewDecoder(resp.Body)
-	txid := new(Transaction)
-	defer resp.Body.Close()
-	if err = decoder.Decode(txid); err != nil {
-		return "", fmt.Errorf("error decoding utxo list: %s\n", err)
+
+	type txid struct {
+		Txid string `json:"txid"`
 	}
-	return txid.Txid, nil
+	defer resp.Body.Close()
+	id := new(txid)
+	if err = decoder.Decode(id); err != nil {
+		return "", fmt.Errorf("error decoding txid: %s\n", err)
+	}
+	return id.Txid, nil
 }
 
 func (i *InsightClient) GetInfo() (*Info, error) {

@@ -1,12 +1,12 @@
 package keys
 
 import (
-	"encoding/hex"
 	"bytes"
-	"sort"
+	"encoding/hex"
+	"errors"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/btcec"
-	"errors"
+	"sort"
 )
 
 type keyStoreEntry struct {
@@ -127,4 +127,3 @@ func (m *mockKeyStore) GetLookaheadWindows() map[wallet.KeyPurpose]int {
 	mp[wallet.EXTERNAL] = externalUnused
 	return mp
 }
-

@@ -284,4 +284,3 @@ func TestKeyManager_GetKeyForScript(t *testing.T) {
 		t.Error("Failed to return imported key")
 	}
 }
-
