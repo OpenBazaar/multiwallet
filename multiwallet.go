@@ -8,9 +8,10 @@ import (
 	hd "github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/tyler-smith/go-bip39"
 	"github.com/OpenBazaar/multiwallet/bitcoin"
+	client2 "github.com/OpenBazaar/multiwallet/client"
 )
 
-var log = logging.MustGetLogger("bitcoin")
+var log = logging.MustGetLogger("multiwallet")
 
 type MultiWallet struct {
 	wallets map[wallet.CoinType]wallet.Wallet
@@ -40,14 +41,14 @@ func NewMultiWallet(cfg config.Config) (*MultiWallet, error) {
 
 	wallets := make(map[wallet.CoinType]wallet.Wallet)
 	for _, coin := range cfg.Coins {
-		db, err := cfg.DB.GetDatastoreForWallet(coin.CoinType)
-		if err != nil {
-			return nil, err
-		}
 		var w wallet.Wallet
 		switch(coin.CoinType) {
 		case wallet.Bitcoin:
-			w, err = bitcoin.NewBitcoinWallet(db, mPrivKey, cfg.Params)
+			client, err := client2.NewInsightClient(coin.ClientAPI.String(), cfg.Proxy)
+			if err != nil {
+				return nil, err
+			}
+			w, err = bitcoin.NewBitcoinWallet(coin.DB, mPrivKey, client, cfg.Params)
 			if err != nil {
 				return nil, err
 			}
