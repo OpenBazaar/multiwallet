@@ -1,23 +1,20 @@
 package multiwallet
 
 import (
-	"github.com/OpenBazaar/multiwallet/config"
-	"github.com/OpenBazaar/wallet-interface"
-	"time"
-	"github.com/op/go-logging"
-	hd "github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/tyler-smith/go-bip39"
 	"github.com/OpenBazaar/multiwallet/bitcoin"
 	client2 "github.com/OpenBazaar/multiwallet/client"
+	"github.com/OpenBazaar/multiwallet/config"
+	"github.com/OpenBazaar/wallet-interface"
+	"github.com/op/go-logging"
+	"github.com/tyler-smith/go-bip39"
+	"time"
 )
 
 var log = logging.MustGetLogger("multiwallet")
 
-type MultiWallet struct {
-	wallets map[wallet.CoinType]wallet.Wallet
-}
+type MultiWallet map[wallet.CoinType]*bitcoin.BitcoinWallet
 
-func NewMultiWallet(cfg config.Config) (*MultiWallet, error) {
+func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 	log.SetBackend(logging.AddModuleLevel(cfg.Logger))
 
 	if cfg.Mnemonic == "" {
@@ -32,29 +29,28 @@ func NewMultiWallet(cfg config.Config) (*MultiWallet, error) {
 		cfg.Mnemonic = mnemonic
 		cfg.CreationDate = time.Now()
 	}
-	seed := bip39.NewSeed(cfg.Mnemonic, "")
 
-	mPrivKey, err := hd.NewMaster(seed, cfg.Params)
-	if err != nil {
-		return nil, err
-	}
-
-	wallets := make(map[wallet.CoinType]wallet.Wallet)
+	multiwallet := make(MultiWallet) // TODO: change to wallet interface when BitcoinWallet conforms
 	for _, coin := range cfg.Coins {
-		var w wallet.Wallet
-		switch(coin.CoinType) {
+		var w *bitcoin.BitcoinWallet // TODO: change to wallet interface when BitcoinWallet conforms
+		switch coin.CoinType {
 		case wallet.Bitcoin:
 			client, err := client2.NewInsightClient(coin.ClientAPI.String(), cfg.Proxy)
 			if err != nil {
 				return nil, err
 			}
-			w, err = bitcoin.NewBitcoinWallet(coin.DB, mPrivKey, client, cfg.Params)
+			w, err = bitcoin.NewBitcoinWallet(coin.DB, cfg.Mnemonic, client, cfg.Params)
 			if err != nil {
 				return nil, err
 			}
-			wallets[coin.CoinType] = w
+			multiwallet[coin.CoinType] = w
 		}
 	}
-	return &MultiWallet{wallets}, nil
+	return multiwallet, nil
 }
 
+func (w *MultiWallet) Start() {
+	for _, wallet := range *w {
+		wallet.Start()
+	}
+}

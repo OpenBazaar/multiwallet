@@ -1,14 +1,14 @@
 package config
 
 import (
-	"time"
-	"net/url"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/OpenBazaar/wallet-interface"
-	"golang.org/x/net/proxy"
-	"github.com/op/go-logging"
-	"os"
 	"github.com/OpenBazaar/multiwallet/datastore"
+	"github.com/OpenBazaar/wallet-interface"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/op/go-logging"
+	"golang.org/x/net/proxy"
+	"net/url"
+	"os"
+	"time"
 )
 
 type Config struct {
@@ -57,30 +57,39 @@ type CoinConfig struct {
 	DB wallet.Datastore
 }
 
-func NewDefaultConfig(coinTypes map[wallet.CoinType]bool) *Config {
+func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Params) *Config {
 
 	cfg := &Config{
-		Params:    &chaincfg.MainNetParams,
-		Logger:    logging.NewLogBackend(os.Stdout, "", 0),
+		Params: params,
+		Logger: logging.NewLogBackend(os.Stdout, "", 0),
+	}
+	var testnet bool
+	if params.Name == chaincfg.TestNet3Params.Name {
+		testnet = true
 	}
 	mockDB := datastore.NewMockMultiwalletDatastore()
 	if coinTypes[wallet.Bitcoin] {
+		var apiEndpoint string
+		if !testnet {
+			apiEndpoint = "https://insight.bitpay.com/api"
+		} else {
+			apiEndpoint = "https://test-insight.bitpay.com/api"
+		}
 		feeApi, _ := url.Parse("https://bitcoinfees.21.co/api/v1/fees/recommended")
-		clientApi, _ := url.Parse("https://insight.bitpay.com/api")
+		clientApi, _ := url.Parse(apiEndpoint)
 		db, _ := mockDB.GetDatastoreForWallet(wallet.Bitcoin)
 		btcCfg := CoinConfig{
-			CoinType: wallet.Bitcoin,
-			FeeAPI: *feeApi,
+			CoinType:  wallet.Bitcoin,
+			FeeAPI:    *feeApi,
 			LowFee:    140,
 			MediumFee: 160,
 			HighFee:   180,
 			MaxFee:    2000,
 			ClientAPI: *clientApi,
-			DB: db,
+			DB:        db,
 		}
 		cfg.Coins = append(cfg.Coins, btcCfg)
 	}
-
 
 	return cfg
 }

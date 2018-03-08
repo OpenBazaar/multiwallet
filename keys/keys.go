@@ -2,13 +2,13 @@ package keys
 
 import (
 	"errors"
+	"github.com/OpenBazaar/multiwallet/litecoin"
+	"github.com/OpenBazaar/multiwallet/zcash"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/cpacia/bchutil"
-	"github.com/OpenBazaar/multiwallet/zcash"
-	"github.com/OpenBazaar/multiwallet/litecoin"
 )
 
 const LOOKAHEADWINDOW = 20
@@ -79,7 +79,7 @@ func (km *KeyManager) GetCurrentKey(purpose wallet.KeyPurpose) (*hd.ExtendedKey,
 	if len(i) == 0 {
 		return nil, errors.New("No unused keys in database")
 	}
-	return km.generateChildKey(purpose, uint32(i[0]))
+	return km.GenerateChildKey(purpose, uint32(i[0]))
 }
 
 func (km *KeyManager) GetFreshKey(purpose wallet.KeyPurpose) (*hd.ExtendedKey, error) {
@@ -94,7 +94,7 @@ func (km *KeyManager) GetFreshKey(purpose wallet.KeyPurpose) (*hd.ExtendedKey, e
 		// There is a small possibility bip32 keys can be invalid. The procedure in such cases
 		// is to discard the key and derive the next one. This loop will continue until a valid key
 		// is derived.
-		childKey, err = km.generateChildKey(purpose, uint32(index))
+		childKey, err = km.GenerateChildKey(purpose, uint32(index))
 		if err == nil {
 			break
 		}
@@ -119,7 +119,7 @@ func (km *KeyManager) GetKeys() []*hd.ExtendedKey {
 		return keys
 	}
 	for _, path := range keyPaths {
-		k, err := km.generateChildKey(path.Purpose, uint32(path.Index))
+		k, err := km.GenerateChildKey(path.Purpose, uint32(path.Index))
 		if err != nil {
 			continue
 		}
@@ -145,7 +145,7 @@ func (km *KeyManager) GetKeyForScript(scriptAddress []byte) (*hd.ExtendedKey, er
 			true)
 		return hdKey, nil
 	}
-	return km.generateChildKey(keyPath.Purpose, uint32(keyPath.Index))
+	return km.GenerateChildKey(keyPath.Purpose, uint32(keyPath.Index))
 }
 
 // Mark the given key as used and extend the lookahead window
@@ -156,7 +156,7 @@ func (km *KeyManager) MarkKeyAsUsed(scriptAddress []byte) error {
 	return km.lookahead()
 }
 
-func (km *KeyManager) generateChildKey(purpose wallet.KeyPurpose, index uint32) (*hd.ExtendedKey, error) {
+func (km *KeyManager) GenerateChildKey(purpose wallet.KeyPurpose, index uint32) (*hd.ExtendedKey, error) {
 	if purpose == wallet.EXTERNAL {
 		return km.externalKey.Child(index)
 	} else if purpose == wallet.INTERNAL {
