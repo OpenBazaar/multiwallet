@@ -16,7 +16,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-	"encoding/json"
 )
 
 var log = logging.MustGetLogger("walletManager")
@@ -59,19 +58,25 @@ func (m *WalletManager) listen() {
 	}
 }
 
-// TODO
+// This is a transaction fresh off the wire. Let's save it to the db.
 func (m *WalletManager) processIncomingTransaction(tx client.Transaction) {
-	j, _ := json.MarshalIndent(tx, "", "    ")
-	log.Notice(string(j))
+	addrs := m.getStoredAddresses()
+	m.lock.RLock()
+	chainHeight := int32(m.chainHeight)
+	m.lock.RUnlock()
+	m.saveSingleTxToDB(tx, chainHeight, addrs)
 }
 
-// TODO
+// A new block was found, let's update our state to make sure all heights are accurate in case there
+// was a reorg. TODO: is there a more efficient way to do this?
 func (m *WalletManager) processIncomingBlock(block client.Block) {
-	j, _ := json.MarshalIndent(block, "", "    ")
-	log.Notice(string(j))
+	m.updateState()
 }
 
+// updateState will query the API for both UTXOs and TXs relevant to our wallet and then update
+// the db state to match the API responses.
 func (m *WalletManager) updateState() {
+	// Start by fetching the chain height from the API
 	log.Debugf("Querying for %s chain height", m.coinType.String())
 	info, err := m.client.GetInfo()
 	if err == nil {
@@ -79,8 +84,11 @@ func (m *WalletManager) updateState() {
 		m.lock.Lock()
 		m.chainHeight = uint32(info.Blocks)
 		m.lock.Unlock()
+	}  else {
+		log.Error("Error querying API for chain height: %s", err.Error())
 	}
 
+	// Load wallet addresses and watch only addresses from the db
 	addrs := m.getStoredAddresses()
 
 	go m.syncUtxos(addrs)
@@ -88,6 +96,7 @@ func (m *WalletManager) updateState() {
 
 }
 
+// Query API for UTXOs and synchronize db state
 func (m *WalletManager) syncUtxos(addrs map[string]storedAddress) {
 	log.Debugf("Querying for %s utxos", m.coinType.String())
 	var query []btcutil.Address
@@ -103,6 +112,9 @@ func (m *WalletManager) syncUtxos(addrs map[string]storedAddress) {
 	}
 }
 
+// For each API response we will have to figure out height at which the UTXO has confirmed (if it has) and
+// build a UTXO object suitable for saving to the database. If the database contains any UTXOs not returned
+// by the API we will delete them.
 func (m *WalletManager) saveUtxosToDB(utxos []client.Utxo, addrs map[string]storedAddress) {
 	// Get current utxos
 	currentUtxos, err := m.db.Utxos().GetAll()
@@ -158,12 +170,14 @@ func (m *WalletManager) saveUtxosToDB(utxos []client.Utxo, addrs map[string]stor
 	}
 }
 
+// For use as a map key
 func serializeUtxo(u wallet.Utxo) string {
 	ser := u.Op.Hash.String()
 	ser += strconv.Itoa(int(u.Op.Index))
 	return ser
 }
 
+// Query API for TXs and synchronize db state
 func (m *WalletManager) syncTxs(addrs map[string]storedAddress) {
 	log.Debugf("Querying for %s transactions", m.coinType.String())
 	var query []btcutil.Address
@@ -179,6 +193,10 @@ func (m *WalletManager) syncTxs(addrs map[string]storedAddress) {
 	}
 }
 
+// For each API response we will need to determine the net coins leaving/entering the wallet as well as determine
+// if the transaction was exclusively for our `watch only` addresses. We will also build a Tx object suitable
+// for saving to the db and delete any existing txs not returned by the API. Finally, for any output matching a key
+// in our wallet we need to mark that key as used in the db
 func (m *WalletManager) saveTxsToDB(txns []client.Transaction, addrs map[string]storedAddress) {
 	// Get current utxos
 	currentTxs, err := m.db.Txns().GetAll(true)
@@ -194,70 +212,8 @@ func (m *WalletManager) saveTxsToDB(txns []client.Transaction, addrs map[string]
 	newTxs := make(map[string]bool)
 	// Iterate over new utxos and put them to the db
 	for _, u := range txns {
-		msgTx := wire.NewMsgTx(int32(u.Version))
-		msgTx.LockTime = uint32(u.Locktime)
-		hits := 0
-		value := int64(0)
-
-		txHash, err := chainhash.NewHashFromStr(u.Txid)
-		if err != nil {
-			log.Error("Error converting to txHash for %s: %s", m.coinType.String(), err.Error())
-			continue
-		}
-		for _, in := range u.Inputs {
-			ch, err := chainhash.NewHashFromStr(in.Txid)
-			if err != nil {
-				log.Error("Error converting to chainhash for %s: %s", m.coinType.String(), err.Error())
-				continue
-			}
-			op := wire.NewOutPoint(ch, uint32(in.Vout))
-			script, err := hex.DecodeString(in.ScriptSig.Hex)
-			if err != nil {
-				log.Error("Error converting to scriptSig for %s: %s", m.coinType.String(), err.Error())
-				continue
-			}
-			txin := wire.NewTxIn(op, script, [][]byte{})
-			txin.Sequence = uint32(in.Sequence)
-			msgTx.TxIn = append(msgTx.TxIn, txin)
-			sa, ok := addrs[in.Addr]
-			if ok && !sa.WatchOnly {
-				hits++
-				value -= in.Satoshis
-			}
-		}
-		for _, out := range u.Outputs {
-			script, err := hex.DecodeString(out.ScriptPubKey.Hex)
-			if err != nil {
-				log.Error("Error converting to scriptPubkey for %s: %s", m.coinType.String(), err.Error())
-				continue
-			}
-			if len(out.ScriptPubKey.Addresses) == 0 {
-				continue
-			}
-			v := int64(out.Value * 100000000) // TODO: need to use correct number of satoshi for each coin
-			sa, ok := addrs[out.ScriptPubKey.Addresses[0]]
-			if ok && !sa.WatchOnly {
-				hits++
-				value += v
-			}
-			txout := wire.NewTxOut(v, script)
-			msgTx.TxOut = append(msgTx.TxOut, txout)
-		}
-		height := int32(0)
-		if u.Confirmations > 0 {
-			height = chainHeight - (int32(u.Confirmations) - 1)
-		}
-
+		m.saveSingleTxToDB(u, chainHeight, addrs)
 		newTxs[u.Txid] = true
-		_, _, err = m.db.Txns().Get(*txHash)
-
-		// TODO: the db interface might need to change here to accept a txid and serialized tx rather than the wire.MsgTx
-		// the reason is that it seems unlikely the txhash would be calculated the same way for each coin we support.
-		if err != nil {
-			m.db.Txns().Put(msgTx, int(value), int(height), time.Now(), hits == 0)
-		} else {
-			m.db.Txns().UpdateHeight(*txHash, int(height))
-		}
 	}
 	// If any old utxos were not returned by the API, delete them.
 	for _, cur := range currentTxs {
@@ -269,6 +225,75 @@ func (m *WalletManager) saveTxsToDB(txns []client.Transaction, addrs map[string]
 			}
 			m.db.Txns().Delete(ch)
 		}
+	}
+}
+
+func (m *WalletManager) saveSingleTxToDB(u client.Transaction, chainHeight int32, addrs map[string]storedAddress) {
+	msgTx := wire.NewMsgTx(int32(u.Version))
+	msgTx.LockTime = uint32(u.Locktime)
+	hits := 0
+	value := int64(0)
+
+	txHash, err := chainhash.NewHashFromStr(u.Txid)
+	if err != nil {
+		log.Error("Error converting to txHash for %s: %s", m.coinType.String(), err.Error())
+		return
+	}
+	for _, in := range u.Inputs {
+		ch, err := chainhash.NewHashFromStr(in.Txid)
+		if err != nil {
+			log.Error("Error converting to chainhash for %s: %s", m.coinType.String(), err.Error())
+			continue
+		}
+		op := wire.NewOutPoint(ch, uint32(in.Vout))
+		script, err := hex.DecodeString(in.ScriptSig.Hex)
+		if err != nil {
+			log.Error("Error converting to scriptSig for %s: %s", m.coinType.String(), err.Error())
+			continue
+		}
+		txin := wire.NewTxIn(op, script, [][]byte{})
+		txin.Sequence = uint32(in.Sequence)
+		msgTx.TxIn = append(msgTx.TxIn, txin)
+		sa, ok := addrs[in.Addr]
+		if ok && !sa.WatchOnly {
+			hits++
+			value -= in.Satoshis
+		}
+	}
+	for _, out := range u.Outputs {
+		script, err := hex.DecodeString(out.ScriptPubKey.Hex)
+		if err != nil {
+			log.Error("Error converting to scriptPubkey for %s: %s", m.coinType.String(), err.Error())
+			continue
+		}
+		if len(out.ScriptPubKey.Addresses) == 0 {
+			continue
+		}
+		v := int64(out.Value * 100000000) // TODO: need to use correct number of satoshi for each coin
+		sa, ok := addrs[out.ScriptPubKey.Addresses[0]]
+		if ok && !sa.WatchOnly {
+			hits++
+			value += v
+
+			// Mark the key we received coins to as used
+			m.db.Keys().MarkKeyAsUsed(sa.Addr.ScriptAddress())
+		}
+		txout := wire.NewTxOut(v, script)
+		msgTx.TxOut = append(msgTx.TxOut, txout)
+	}
+	height := int32(0)
+	if u.Confirmations > 0 {
+		height = chainHeight - (int32(u.Confirmations) - 1)
+	}
+
+	// TODO: the db interface might need to change here to accept a txid and serialized tx rather than the wire.MsgTx
+	// the reason is that it seems unlikely the txhash would be calculated the same way for each coin we support.
+
+	// TODO: Fire tx listener if new tx or if height is changing
+	if err != nil {
+		m.db.Txns().Put(msgTx, int(value), int(height), time.Now(), hits == 0)
+	} else {
+		m.db.Txns().UpdateHeight(*txHash, int(height))
 	}
 }
 

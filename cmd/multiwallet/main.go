@@ -32,7 +32,7 @@ func main() {
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		for range c {
-			fmt.Println("SPVWallet shutting down...")
+			fmt.Println("Multiwallet shutting down...")
 			os.Exit(1)
 		}
 	}()
@@ -64,7 +64,8 @@ func (x *Start) Execute(args []string) error {
 	}
 	cfg := config.NewDefaultConfig(m, params)
 	cfg.Mnemonic = "design author ability expose illegal saddle antique setup pledge wife innocent treat"
-	mw, err := multiwallet.NewMultiWallet(cfg)
+	var err error
+	mw, err = multiwallet.NewMultiWallet(cfg)
 	if err != nil {
 		return err
 	}

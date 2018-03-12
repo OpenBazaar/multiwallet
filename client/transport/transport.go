@@ -3,7 +3,7 @@ package transport
 import (
 	"errors"
 	"github.com/gorilla/websocket"
-	tp "github.com/graarh/golang-socketio/transport"
+	tp "github.com/OpenBazaar/golang-socketio/transport"
 	"golang.org/x/net/proxy"
 	"io/ioutil"
 	"net"

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/OpenBazaar/multiwallet/client/transport"
 	"github.com/btcsuite/btcutil"
-	"github.com/graarh/golang-socketio"
+	"github.com/OpenBazaar/golang-socketio"
 	"golang.org/x/net/proxy"
 	"io"
 	"net"
@@ -17,7 +17,10 @@ import (
 	"path"
 	"strconv"
 	"time"
+	"github.com/op/go-logging"
 )
+
+var log = logging.MustGetLogger("client")
 
 type InsightClient struct {
 	httpClient      http.Client
@@ -65,11 +68,11 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	case <-socketReady:
 		break
 	}
-	socketClient.Emit("subscribe", "inv")
+	//socketClient.Emit("subscribe", "inv")
 
 	bch := make(chan Block)
-	socketClient.On("block", func(h *gosocketio.Channel, arg Block) {
-		bch <- arg
+	socketClient.On("block", func(h *gosocketio.Channel, arg string) {
+		bch <- Block{arg}
 	})
 	tch := make(chan Transaction)
 	tbTransport := &http.Transport{Dial: dial}
@@ -247,10 +250,17 @@ func (i *InsightClient) TransactionNotify() <-chan Transaction {
 }
 
 func (i *InsightClient) ListenAddress(addr btcutil.Address) {
-	i.socketClient.Emit("subscribe", addr.String())
-	i.socketClient.On(addr.String(), func(h *gosocketio.Channel, arg Transaction) {
-		i.txNotifyChan <- arg
+	var args []interface{}
+	args = append(args, "bitcoind/addresstxid")
+	args = append(args, []string{addr.String()})
+	i.socketClient.On("bitcoind/addresstxid", func(h *gosocketio.Channel, arg AddressTxid) {
+		tx, err := i.GetTransaction(arg.Txid)
+		if err != nil {
+			log.Errorf("Error downloading tx after socket notification: %s", err.Error())
+		}
+		i.txNotifyChan <- *tx
 	})
+	i.socketClient.Emit("subscribe", args)
 }
 
 func (i *InsightClient) Broadcast(tx []byte) (string, error) {

@@ -87,3 +87,8 @@ type OutScript struct {
 	Addresses []string `json:"addresses"`
 	Type      string   `json:"type"`
 }
+
+type AddressTxid struct {
+	Address string `json:"address"`
+	Txid string `json:"txid"`
+}
