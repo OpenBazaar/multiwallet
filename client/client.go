@@ -82,14 +82,12 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 		socketClient,
 	}
 	socketClient.On("bitcoind/hashblock", func(h *gosocketio.Channel, arg interface{}) {
-		for i:=0; i<2; i++ {
-			best, err := ic.GetBestBlock()
-			if err == nil {
-				bch <- *best
-				return
-			}
+		best, err := ic.GetBestBlock()
+		if err != nil {
+			log.Errorf("Error downloading best block: %s", err.Error())
+			return
 		}
-		log.Errorf("Error downloading best block: %s", err.Error())
+		bch <- *best
 	})
 	return ic, nil
 }
@@ -109,6 +107,10 @@ func (i *InsightClient) doRequest(endpoint, method string, body io.Reader, query
 	resp, err := i.httpClient.Do(req)
 	if err != nil {
 		return nil, err
+	}
+	// Try again if for some reason it returned a bad request
+	if resp.StatusCode == http.StatusBadRequest {
+		resp, err = i.httpClient.Do(req)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status not ok: %s\n", resp.Status)

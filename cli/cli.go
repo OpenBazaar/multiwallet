@@ -9,6 +9,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"strings"
+	"strconv"
 )
 
 func SetupCli(parser *flags.Parser) {
@@ -49,6 +50,24 @@ func SetupCli(parser *flags.Parser) {
 		"print out the database tables",
 		"Prints each row in the database tables",
 		&dumpTables)
+	parser.AddCommand("spend",
+		"send bitcoins",
+		"Send bitcoins to the given address\n\n"+
+			"Args:\n"+
+			"1. coinType      (string)\n"+
+			"2. address       (string) The recipient's bitcoin address\n"+
+			"3. amount        (integer) The amount to send in satoshi"+
+			"4. feelevel      (string default=normal) The fee level: economic, normal, priority\n\n"+
+			"Examples:\n"+
+			"> multiwallet spend bitcoin 1DxGWC22a46VPEjq8YKoeVXSLzB7BA8sJS 1000000\n"+
+			"82bfd45f3564e0b5166ab9ca072200a237f78499576e9658b20b0ccd10ff325c"+
+			"> multiwallet spend bitcoin 1DxGWC22a46VPEjq8YKoeVXSLzB7BA8sJS 3000000000 priority\n"+
+			"82bfd45f3564e0b5166ab9ca072200a237f78499576e9658b20b0ccd10ff325c",
+		&spend)
+	parser.AddCommand("balance",
+		"get the wallet's balances",
+		"Returns the confirmed and unconfirmed balances for the specified coin",
+		&balance)
 }
 
 func coinType(args []string) pb.CoinType {
@@ -213,5 +232,71 @@ func (x *DumpTables) Execute(args []string) error {
 		}
 		fmt.Println(row.Data)
 	}
+	return nil
+}
+
+type Spend struct{}
+
+var spend Spend
+
+func (x *Spend) Execute(args []string) error {
+	client, conn, err := newGRPCClient()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if len(args) == 0 {
+		return errors.New("Must select coin type")
+	}
+	t := coinType(args)
+	var feeLevel pb.FeeLevel
+	userSelection := ""
+	if len(args) > 3 {
+		userSelection = args[3]
+	}
+	if len(args) < 3 {
+		return errors.New("Address and amount are required")
+	}
+	switch strings.ToLower(userSelection) {
+	case "economic":
+		feeLevel = pb.FeeLevel_ECONOMIC
+	case "normal":
+		feeLevel = pb.FeeLevel_NORMAL
+	case "priority":
+		feeLevel = pb.FeeLevel_PRIORITY
+	default:
+		feeLevel = pb.FeeLevel_NORMAL
+	}
+	amt, err := strconv.Atoi(args[2])
+	if err != nil {
+		return err
+	}
+	resp, err := client.Spend(context.Background(), &pb.SpendInfo{t, args[1], uint64(amt), feeLevel})
+	if err != nil {
+		return err
+	}
+	fmt.Println(resp.Hash)
+	return nil
+}
+
+type Balance struct{}
+
+var balance Balance
+
+func (x *Balance) Execute(args []string) error {
+	client, conn, err := newGRPCClient()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if len(args) == 0 {
+		return errors.New("Must select coin type")
+	}
+	t := coinType(args)
+	resp, err := client.Balance(context.Background(), &pb.CoinSelection{t})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Confirmed: %d, Unconfirmed: %d\n", resp.Confirmed, resp.Unconfirmed)
 	return nil
 }

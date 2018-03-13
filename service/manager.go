@@ -1,4 +1,4 @@
-package wallet
+package service
 
 import (
 	"encoding/hex"
@@ -149,14 +149,17 @@ func (m *WalletManager) processIncomingBlock(block client.Block) {
 			go func(txn wallet.Txn) {
 				ret, err := m.client.GetTransaction(txn.Txid)
 				if err != nil {
-					log.Error("Error fetching unconfirmed %s tx: %s", m.coinType.String(), err.Error())
+					log.Errorf("Error fetching unconfirmed %s tx: %s", m.coinType.String(), err.Error())
 					return
 				}
-				m.saveSingleTxToDB(*ret, int32(block.Height), addrs)
-				for _, u := range utxos {
-					if u.Op.Hash.String() == txn.Txid {
-						u.AtHeight = int32(block.Height)
-						m.db.Utxos().Put(u)
+				if ret.Confirmations > 0 {
+					h := int32(block.Height)-int32(ret.Confirmations-1)
+					m.saveSingleTxToDB(*ret, h, addrs)
+					for _, u := range utxos {
+						if u.Op.Hash.String() == txn.Txid {
+							u.AtHeight = h
+							m.db.Utxos().Put(u)
+						}
 					}
 				}
 			}(tx)

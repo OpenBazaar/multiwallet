@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"net"
+	"github.com/btcsuite/btcutil"
 )
 
 const Addr = "127.0.0.1:8234"
@@ -84,8 +85,8 @@ func (s *server) ChainTip(ctx context.Context, in *pb.CoinSelection) (*pb.Height
 }
 
 func (s *server) Balance(ctx context.Context, in *pb.CoinSelection) (*pb.Balances, error) {
-	// Stub
-	return &pb.Balances{uint64(0), uint64(0)}, nil
+	c, u := s.w[coinType(in.Coin)].Balance()
+	return &pb.Balances{uint64(c), uint64(u)}, nil
 }
 
 func (s *server) MasterPrivateKey(ctx context.Context, in *pb.CoinSelection) (*pb.Key, error) {
@@ -126,8 +127,31 @@ func (s *server) GetFeePerByte(ctx context.Context, in *pb.FeeLevelSelection) (*
 }
 
 func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) {
-	// Stub
-	return &pb.Txid{in.Coin, ""}, nil
+	var addr btcutil.Address
+	var err error
+	switch(in.Coin) {
+	case pb.CoinType_BITCOIN:
+		addr, err = s.w[wallet.Bitcoin].DecodeAddress(in.Address)
+	}
+	if err != nil {
+		return nil, err
+	}
+	var feeLevel wallet.FeeLevel
+	switch(in.FeeLevel) {
+	case pb.FeeLevel_PRIORITY:
+		feeLevel = wallet.PRIOIRTY
+	case pb.FeeLevel_NORMAL:
+		feeLevel = wallet.NORMAL
+	case pb.FeeLevel_ECONOMIC:
+		feeLevel = wallet.ECONOMIC
+	default:
+		feeLevel = wallet.NORMAL
+	}
+	txid, err := s.w[coinType(in.Coin)].Spend(int64(in.Amount), addr, feeLevel)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.Txid{in.Coin, txid.String()}, nil
 }
 
 func (s *server) BumpFee(ctx context.Context, in *pb.Txid) (*pb.Txid, error) {

@@ -2,7 +2,6 @@ package multiwallet
 
 import (
 	"github.com/OpenBazaar/multiwallet/bitcoin"
-	client2 "github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/config"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/op/go-logging"
@@ -31,15 +30,12 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 	}
 
 	multiwallet := make(MultiWallet) // TODO: change to wallet interface when BitcoinWallet conforms
+	var err error
 	for _, coin := range cfg.Coins {
 		var w *bitcoin.BitcoinWallet // TODO: change to wallet interface when BitcoinWallet conforms
 		switch coin.CoinType {
 		case wallet.Bitcoin:
-			client, err := client2.NewInsightClient(coin.ClientAPI.String(), cfg.Proxy)
-			if err != nil {
-				return nil, err
-			}
-			w, err = bitcoin.NewBitcoinWallet(coin.DB, cfg.Mnemonic, client, cfg.Params)
+			w, err = bitcoin.NewBitcoinWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy)
 			if err != nil {
 				return nil, err
 			}
