@@ -32,7 +32,7 @@ func ServeAPI(w multiwallet.MultiWallet) error {
 }
 
 func coinType(coinType pb.CoinType) wallet.CoinType {
-	switch(coinType) {
+	switch coinType {
 	case pb.CoinType_BITCOIN:
 		return wallet.Bitcoin
 	case pb.CoinType_BITCOIN_CASH:
@@ -79,8 +79,8 @@ func (s *server) NewAddress(ctx context.Context, in *pb.KeySelection) (*pb.Addre
 }
 
 func (s *server) ChainTip(ctx context.Context, in *pb.CoinSelection) (*pb.Height, error) {
-	// Stub
-	return &pb.Height{0}, nil
+	h, _ := s.w[coinType(in.Coin)].ChainTip()
+	return &pb.Height{h}, nil
 }
 
 func (s *server) Balance(ctx context.Context, in *pb.CoinSelection) (*pb.Balances, error) {
@@ -184,4 +184,22 @@ func (s *server) ListKeys(ctx context.Context, in *pb.CoinSelection) (*pb.Keys, 
 	// Stub
 	var list []*pb.Key
 	return &pb.Keys{list}, nil
+}
+
+type HeaderWriter struct {
+	stream pb.API_DumpTablesServer
+}
+
+func (h *HeaderWriter) Write(p []byte) (n int, err error) {
+	hdr := &pb.Row{string(p)}
+	if err := h.stream.Send(hdr); err != nil {
+		return 0, err
+	}
+	return 0, nil
+}
+
+func (s *server) DumpTables(in *pb.CoinSelection, stream pb.API_DumpTablesServer) error {
+	writer := HeaderWriter{stream}
+	s.w[coinType(in.Coin)].DumpTables(&writer)
+	return nil
 }

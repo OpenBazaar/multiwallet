@@ -2,9 +2,9 @@ package client
 
 import (
 	"fmt"
+	"github.com/OpenBazaar/golang-socketio"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil"
-	"github.com/graarh/golang-socketio"
 	"gopkg.in/jarcoal/httpmock.v1"
 	"net/http"
 	"net/url"
@@ -379,25 +379,29 @@ func TestInsightClient_Broadcast(t *testing.T) {
 	}
 }
 
-func TestInsightClient_GetInfo(t *testing.T) {
+func TestInsightClient_GetBestBlock(t *testing.T) {
 	setup()
 	defer teardown()
 
 	var (
 		c        = newTestClient()
-		testPath = fmt.Sprintf("http://%s/status", c.apiUrl.Host)
-		expected = Status{
-			Info: Info{
-				Version:         12345,
-				Errors:          "some error",
-				DifficultyIface: "10.987",
-				RelayFeeIface:   "0.001",
-				Testnet:         true,
-				Blocks:          50500,
-				Connections:     25,
-				Network:         "mainnet",
-				ProtocolVersion: 10101,
-				TimeOffset:      2,
+		testPath = fmt.Sprintf("http://%s/blocks", c.apiUrl.Host)
+		expected = BlockSummaryList{
+			Blocks: []Block{
+				{
+					Hash:     "00000000000000000108a1f4d4db839702d72f16561b1154600a26c453ecb378",
+					Height:   2,
+					Time:     12345,
+					Size:     200,
+					TxLength: 5,
+				},
+				{
+					Hash:     "0000000000c96f193d23fde69a2fff56793e99e23cbd51947828a33e287ff659",
+					Height:   1,
+					Time:     23456,
+					Size:     300,
+					TxLength: 6,
+				},
 			},
 		}
 	)
@@ -413,39 +417,27 @@ func TestInsightClient_GetInfo(t *testing.T) {
 		},
 	)
 
-	info, err := c.GetInfo()
+	best, err := c.GetBestBlock()
 	if err != nil {
 		t.Error(err)
 	}
-	if info.TimeOffset != expected.Info.TimeOffset {
-		t.Error("Invalid info obj")
+	if best.TxLength != expected.Blocks[0].TxLength {
+		t.Errorf("Invalid block obj")
 	}
-	if info.ProtocolVersion != expected.Info.ProtocolVersion {
-		t.Error("Invalid info obj")
+	if best.Size != expected.Blocks[0].Size {
+		t.Errorf("Invalid block obj")
 	}
-	if info.Network != expected.Info.Network {
-		t.Error("Invalid info obj")
+	if best.Time != expected.Blocks[0].Time {
+		t.Errorf("Invalid block obj")
 	}
-	if info.Connections != expected.Info.Connections {
-		t.Error("Invalid info obj")
+	if best.Height != expected.Blocks[0].Height {
+		t.Errorf("Invalid block obj")
 	}
-	if info.Blocks != expected.Info.Blocks {
-		t.Error("Invalid info obj")
+	if best.Hash != expected.Blocks[0].Hash {
+		t.Errorf("Invalid block obj")
 	}
-	if info.Testnet != expected.Info.Testnet {
-		t.Error("Invalid info obj")
-	}
-	if info.Errors != expected.Info.Errors {
-		t.Error("Invalid info obj")
-	}
-	if info.Version != expected.Info.Version {
-		t.Error("Invalid info obj")
-	}
-	if info.RelayFee != 0.001 {
-		t.Error("Invalid info obj")
-	}
-	if info.Difficulty != 10.987 {
-		t.Error("Invalid info obj")
+	if best.Parent != expected.Blocks[1].Hash {
+		t.Errorf("Invalid block obj")
 	}
 }
 

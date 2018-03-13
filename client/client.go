@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/OpenBazaar/golang-socketio"
+	"github.com/OpenBazaar/golang-socketio/protocol"
 	"github.com/OpenBazaar/multiwallet/client/transport"
 	"github.com/btcsuite/btcutil"
-	"github.com/OpenBazaar/golang-socketio"
+	"github.com/op/go-logging"
 	"golang.org/x/net/proxy"
 	"io"
 	"net"
@@ -17,7 +19,6 @@ import (
 	"path"
 	"strconv"
 	"time"
-	"github.com/op/go-logging"
 )
 
 var log = logging.MustGetLogger("client")
@@ -68,21 +69,27 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	case <-socketReady:
 		break
 	}
-	//socketClient.Emit("subscribe", "inv")
+	socketClient.Emit("subscribe", protocol.ToArgArray("bitcoind/hashblock"))
 
 	bch := make(chan Block)
-	socketClient.On("block", func(h *gosocketio.Channel, arg string) {
-		bch <- Block{arg}
-	})
 	tch := make(chan Transaction)
 	tbTransport := &http.Transport{Dial: dial}
-	return &InsightClient{
+	ic := &InsightClient{
 		http.Client{Timeout: time.Second * 30, Transport: tbTransport},
 		*u,
 		bch,
 		tch,
 		socketClient,
-	}, nil
+	}
+	socketClient.On("bitcoind/hashblock", func(h *gosocketio.Channel, arg interface{}) {
+		best, err := ic.GetBestBlock()
+		if err != nil {
+			log.Errorf("Error downloading best block: %s", err.Error())
+			return
+		}
+		bch <- *best
+	})
+	return ic, nil
 }
 
 func (i *InsightClient) doRequest(endpoint, method string, body io.Reader, query url.Values) (*http.Response, error) {
@@ -287,33 +294,27 @@ func (i *InsightClient) Broadcast(tx []byte) (string, error) {
 	return id.Txid, nil
 }
 
-func (i *InsightClient) GetInfo() (*Info, error) {
-	q, err := url.ParseQuery("?q=values")
+func (i *InsightClient) GetBestBlock() (*Block, error) {
+	q, err := url.ParseQuery("limit=2")
 	if err != nil {
 		return nil, err
 	}
-	resp, err := i.doRequest("status", http.MethodGet, nil, q)
+	resp, err := i.doRequest("blocks", http.MethodGet, nil, q)
 	if err != nil {
 		return nil, err
 	}
 	decoder := json.NewDecoder(resp.Body)
-	stat := new(Status)
+	sl := new(BlockSummaryList)
 	defer resp.Body.Close()
-	if err = decoder.Decode(stat); err != nil {
-		return nil, fmt.Errorf("error decoding utxo list: %s\n", err)
+	if err = decoder.Decode(sl); err != nil {
+		return nil, fmt.Errorf("error decoding block list: %s\n", err)
 	}
-	info := stat.Info
-	f, err := toFloat(stat.Info.RelayFeeIface)
-	if err != nil {
-		return nil, err
+	if len(sl.Blocks) != 2 {
+		return nil, fmt.Errorf("API returned incorrect number of block summaries")
 	}
-	info.RelayFee = f
-	f, err = toFloat(stat.Info.DifficultyIface)
-	if err != nil {
-		return nil, err
-	}
-	info.Difficulty = f
-	return &info, nil
+	sum := sl.Blocks[0]
+	sum.Parent = sl.Blocks[1].Hash
+	return &sum, nil
 }
 
 // API sometimees returns a float64 or a string so we'll always convert it into a float64

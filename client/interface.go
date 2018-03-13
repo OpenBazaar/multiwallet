@@ -26,6 +26,6 @@ type APIClient interface {
 	// Broadcast a transaction to the network
 	Broadcast(tx []byte) (string, error)
 
-	// Get network info
-	GetInfo() (*Info, error)
+	// Get info on the current chain tip
+	GetBestBlock() (*Block, error)
 }

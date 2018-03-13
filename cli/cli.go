@@ -21,7 +21,7 @@ func SetupCli(parser *flags.Parser) {
 		"get the current bitcoin address",
 		"Returns the first unused address in the keychain\n\n"+
 			"Args:\n"+
-		        "1. coinType (string)\n"+
+			"1. coinType (string)\n"+
 			"2. purpose       (string default=external) The purpose for the address. Can be external for receiving from outside parties or internal for example, for change.\n\n"+
 			"Examples:\n"+
 			"> multiwallet currentaddress bitcoin\n"+
@@ -41,13 +41,21 @@ func SetupCli(parser *flags.Parser) {
 			"> multiwallet newaddress bitcoin internal\n"+
 			"18zAxgfKx4NuTUGUEuB8p7FKgCYPM15DfS\n",
 		&newAddress)
+	parser.AddCommand("chaintip",
+		"return the height of the chain",
+		"Returns the height of the best chain of blocks",
+		&chainTip)
+	parser.AddCommand("dumptables",
+		"print out the database tables",
+		"Prints each row in the database tables",
+		&dumpTables)
 }
 
 func coinType(args []string) pb.CoinType {
 	if len(args) == 0 {
 		return pb.CoinType_BITCOIN
 	}
-	switch(strings.ToLower(args[0])) {
+	switch strings.ToLower(args[0]) {
 	case "bitcoin":
 		return pb.CoinType_BITCOIN
 	case "bitcoincash":
@@ -155,5 +163,55 @@ func (x *NewAddress) Execute(args []string) error {
 		return err
 	}
 	fmt.Println(resp.Addr)
+	return nil
+}
+
+type ChainTip struct{}
+
+var chainTip ChainTip
+
+func (x *ChainTip) Execute(args []string) error {
+	client, conn, err := newGRPCClient()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if len(args) == 0 {
+		return errors.New("Must select coin type")
+	}
+	t := coinType(args)
+	resp, err := client.ChainTip(context.Background(), &pb.CoinSelection{t})
+	if err != nil {
+		return err
+	}
+	fmt.Println(resp.Height)
+	return nil
+}
+
+type DumpTables struct{}
+
+var dumpTables DumpTables
+
+func (x *DumpTables) Execute(args []string) error {
+	client, conn, err := newGRPCClient()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if len(args) == 0 {
+		return errors.New("Must select coin type")
+	}
+	t := coinType(args)
+	resp, err := client.DumpTables(context.Background(), &pb.CoinSelection{t})
+	if err != nil {
+		return err
+	}
+	for {
+		row, err := resp.Recv()
+		if err != nil {
+			return err
+		}
+		fmt.Println(row.Data)
+	}
 	return nil
 }

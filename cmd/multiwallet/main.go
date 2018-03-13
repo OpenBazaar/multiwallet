@@ -1,17 +1,17 @@
 package main
 
 import (
-	"github.com/OpenBazaar/multiwallet"
-	"github.com/OpenBazaar/multiwallet/config"
 	"fmt"
-	"sync"
-	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/OpenBazaar/multiwallet"
 	"github.com/OpenBazaar/multiwallet/api"
+	"github.com/OpenBazaar/multiwallet/cli"
+	"github.com/OpenBazaar/multiwallet/config"
 	wi "github.com/OpenBazaar/wallet-interface"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/jessevdk/go-flags"
 	"os"
 	"os/signal"
-	"github.com/jessevdk/go-flags"
-	"github.com/OpenBazaar/multiwallet/cli"
+	"sync"
 )
 
 const WALLET_VERSION = "0.1.0"
@@ -19,7 +19,7 @@ const WALLET_VERSION = "0.1.0"
 var parser = flags.NewParser(nil, flags.Default)
 
 type Start struct {
-	Testnet            bool   `short:"t" long:"testnet" description:"use the test network"`
+	Testnet bool `short:"t" long:"testnet" description:"use the test network"`
 }
 type Version struct{}
 

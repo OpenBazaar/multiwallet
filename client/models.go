@@ -19,8 +19,17 @@ type Info struct {
 	Network         string `json:"network"`
 }
 
+type BlockSummaryList struct {
+	Blocks []Block `json:"blocks"`
+}
+
 type Block struct {
-	Hash string `json:"hash"`
+	Height   int    `json:"height"`
+	Size     int    `json:"size"`
+	Hash     string `json:"hash"`
+	Parent   string `json:"parent"`
+	Time     int    `json:"time"`
+	TxLength int    `json:"txlength"`
 }
 
 type Utxo struct {
@@ -90,5 +99,5 @@ type OutScript struct {
 
 type AddressTxid struct {
 	Address string `json:"address"`
-	Txid string `json:"txid"`
+	Txid    string `json:"txid"`
 }

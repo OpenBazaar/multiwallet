@@ -29,6 +29,7 @@ service API {
   rpc ListKeys (CoinSelection) returns (Keys) {}
   rpc ListAddresses (CoinSelection) returns (Addresses) {}
   rpc WalletNotify (CoinSelection) returns (stream Tx) {}
+  rpc DumpTables (CoinSelection) returns (stream Row) {}
 }
 
 enum CoinType {
@@ -47,6 +48,10 @@ message CoinSelection {
 enum KeyPurpose {
     INTERNAL = 0;
     EXTERNAL = 1;
+}
+
+message Row {
+    string data = 1;
 }
 
 message KeySelection {
