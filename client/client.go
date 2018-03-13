@@ -82,12 +82,14 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 		socketClient,
 	}
 	socketClient.On("bitcoind/hashblock", func(h *gosocketio.Channel, arg interface{}) {
-		best, err := ic.GetBestBlock()
-		if err != nil {
-			log.Errorf("Error downloading best block: %s", err.Error())
-			return
+		for i:=0; i<2; i++ {
+			best, err := ic.GetBestBlock()
+			if err == nil {
+				bch <- *best
+				return
+			}
 		}
-		bch <- *best
+		log.Errorf("Error downloading best block: %s", err.Error())
 	})
 	return ic, nil
 }

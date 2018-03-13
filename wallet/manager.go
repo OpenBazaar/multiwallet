@@ -76,6 +76,11 @@ func (m *WalletManager) processIncomingTransaction(tx client.Transaction) {
 	chainHeight := int32(m.chainHeight)
 	m.lock.RUnlock()
 	m.saveSingleTxToDB(tx, chainHeight, addrs)
+	utxos, err := m.db.Utxos().GetAll()
+	if err != nil {
+		log.Errorf("Error loading %s utxos: %s", m.coinType.String(), err.Error())
+	}
+
 	var utxo *client.Utxo
 	for _, sa := range addrs {
 		for _, out := range tx.Outputs {
@@ -90,6 +95,15 @@ func (m *WalletManager) processIncomingTransaction(tx client.Transaction) {
 						Confirmations: 0,
 						Amount:        out.Value,
 					}
+					break
+				}
+			}
+		}
+		for _, in := range tx.Inputs {
+			for _, u := range utxos {
+				if in.Txid == u.Op.Hash.String() && in.Vout == int(u.Op.Index) {
+					m.db.Utxos().Delete(u)
+					break
 				}
 			}
 		}
