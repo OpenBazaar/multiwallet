@@ -28,4 +28,7 @@ type APIClient interface {
 
 	// Get info on the current chain tip
 	GetBestBlock() (*Block, error)
+
+	// Close all connections and shutdown
+	Close()
 }

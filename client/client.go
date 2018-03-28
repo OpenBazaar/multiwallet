@@ -92,6 +92,10 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	return ic, nil
 }
 
+func (i *InsightClient) Close() {
+	i.socketClient.Close()
+}
+
 func (i *InsightClient) doRequest(endpoint, method string, body io.Reader, query url.Values) (*http.Response, error) {
 	requestUrl := i.apiUrl
 	requestUrl.Path = path.Join(i.apiUrl.Path, endpoint)

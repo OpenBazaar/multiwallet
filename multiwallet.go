@@ -11,7 +11,7 @@ import (
 
 var log = logging.MustGetLogger("multiwallet")
 
-type MultiWallet map[wallet.CoinType]*bitcoin.BitcoinWallet
+type MultiWallet map[wallet.CoinType]wallet.Wallet
 
 func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 	log.SetBackend(logging.AddModuleLevel(cfg.Logger))

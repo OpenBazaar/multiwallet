@@ -8,8 +8,8 @@ import (
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 func SetupCli(parser *flags.Parser) {

@@ -5,11 +5,12 @@ import (
 	"github.com/OpenBazaar/multiwallet"
 	"github.com/OpenBazaar/multiwallet/api/pb"
 	"github.com/OpenBazaar/wallet-interface"
+	"github.com/btcsuite/btcutil"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"net"
-	"github.com/btcsuite/btcutil"
+	"github.com/OpenBazaar/multiwallet/bitcoin"
 )
 
 const Addr = "127.0.0.1:8234"
@@ -129,7 +130,7 @@ func (s *server) GetFeePerByte(ctx context.Context, in *pb.FeeLevelSelection) (*
 func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) {
 	var addr btcutil.Address
 	var err error
-	switch(in.Coin) {
+	switch in.Coin {
 	case pb.CoinType_BITCOIN:
 		addr, err = s.w[wallet.Bitcoin].DecodeAddress(in.Address)
 	}
@@ -137,7 +138,7 @@ func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) 
 		return nil, err
 	}
 	var feeLevel wallet.FeeLevel
-	switch(in.FeeLevel) {
+	switch in.FeeLevel {
 	case pb.FeeLevel_PRIORITY:
 		feeLevel = wallet.PRIOIRTY
 	case pb.FeeLevel_NORMAL:
@@ -224,6 +225,9 @@ func (h *HeaderWriter) Write(p []byte) (n int, err error) {
 
 func (s *server) DumpTables(in *pb.CoinSelection, stream pb.API_DumpTablesServer) error {
 	writer := HeaderWriter{stream}
-	s.w[coinType(in.Coin)].DumpTables(&writer)
+	bitcoinWallet, ok := s.w[coinType(in.Coin)].(*bitcoin.BitcoinWallet)
+	if ok {
+		bitcoinWallet.DumpTables(&writer)
+	}
 	return nil
 }
