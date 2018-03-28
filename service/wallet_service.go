@@ -419,7 +419,6 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 	// TODO: the db interface might need to change here to accept a txid and serialized tx rather than the wire.MsgTx
 	// the reason is that it seems unlikely the txhash would be calculated the same way for each coin we support.
 
-	// TODO: Fire tx listener if new tx or if height is changing
 	cb.Value = value
 	cb.WatchOnly = (hits == 0)
 	_, saved, err := ws.db.Txns().Get(*txHash)

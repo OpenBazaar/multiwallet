@@ -20,34 +20,8 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"github.com/btcsuite/btcd/blockchain"
+	"github.com/OpenBazaar/multiwallet/util"
 )
-
-type Coin struct {
-	TxHash       *chainhash.Hash
-	TxIndex      uint32
-	TxValue      btc.Amount
-	TxNumConfs   int64
-	ScriptPubKey []byte
-}
-
-func (c *Coin) Hash() *chainhash.Hash { return c.TxHash }
-func (c *Coin) Index() uint32         { return c.TxIndex }
-func (c *Coin) Value() btc.Amount     { return c.TxValue }
-func (c *Coin) PkScript() []byte      { return c.ScriptPubKey }
-func (c *Coin) NumConfs() int64       { return c.TxNumConfs }
-func (c *Coin) ValueAge() int64       { return int64(c.TxValue) * c.TxNumConfs }
-
-func NewCoin(txid []byte, index uint32, value btc.Amount, numConfs int64, scriptPubKey []byte) coinset.Coin {
-	shaTxid, _ := chainhash.NewHash(txid)
-	c := &Coin{
-		TxHash:       shaTxid,
-		TxIndex:      index,
-		TxValue:      value,
-		TxNumConfs:   numConfs,
-		ScriptPubKey: scriptPubKey,
-	}
-	return coinset.Coin(c)
-}
 
 func (w *BitcoinWallet) gatherCoins() map[coinset.Coin]*hd.ExtendedKey {
 	height, _ := w.ws.ChainTip()
@@ -61,7 +35,7 @@ func (w *BitcoinWallet) gatherCoins() map[coinset.Coin]*hd.ExtendedKey {
 		if u.AtHeight > 0 {
 			confirmations = int32(height) - u.AtHeight
 		}
-		c := NewCoin(u.Op.Hash.CloneBytes(), u.Op.Index, btc.Amount(u.Value), int64(confirmations), u.ScriptPubkey)
+		c := util.NewCoin(u.Op.Hash.CloneBytes(), u.Op.Index, btc.Amount(u.Value), int64(confirmations), u.ScriptPubkey)
 		addr, err := w.ScriptToAddress(u.ScriptPubkey)
 		if err != nil {
 			continue
@@ -141,7 +115,7 @@ func (w *BitcoinWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeL
 	if optionalOutput != nil {
 		outputs = append(outputs, optionalOutput)
 	}
-	authoredTx, err := NewUnsignedTransaction(outputs, btc.Amount(feePerKB), inputSource, changeSource)
+	authoredTx, err := newUnsignedTransaction(outputs, btc.Amount(feePerKB), inputSource, changeSource)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +146,7 @@ func (w *BitcoinWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeL
 	return authoredTx.Tx, nil
 }
 
-func NewUnsignedTransaction(outputs []*wire.TxOut, feePerKb btc.Amount, fetchInputs txauthor.InputSource, fetchChange txauthor.ChangeSource) (*txauthor.AuthoredTx, error) {
+func newUnsignedTransaction(outputs []*wire.TxOut, feePerKb btc.Amount, fetchInputs txauthor.InputSource, fetchChange txauthor.ChangeSource) (*txauthor.AuthoredTx, error) {
 
 	var targetAmount btc.Amount
 	for _, txOut := range outputs {
