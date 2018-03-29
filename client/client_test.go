@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func newTestClient() *InsightClient {
+func NewTestClient() *InsightClient {
 	u, _ := url.Parse("http://localhost:8334/")
 	return &InsightClient{
 		httpClient:      http.Client{},
@@ -81,7 +81,7 @@ func TestInsightClient_GetTransaction(t *testing.T) {
 	defer teardown()
 
 	var (
-		c          = newTestClient()
+		c          = NewTestClient()
 		testPath   = fmt.Sprintf("http://%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", c.apiUrl.Host)
 		expectedTx = TestTx
 	)
@@ -109,7 +109,7 @@ func TestInsightClient_GetTransactions(t *testing.T) {
 	defer teardown()
 
 	var (
-		c        = newTestClient()
+		c        = NewTestClient()
 		testPath = fmt.Sprintf("http://%s/addrs/txs", c.apiUrl.Host)
 		expected = TransactionList{
 			TotalItems: 1,
@@ -230,7 +230,7 @@ func TestInsightClient_GetUtxos(t *testing.T) {
 	defer teardown()
 
 	var (
-		c        = newTestClient()
+		c        = NewTestClient()
 		testPath = fmt.Sprintf("http://%s/addrs/utxo", c.apiUrl.Host)
 		expected = []Utxo{
 			{
@@ -296,7 +296,7 @@ func validateUtxo(utxo, expected Utxo, t *testing.T) {
 
 func TestInsightClient_BlockNotify(t *testing.T) {
 	var (
-		c        = newTestClient()
+		c        = NewTestClient()
 		testHash = "0000000000000000003f1fb88ac3dab0e607e87def0e9031f7bea02cb464a04f"
 	)
 
@@ -316,7 +316,7 @@ func TestInsightClient_BlockNotify(t *testing.T) {
 }
 
 func TestInsightClient_TransactionNotify(t *testing.T) {
-	c := newTestClient()
+	c := NewTestClient()
 
 	go func() {
 		c.txNotifyChan <- TestTx
@@ -354,7 +354,7 @@ func TestInsightClient_Broadcast(t *testing.T) {
 	}
 
 	var (
-		c        = newTestClient()
+		c        = NewTestClient()
 		testPath = fmt.Sprintf("http://%s/tx/send", c.apiUrl.Host)
 		expected = txid{"1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"}
 	)
@@ -384,7 +384,7 @@ func TestInsightClient_GetBestBlock(t *testing.T) {
 	defer teardown()
 
 	var (
-		c        = newTestClient()
+		c        = NewTestClient()
 		testPath = fmt.Sprintf("http://%s/blocks", c.apiUrl.Host)
 		expected = BlockSummaryList{
 			Blocks: []Block{

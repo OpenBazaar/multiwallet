@@ -23,32 +23,6 @@ import (
 	"github.com/OpenBazaar/multiwallet/util"
 )
 
-func (w *BitcoinWallet) gatherCoins() map[coinset.Coin]*hd.ExtendedKey {
-	height, _ := w.ws.ChainTip()
-	utxos, _ := w.db.Utxos().GetAll()
-	m := make(map[coinset.Coin]*hd.ExtendedKey)
-	for _, u := range utxos {
-		if u.WatchOnly {
-			continue
-		}
-		var confirmations int32
-		if u.AtHeight > 0 {
-			confirmations = int32(height) - u.AtHeight
-		}
-		c := util.NewCoin(u.Op.Hash.CloneBytes(), u.Op.Index, btc.Amount(u.Value), int64(confirmations), u.ScriptPubkey)
-		addr, err := w.ScriptToAddress(u.ScriptPubkey)
-		if err != nil {
-			continue
-		}
-		key, err := w.km.GetKeyForScript(addr.ScriptAddress())
-		if err != nil {
-			continue
-		}
-		m[c] = key
-	}
-	return m
-}
-
 func (w *BitcoinWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLevel, optionalOutput *wire.TxOut) (*wire.MsgTx, error) {
 	// Check for dust
 	script, _ := txscript.PayToAddrScript(addr)
@@ -60,7 +34,13 @@ func (w *BitcoinWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeL
 	var additionalKeysByAddress map[string]*btc.WIF
 
 	// Create input source
-	coinMap := w.gatherCoins()
+	height, _ := w.ws.ChainTip()
+	utxos, err := w.db.Utxos().GetAll()
+	if err != nil {
+		return nil, err
+	}
+	coinMap := util.GatherCoins(height, utxos, w.ScriptToAddress, w.km.GetKeyForScript)
+
 	coins := make([]coinset.Coin, 0, len(coinMap))
 	for k := range coinMap {
 		coins = append(coins, k)
