@@ -1,8 +1,15 @@
 package bitcoin
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"github.com/OpenBazaar/multiwallet/util"
+	"github.com/OpenBazaar/spvwallet"
 	wi "github.com/OpenBazaar/wallet-interface"
+	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
@@ -13,14 +20,7 @@ import (
 	"github.com/btcsuite/btcutil/txsort"
 	"github.com/btcsuite/btcwallet/wallet/txauthor"
 	"github.com/btcsuite/btcwallet/wallet/txrules"
-	"github.com/OpenBazaar/spvwallet"
-	"bytes"
-	"encoding/hex"
 	"time"
-	"crypto/sha256"
-	"fmt"
-	"github.com/btcsuite/btcd/blockchain"
-	"github.com/OpenBazaar/multiwallet/util"
 )
 
 func (w *BitcoinWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLevel, optionalOutput *wire.TxOut) (*wire.MsgTx, error) {

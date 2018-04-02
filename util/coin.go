@@ -1,10 +1,10 @@
 package util
 
 import (
+	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/coinset"
-	"github.com/OpenBazaar/wallet-interface"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
 )
 
@@ -18,7 +18,7 @@ type Coin struct {
 
 func (c *Coin) Hash() *chainhash.Hash { return c.TxHash }
 func (c *Coin) Index() uint32         { return c.TxIndex }
-func (c *Coin) Value() btcutil.Amount     { return c.TxValue }
+func (c *Coin) Value() btcutil.Amount { return c.TxValue }
 func (c *Coin) PkScript() []byte      { return c.ScriptPubKey }
 func (c *Coin) NumConfs() int64       { return c.TxNumConfs }
 func (c *Coin) ValueAge() int64       { return int64(c.TxValue) * c.TxNumConfs }

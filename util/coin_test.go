@@ -1,17 +1,17 @@
 package util
 
 import (
-	"testing"
-	"github.com/btcsuite/btcutil"
 	"bytes"
 	"encoding/hex"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/OpenBazaar/wallet-interface"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcd/chaincfg"
-	hd "github.com/btcsuite/btcutil/hdkeychain"
 	"errors"
+	"github.com/OpenBazaar/wallet-interface"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcutil"
+	hd "github.com/btcsuite/btcutil/hdkeychain"
+	"testing"
 )
 
 func TestNewCoin(t *testing.T) {
@@ -46,7 +46,7 @@ func TestNewCoin(t *testing.T) {
 	if c.Value() != btcutil.Amount(100000) {
 		t.Error("Returned incorrect value")
 	}
-	if !bytes.Equal(c.PkScript(), scriptBytes){
+	if !bytes.Equal(c.PkScript(), scriptBytes) {
 		t.Error("Returned incorrect pk script")
 	}
 	if c.NumConfs() != 10 {
@@ -96,25 +96,25 @@ func TestGatherCoins(t *testing.T) {
 	op3 := wire.NewOutPoint(ch3, 2)
 	utxos := []wallet.Utxo{
 		{
-			Value: 100000,
-			WatchOnly: false,
-			AtHeight: 300000,
+			Value:        100000,
+			WatchOnly:    false,
+			AtHeight:     300000,
 			ScriptPubkey: scriptBytes1,
-			Op: *op1,
+			Op:           *op1,
 		},
 		{
-			Value: 50000,
-			WatchOnly: false,
-			AtHeight: 350000,
+			Value:        50000,
+			WatchOnly:    false,
+			AtHeight:     350000,
 			ScriptPubkey: scriptBytes2,
-			Op: *op2,
+			Op:           *op2,
 		},
 		{
-			Value: 99000,
-			WatchOnly: true,
-			AtHeight: 250000,
+			Value:        99000,
+			WatchOnly:    true,
+			AtHeight:     250000,
 			ScriptPubkey: scriptBytes3,
-			Op: *op3,
+			Op:           *op3,
 		},
 	}
 
@@ -143,7 +143,6 @@ func TestGatherCoins(t *testing.T) {
 	keyMap["ab8c06d1c22f575b30c3afc66bde8b3aa2de99bc"] = key0
 	keyMap["281032bc033f41a33ded636bc2f7c2d67bb2871f"] = key1
 	keyMap["50033f99ce3ed61dc428a0ac481e9bdab646664c"] = key2
-
 
 	height := uint32(351000)
 
@@ -177,7 +176,7 @@ func TestGatherCoins(t *testing.T) {
 		if coin.Index() != utxos[i].Op.Index {
 			t.Error("Returned incorrect outpoint index")
 		}
-		if !bytes.Equal(coin.PkScript(), utxos[i].ScriptPubkey){
+		if !bytes.Equal(coin.PkScript(), utxos[i].ScriptPubkey) {
 			t.Error("Returned incorrect script pubkey")
 		}
 		if i == 0 && key.String() != key0.String() {

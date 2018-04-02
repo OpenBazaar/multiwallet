@@ -4,13 +4,13 @@ import (
 	"errors"
 	"github.com/OpenBazaar/multiwallet"
 	"github.com/OpenBazaar/multiwallet/api/pb"
+	"github.com/OpenBazaar/multiwallet/bitcoin"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcutil"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"net"
-	"github.com/OpenBazaar/multiwallet/bitcoin"
 )
 
 const Addr = "127.0.0.1:8234"

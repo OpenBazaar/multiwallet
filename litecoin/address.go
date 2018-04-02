@@ -10,7 +10,7 @@ import (
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil"
-	"github.com/btcsuite/btcutil/base58"
+	"github.com/ltcsuite/ltcutil/base58"
 	"github.com/btcsuite/btcutil/bech32"
 	"github.com/btcsuite/golangcrypto/ripemd160"
 	ltcparams "github.com/ltcsuite/ltcd/chaincfg"
@@ -257,7 +257,8 @@ type AddressPubKeyHash struct {
 // NewAddressPubKeyHash returns a new AddressPubKeyHash.  pkHash mustbe 20
 // bytes.
 func NewAddressPubKeyHash(pkHash []byte, net *chaincfg.Params) (*AddressPubKeyHash, error) {
-	return newAddressPubKeyHash(pkHash, net.PubKeyHashAddrID)
+	params := ConvertParams(net)
+	return newAddressPubKeyHash(pkHash, params.PubKeyHashAddrID)
 }
 
 // newAddressPubKeyHash is the internal API to create a pubkey hash address
@@ -291,7 +292,8 @@ func (a *AddressPubKeyHash) ScriptAddress() []byte {
 // IsForNet returns whether or not the pay-to-pubkey-hash address is associated
 // with the passed litecoin network.
 func (a *AddressPubKeyHash) IsForNet(net *chaincfg.Params) bool {
-	return a.netID == net.PubKeyHashAddrID
+	params := ConvertParams(net)
+	return a.netID == params.PubKeyHashAddrID
 }
 
 // String returns a human-readable string for the pay-to-pubkey-hash address.
@@ -318,13 +320,15 @@ type AddressScriptHash struct {
 // NewAddressScriptHash returns a new AddressScriptHash.
 func NewAddressScriptHash(serializedScript []byte, net *chaincfg.Params) (*AddressScriptHash, error) {
 	scriptHash := btcutil.Hash160(serializedScript)
-	return newAddressScriptHashFromHash(scriptHash, net.ScriptHashAddrID)
+	params := ConvertParams(net)
+	return newAddressScriptHashFromHash(scriptHash, params.ScriptHashAddrID)
 }
 
 // NewAddressScriptHashFromHash returns a new AddressScriptHash.  scriptHash
 // must be 20 bytes.
 func NewAddressScriptHashFromHash(scriptHash []byte, net *chaincfg.Params) (*AddressScriptHash, error) {
-	return newAddressScriptHashFromHash(scriptHash, net.ScriptHashAddrID)
+	params := ConvertParams(net)
+	return newAddressScriptHashFromHash(scriptHash, params.ScriptHashAddrID)
 }
 
 // newAddressScriptHashFromHash is the internal API to create a script hash
@@ -358,7 +362,8 @@ func (a *AddressScriptHash) ScriptAddress() []byte {
 // IsForNet returns whether or not the pay-to-script-hash address is associated
 // with the passed litecoin network.
 func (a *AddressScriptHash) IsForNet(net *chaincfg.Params) bool {
-	return a.netID == net.ScriptHashAddrID
+	params := ConvertParams(net)
+	return a.netID == params.ScriptHashAddrID
 }
 
 // String returns a human-readable string for the pay-to-script-hash address.
@@ -419,11 +424,12 @@ func NewAddressPubKey(serializedPubKey []byte, net *chaincfg.Params) (*AddressPu
 	case 0x06, 0x07:
 		pkFormat = PKFHybrid
 	}
+	params := ConvertParams(net)
 
 	return &AddressPubKey{
 		pubKeyFormat: pkFormat,
 		pubKey:       pubKey,
-		pubKeyHashID: net.PubKeyHashAddrID,
+		pubKeyHashID: params.PubKeyHashAddrID,
 	}, nil
 }
 
@@ -466,7 +472,8 @@ func (a *AddressPubKey) ScriptAddress() []byte {
 // IsForNet returns whether or not the pay-to-pubkey address is associated
 // with the passed litecoin network.
 func (a *AddressPubKey) IsForNet(net *chaincfg.Params) bool {
-	return a.pubKeyHashID == net.PubKeyHashAddrID
+	params := ConvertParams(net)
+	return a.pubKeyHashID == params.PubKeyHashAddrID
 }
 
 // String returns the hex-encoded human-readable string for the pay-to-pubkey
@@ -516,7 +523,8 @@ type AddressWitnessPubKeyHash struct {
 
 // NewAddressWitnessPubKeyHash returns a new AddressWitnessPubKeyHash.
 func NewAddressWitnessPubKeyHash(witnessProg []byte, net *chaincfg.Params) (*AddressWitnessPubKeyHash, error) {
-	return newAddressWitnessPubKeyHash(net.Bech32HRPSegwit, witnessProg)
+	params := ConvertParams(net)
+	return newAddressWitnessPubKeyHash(params.Bech32HRPSegwit, witnessProg)
 }
 
 // newAddressWitnessPubKeyHash is an internal helper function to create an
@@ -562,7 +570,8 @@ func (a *AddressWitnessPubKeyHash) ScriptAddress() []byte {
 // with the passed litecoin network.
 // Part of the Address interface.
 func (a *AddressWitnessPubKeyHash) IsForNet(net *chaincfg.Params) bool {
-	return a.hrp == net.Bech32HRPSegwit
+	params := ConvertParams(net)
+	return a.hrp == params.Bech32HRPSegwit
 }
 
 // String returns a human-readable string for the AddressWitnessPubKeyHash.
@@ -607,7 +616,8 @@ type AddressWitnessScriptHash struct {
 
 // NewAddressWitnessScriptHash returns a new AddressWitnessPubKeyHash.
 func NewAddressWitnessScriptHash(witnessProg []byte, net *chaincfg.Params) (*AddressWitnessScriptHash, error) {
-	return newAddressWitnessScriptHash(net.Bech32HRPSegwit, witnessProg)
+	params := ConvertParams(net)
+	return newAddressWitnessScriptHash(params.Bech32HRPSegwit, witnessProg)
 }
 
 // newAddressWitnessScriptHash is an internal helper function to create an
@@ -653,7 +663,8 @@ func (a *AddressWitnessScriptHash) ScriptAddress() []byte {
 // with the passed litecoin network.
 // Part of the Address interface.
 func (a *AddressWitnessScriptHash) IsForNet(net *chaincfg.Params) bool {
-	return a.hrp == net.Bech32HRPSegwit
+	params := ConvertParams(net)
+	return a.hrp == params.Bech32HRPSegwit
 }
 
 // String returns a human-readable string for the AddressWitnessScriptHash.
@@ -678,4 +689,18 @@ func (a *AddressWitnessScriptHash) WitnessVersion() byte {
 // WitnessProgram returns the witness program of the AddressWitnessScriptHash.
 func (a *AddressWitnessScriptHash) WitnessProgram() []byte {
 	return a.witnessProgram[:]
+}
+
+func ExtractPkScriptAddrs(pkScript []byte, chainParams *chaincfg.Params) (btcutil.Address, error) {
+	// No valid addresses or required signatures if the script doesn't
+	if len(pkScript) == 1+1+20+1 && pkScript[0] == 0xa9 && pkScript[1] == 0x14 && pkScript[22] == 0x87 {
+		return NewAddressScriptHashFromHash(pkScript[2:22], chainParams)
+	} else if len(pkScript) == 1+1+1+20+1+1 && pkScript[0] == 0x76 && pkScript[1] == 0xa9 && pkScript[2] == 0x14 && pkScript[23] == 0x88 && pkScript[24] == 0xac {
+		return NewAddressPubKeyHash(pkScript[3:23], chainParams)
+	} else if len(pkScript) == 1+1+32 && pkScript[0] == 0x00 && pkScript[1] == 0x20 {
+		return NewAddressWitnessScriptHash(pkScript[2:], chainParams)
+	} else if len(pkScript) == 1+1+20 && pkScript[0] == 0x00 && pkScript[1] == 0x14 {
+		return NewAddressWitnessPubKeyHash(pkScript[2:], chainParams)
+	}
+	return nil, errors.New("unknown script type")
 }

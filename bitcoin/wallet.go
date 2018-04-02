@@ -8,6 +8,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/config"
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/multiwallet/service"
+	"github.com/OpenBazaar/spvwallet"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -28,7 +29,7 @@ type BitcoinWallet struct {
 	params *chaincfg.Params
 	client client.APIClient
 	ws     *service.WalletService
-	fp     *FeeProvider
+	fp     *spvwallet.FeeProvider
 
 	mPrivKey *hd.ExtendedKey
 	mPubKey  *hd.ExtendedKey
@@ -57,7 +58,7 @@ func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.P
 
 	wm := service.NewWalletService(cfg.DB, km, c, params, wi.Bitcoin)
 
-	fp := NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, cfg.FeeAPI.String(), proxy)
+	fp := spvwallet.NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, cfg.FeeAPI.String(), proxy)
 
 	return &BitcoinWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey}, nil
 }

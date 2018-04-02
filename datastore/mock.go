@@ -319,6 +319,7 @@ func (m *MockTxnStore) UpdateHeight(txid chainhash.Hash, height int) error {
 		return errors.New("Not found")
 	}
 	txn.height = height
+	m.txns[txid.String()] = txn
 	return nil
 }
 
