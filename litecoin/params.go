@@ -5,12 +5,12 @@ import (
 	l "github.com/ltcsuite/ltcd/chaincfg"
 )
 
-func init(){
+func init() {
 	l.MainNetParams.ScriptHashAddrID = 0x05
 }
 
 func ConvertParams(params *chaincfg.Params) l.Params {
-	switch(params.Name){
+	switch params.Name {
 	case chaincfg.MainNetParams.Name:
 		return l.MainNetParams
 	case chaincfg.TestNet3Params.Name:

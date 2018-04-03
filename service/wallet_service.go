@@ -6,6 +6,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/multiwallet/litecoin"
 	"github.com/OpenBazaar/multiwallet/util"
+	"github.com/OpenBazaar/multiwallet/zcash"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -17,7 +18,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-	"github.com/OpenBazaar/multiwallet/zcash"
 )
 
 var log = logging.MustGetLogger("WalletService")

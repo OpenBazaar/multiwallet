@@ -301,11 +301,6 @@ func (m *MockAPIClient) BlockNotify() <-chan Block {
 	return m.blockChan
 }
 
-func (m *MockAPIClient) NewMockBlock() {
-	m.chainTip++
-	go func() { m.blockChan <- MockBlocks[m.chainTip] }()
-}
-
 func (m *MockAPIClient) TransactionNotify() <-chan Transaction {
 	return m.txChan
 }

@@ -8,10 +8,10 @@ import (
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
+	"github.com/ltcsuite/ltcd/chaincfg/chainhash"
 	"strconv"
 	"testing"
 	"time"
-	"github.com/ltcsuite/ltcd/chaincfg/chainhash"
 )
 
 func mockWalletService() (*WalletService, error) {
@@ -280,7 +280,7 @@ func TestWalletService_processIncomingBlock(t *testing.T) {
 	ws.processIncomingTransaction(tx)
 
 	ws.processIncomingBlock(client.MockBlocks[2])
-	time.Sleep(time.Second/2)
+	time.Sleep(time.Second / 2)
 
 	txns, err := ws.db.Txns().GetAll(true)
 	if err != nil {
@@ -291,7 +291,7 @@ func TestWalletService_processIncomingBlock(t *testing.T) {
 		t.Error("Returned incorrect number of txs")
 		return
 	}
-	if txns[0].Height != int32(client.MockBlocks[2].Height - 14) {
+	if txns[0].Height != int32(client.MockBlocks[2].Height-14) {
 		t.Error("Returned incorrect transaction height")
 	}
 
@@ -304,7 +304,7 @@ func TestWalletService_processIncomingBlock(t *testing.T) {
 		t.Error("Returned incorrect number of utxos")
 		return
 	}
-	if utxos[0].AtHeight != int32(client.MockBlocks[2].Height - 14) {
+	if utxos[0].AtHeight != int32(client.MockBlocks[2].Height-14) {
 		t.Error("Returned incorrect utxo height")
 	}
 
@@ -313,7 +313,7 @@ func TestWalletService_processIncomingBlock(t *testing.T) {
 	block.Hash = "0000000000000000003c4b7f56e45567980f02012ea00d8e384267a2d825fcf9"
 	ws.processIncomingBlock(block)
 
-	time.Sleep(time.Second/2)
+	time.Sleep(time.Second / 2)
 
 	txns, err = ws.db.Txns().GetAll(true)
 	if err != nil {
@@ -363,7 +363,7 @@ func TestWalletService_listenersFired(t *testing.T) {
 	if ch.String() != client.MockTransactions[0].Txid {
 		t.Error("Returned incorrect txid")
 	}
-	if response.Value != 2717080{
+	if response.Value != 2717080 {
 		t.Error("Returned incorrect value")
 	}
 	if response.Height != 0 {
@@ -394,7 +394,7 @@ func TestWalletService_listenersFired(t *testing.T) {
 	if response.Value != 751918 {
 		t.Error("Returned incorrect value")
 	}
-	if response.Height != 1289594 - 1 {
+	if response.Height != 1289594-1 {
 		t.Error("Returned incorrect height")
 	}
 	if !response.WatchOnly {
@@ -415,7 +415,7 @@ func TestWalletService_listenersFired(t *testing.T) {
 	if ch.String() != client.MockTransactions[0].Txid {
 		t.Error("Returned incorrect txid")
 	}
-	if response.Value != 2717080{
+	if response.Value != 2717080 {
 		t.Error("Returned incorrect value")
 	}
 	if response.Height != int32(client.MockBlocks[0].Height) {
@@ -453,7 +453,7 @@ func TestWalletService_getStoredAddresses(t *testing.T) {
 		if len(addrs) != 41 {
 			t.Error("Returned incorrect number of addresses")
 		}
-		switch(ty) {
+		switch ty {
 		case wallet.Bitcoin:
 			sa, ok := addrs["39iF8cDMhctrPVoPbi2Vb1NnErg6CEB7BZ"]
 			if !sa.WatchOnly || !ok {
