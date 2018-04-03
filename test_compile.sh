@@ -2,6 +2,7 @@
 
 set -e
 pwd
+go get gopkg.in/jarcoal/httpmock.v1
 go get github.com/OpenBazaar/multiwallet
 go get github.com/mattn/go-sqlite3
 go test -coverprofile=bitcoin.cover.out ./bitcoin
