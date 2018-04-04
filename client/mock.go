@@ -2,6 +2,7 @@ package client
 
 import (
 	"errors"
+	"github.com/OpenBazaar/golang-socketio"
 	"github.com/btcsuite/btcutil"
 )
 
@@ -318,3 +319,41 @@ func (m *MockAPIClient) GetBestBlock() (*Block, error) {
 }
 
 func (m *MockAPIClient) Close() {}
+
+type MockSocketClient struct {
+	callbacks          map[string]func(h *gosocketio.Channel, args interface{})
+	listeningAddresses []string
+}
+
+func (m *MockSocketClient) On(method string, callback interface{}) error {
+	c, ok := callback.(func(h *gosocketio.Channel, args interface{}))
+	if !ok {
+		return nil
+	}
+
+	if method == "bitcoind/addresstxid" {
+		m.callbacks[method] = c
+	} else if method == "bitcoind/hashblock" {
+		m.callbacks[method] = c
+	}
+	return nil
+}
+
+func (m *MockSocketClient) Emit(method string, args []interface{}) error {
+	if method == "subscribe" {
+		subscribeTo, ok := args[0].(string)
+		if !ok || subscribeTo != "bitcoind/addresstxid" {
+			return nil
+		}
+		addrs, ok := args[1].([]string)
+		if !ok {
+			return nil
+		}
+		for _, addr := range addrs {
+			m.listeningAddresses = append(m.listeningAddresses, addr)
+		}
+	}
+	return nil
+}
+
+func (m *MockSocketClient) Close() {}

@@ -457,3 +457,124 @@ func Test_toFloat64(t *testing.T) {
 		t.Error("Returned incorrect float")
 	}
 }
+
+func TestInsightClient_setupListeners(t *testing.T) {
+	setup()
+	defer teardown()
+
+	var (
+		c             = NewTestClient()
+		mockSocket    = &MockSocketClient{make(map[string]func(h *gosocketio.Channel, args interface{})), []string{}}
+		testBlockPath = fmt.Sprintf("http://%s/blocks", c.apiUrl.Host)
+		expected      = BlockSummaryList{
+			Blocks: []Block{
+				{
+					Hash:     "00000000000000000108a1f4d4db839702d72f16561b1154600a26c453ecb378",
+					Height:   2,
+					Time:     12345,
+					Size:     200,
+					TxLength: 5,
+				},
+				{
+					Hash:     "0000000000c96f193d23fde69a2fff56793e99e23cbd51947828a33e287ff659",
+					Height:   1,
+					Time:     23456,
+					Size:     300,
+					TxLength: 6,
+				},
+			},
+		}
+		testTxPath = fmt.Sprintf("http://%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", c.apiUrl.Host)
+		expectedTx = TestTx
+	)
+
+	response, err := httpmock.NewJsonResponse(http.StatusOK, expected)
+	if err != nil {
+		t.Error(err)
+	}
+	httpmock.RegisterResponder(http.MethodGet, testBlockPath,
+		func(req *http.Request) (*http.Response, error) {
+			return response, nil
+		},
+	)
+	response2, err := httpmock.NewJsonResponse(http.StatusOK, expectedTx)
+	if err != nil {
+		t.Error(err)
+	}
+	httpmock.RegisterResponder(http.MethodGet, testTxPath,
+		func(req *http.Request) (*http.Response, error) {
+			return response2, nil
+		},
+	)
+
+	c.socketClient = mockSocket
+	c.setupListeners()
+
+	go func() {
+		m := make(map[string]interface{})
+		m[""] = "1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"
+		mockSocket.callbacks["bitcoind/hashblock"](nil, "")
+		mockSocket.callbacks["bitcoind/addresstxid"](nil, m)
+	}()
+
+	ticker := time.NewTicker(time.Second * 2)
+	var best Block
+	select {
+	case b := <-c.blockNotifyChan:
+		best = b
+	case <-ticker.C:
+		t.Error("Block notify listener timed out")
+		return
+	}
+	if best.TxLength != expected.Blocks[0].TxLength {
+		t.Errorf("Invalid block obj")
+	}
+	if best.Size != expected.Blocks[0].Size {
+		t.Errorf("Invalid block obj")
+	}
+	if best.Time != expected.Blocks[0].Time {
+		t.Errorf("Invalid block obj")
+	}
+	if best.Height != expected.Blocks[0].Height {
+		t.Errorf("Invalid block obj")
+	}
+	if best.Hash != expected.Blocks[0].Hash {
+		t.Errorf("Invalid block obj")
+	}
+	if best.Parent != expected.Blocks[1].Hash {
+		t.Errorf("Invalid block obj")
+	}
+
+	ticker = time.NewTicker(time.Second * 2)
+	var trans Transaction
+	select {
+	case tx := <-c.txNotifyChan:
+		trans = tx
+	case <-ticker.C:
+		t.Error("Tx notify listener timed out")
+		return
+	}
+	validateTransaction(trans, TestTx, t)
+}
+
+func TestInsightClient_ListenAddress(t *testing.T) {
+	setup()
+	defer teardown()
+
+	var (
+		c          = NewTestClient()
+		mockSocket = &MockSocketClient{make(map[string]func(h *gosocketio.Channel, args interface{})), []string{}}
+	)
+
+	addr, err := btcutil.DecodeAddress("17rxURoF96VhmkcEGCj5LNQkmN9HVhWb7F", &chaincfg.MainNetParams)
+	if err != nil {
+		t.Error(err)
+	}
+
+	c.socketClient = mockSocket
+	c.ListenAddress(addr)
+
+	if mockSocket.listeningAddresses[0] != addr.String() {
+		t.Error("Failed to listen on address")
+	}
+}

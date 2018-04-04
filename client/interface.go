@@ -1,6 +1,8 @@
 package client
 
-import "github.com/btcsuite/btcutil"
+import (
+	"github.com/btcsuite/btcutil"
+)
 
 type APIClient interface {
 
@@ -30,5 +32,17 @@ type APIClient interface {
 	GetBestBlock() (*Block, error)
 
 	// Close all connections and shutdown
+	Close()
+}
+
+type SocketClient interface {
+
+	// Set callback for method
+	On(method string, callback interface{}) error
+
+	// Listen on method
+	Emit(method string, args []interface{}) error
+
+	// Close the socket connection
 	Close()
 }

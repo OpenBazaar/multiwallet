@@ -9,6 +9,7 @@ import (
 	"github.com/OpenBazaar/golang-socketio"
 	"github.com/OpenBazaar/golang-socketio/protocol"
 	"github.com/OpenBazaar/multiwallet/client/transport"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcutil"
 	"github.com/op/go-logging"
 	"golang.org/x/net/proxy"
@@ -28,7 +29,7 @@ type InsightClient struct {
 	apiUrl          url.URL
 	blockNotifyChan chan Block
 	txNotifyChan    chan Transaction
-	socketClient    *gosocketio.Client
+	socketClient    SocketClient
 }
 
 func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, error) {
@@ -69,7 +70,6 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	case <-socketReady:
 		break
 	}
-	socketClient.Emit("subscribe", protocol.ToArgArray("bitcoind/hashblock"))
 
 	bch := make(chan Block)
 	tch := make(chan Transaction)
@@ -81,14 +81,7 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 		tch,
 		socketClient,
 	}
-	socketClient.On("bitcoind/hashblock", func(h *gosocketio.Channel, arg interface{}) {
-		best, err := ic.GetBestBlock()
-		if err != nil {
-			log.Errorf("Error downloading best block: %s", err.Error())
-			return
-		}
-		bch <- *best
-	})
+	ic.setupListeners()
 	return ic, nil
 }
 
@@ -268,14 +261,44 @@ func (i *InsightClient) ListenAddress(addr btcutil.Address) {
 	var args []interface{}
 	args = append(args, "bitcoind/addresstxid")
 	args = append(args, []string{addr.String()})
-	i.socketClient.On("bitcoind/addresstxid", func(h *gosocketio.Channel, arg AddressTxid) {
-		tx, err := i.GetTransaction(arg.Txid)
-		if err != nil {
-			log.Errorf("Error downloading tx after socket notification: %s", err.Error())
-		}
-		i.txNotifyChan <- *tx
-	})
 	i.socketClient.Emit("subscribe", args)
+}
+
+func (i *InsightClient) setupListeners() {
+	i.socketClient.On("bitcoind/hashblock", func(h *gosocketio.Channel, arg interface{}) {
+		best, err := i.GetBestBlock()
+		if err != nil {
+			log.Errorf("Error downloading best block: %s", err.Error())
+			return
+		}
+		i.blockNotifyChan <- *best
+	})
+	i.socketClient.Emit("subscribe", protocol.ToArgArray("bitcoind/hashblock"))
+
+	i.socketClient.On("bitcoind/addresstxid", func(h *gosocketio.Channel, arg interface{}) {
+		m, ok := arg.(map[string]interface{})
+		if !ok {
+			log.Errorf("Error checking type after socket notification: %T", arg)
+			return
+		}
+		for _, v := range m {
+			txid, ok := v.(string)
+			if !ok {
+				fmt.Println(arg)
+				log.Errorf("Error checking type after socket notification: %T", arg)
+				return
+			}
+			_, err := chainhash.NewHashFromStr(txid) // Check is 256 bit hash. Might also be address
+			if err == nil {
+				tx, err := i.GetTransaction(txid)
+				if err != nil {
+					log.Errorf("Error downloading tx after socket notification: %s", err.Error())
+					return
+				}
+				i.txNotifyChan <- *tx
+			}
+		}
+	})
 }
 
 func (i *InsightClient) Broadcast(tx []byte) (string, error) {
