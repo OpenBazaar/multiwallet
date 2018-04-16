@@ -408,7 +408,7 @@ func TestBitcoinWallet_Multisign(t *testing.T) {
 func TestBitcoinWallet_bumpFee(t *testing.T) {
 	w, err := newMockWallet()
 	w.ws.Start()
-	time.Sleep(time.Second / 2)
+	time.Sleep(time.Second)
 	if err != nil {
 		t.Error(err)
 	}
@@ -454,7 +454,7 @@ func TestBitcoinWallet_bumpFee(t *testing.T) {
 func TestBitcoinWallet_sweepAddress(t *testing.T) {
 	w, err := newMockWallet()
 	w.ws.Start()
-	time.Sleep(time.Second / 2)
+	time.Sleep(time.Second)
 	if err != nil {
 		t.Error(err)
 	}

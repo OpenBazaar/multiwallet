@@ -187,7 +187,7 @@ func newUnsignedTransaction(outputs []*wire.TxOut, feePerKb btc.Amount, fetchInp
 }
 
 func (w *BitcoinWallet) bumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
-	_, txn, err := w.db.Txns().Get(txid)
+	txn, err := w.db.Txns().Get(txid)
 	if err != nil {
 		return nil, err
 	}

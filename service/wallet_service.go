@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"encoding/hex"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/keys"
@@ -437,15 +438,14 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 		return
 	}
 
-	// TODO: the db interface might need to change here to accept a txid and serialized tx rather than the wire.MsgTx
-	// the reason is that it seems unlikely the txhash would be calculated the same way for each coin we support.
-
 	cb.Value = value
 	cb.WatchOnly = (hits == 0)
-	_, saved, err := ws.db.Txns().Get(*txHash)
+	saved, err := ws.db.Txns().Get(*txHash)
 	if err != nil {
 		ts := time.Now()
-		ws.db.Txns().Put(msgTx, int(value), int(height), ts, hits == 0)
+		var buf bytes.Buffer
+		msgTx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
+		ws.db.Txns().Put(buf.Bytes(), msgTx.TxHash().String(), int(value), int(height), ts, hits == 0)
 		cb.Timestamp = ts
 		ws.callbackListeners(cb)
 	} else {

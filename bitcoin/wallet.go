@@ -161,7 +161,7 @@ func (w *BitcoinWallet) Transactions() ([]wi.Txn, error) {
 }
 
 func (w *BitcoinWallet) GetTransaction(txid chainhash.Hash) (wi.Txn, error) {
-	_, txn, err := w.db.Txns().Get(txid)
+	txn, err := w.db.Txns().Get(txid)
 	return txn, err
 }
 
@@ -277,7 +277,7 @@ func (w *BitcoinWallet) ReSyncBlockchain(fromTime time.Time) {
 }
 
 func (w *BitcoinWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, error) {
-	_, txn, err := w.db.Txns().Get(txid)
+	txn, err := w.db.Txns().Get(txid)
 	if err != nil {
 		return 0, 0, err
 	}

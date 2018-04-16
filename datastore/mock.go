@@ -7,7 +7,6 @@ import (
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/wire"
 	"sort"
 	"strconv"
 	"time"
@@ -270,7 +269,7 @@ func (m *MockStxoStore) Delete(stxo wallet.Stxo) error {
 }
 
 type txnStoreEntry struct {
-	txn       *wire.MsgTx
+	txn       []byte
 	value     int
 	height    int
 	timestamp time.Time
@@ -281,9 +280,9 @@ type MockTxnStore struct {
 	txns map[string]*txnStoreEntry
 }
 
-func (m *MockTxnStore) Put(txn *wire.MsgTx, value, height int, timestamp time.Time, watchOnly bool) error {
-	m.txns[txn.TxHash().String()] = &txnStoreEntry{
-		txn:       txn,
+func (m *MockTxnStore) Put(tx []byte, txid string, value, height int, timestamp time.Time, watchOnly bool) error {
+	m.txns[txid] = &txnStoreEntry{
+		txn:       tx,
 		value:     value,
 		height:    height,
 		timestamp: timestamp,
@@ -292,22 +291,18 @@ func (m *MockTxnStore) Put(txn *wire.MsgTx, value, height int, timestamp time.Ti
 	return nil
 }
 
-func (m *MockTxnStore) Get(txid chainhash.Hash) (*wire.MsgTx, wallet.Txn, error) {
+func (m *MockTxnStore) Get(txid chainhash.Hash) (wallet.Txn, error) {
 	t, ok := m.txns[txid.String()]
 	if !ok {
-		return nil, wallet.Txn{}, errors.New("Not found")
+		return wallet.Txn{}, errors.New("Not found")
 	}
-	var buf bytes.Buffer
-	t.txn.Serialize(&buf)
-	return t.txn, wallet.Txn{txid.String(), int64(t.value), int32(t.height), t.timestamp, t.watchOnly, buf.Bytes()}, nil
+	return wallet.Txn{txid.String(), int64(t.value), int32(t.height), t.timestamp, t.watchOnly, t.txn}, nil
 }
 
 func (m *MockTxnStore) GetAll(includeWatchOnly bool) ([]wallet.Txn, error) {
 	var txns []wallet.Txn
-	for _, t := range m.txns {
-		var buf bytes.Buffer
-		t.txn.Serialize(&buf)
-		txn := wallet.Txn{t.txn.TxHash().String(), int64(t.value), int32(t.height), t.timestamp, t.watchOnly, buf.Bytes()}
+	for txid, t := range m.txns {
+		txn := wallet.Txn{txid, int64(t.value), int32(t.height), t.timestamp, t.watchOnly, t.txn}
 		txns = append(txns, txn)
 	}
 	return txns, nil
