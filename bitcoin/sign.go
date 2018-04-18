@@ -550,3 +550,36 @@ func (w *BitcoinWallet) generateMultisigScript(keys []hd.ExtendedKey, threshold 
 	}
 	return addr, redeemScript, nil
 }
+
+func (w *BitcoinWallet) estimateSpendFee(amount int64, feeLevel wi.FeeLevel) (uint64, error) {
+	// Since this is an estimate we can use a dummy output address. Let's use a long one so we don't under estimate.
+	addr, err := btc.DecodeAddress("bc1qxtq7ha2l5qg70atpwp3fus84fx3w0v2w4r2my7gt89ll3w0vnlgspu349h", w.params)
+	if err != nil {
+		return 0, err
+	}
+	tx, err := w.buildTx(amount, addr, feeLevel, nil)
+	if err != nil {
+		return 0, err
+	}
+	var outval int64
+	for _, output := range tx.TxOut {
+		outval += output.Value
+	}
+	var inval int64
+	utxos, err := w.db.Utxos().GetAll()
+	if err != nil {
+		return 0, err
+	}
+	for _, input := range tx.TxIn {
+		for _, utxo := range utxos {
+			if utxo.Op.Hash.IsEqual(&input.PreviousOutPoint.Hash) && utxo.Op.Index == input.PreviousOutPoint.Index {
+				inval += utxo.Value
+				break
+			}
+		}
+	}
+	if inval < outval {
+		return 0, errors.New("Error building transaction: inputs less than outputs")
+	}
+	return uint64(inval - outval), err
+}

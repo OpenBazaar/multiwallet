@@ -506,3 +506,19 @@ func TestBitcoinWallet_sweepAddress(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestBitcoinWallet_estimateSpendFee(t *testing.T) {
+	w, err := newMockWallet()
+	w.ws.Start()
+	time.Sleep(time.Second / 2)
+	if err != nil {
+		t.Error(err)
+	}
+	fee, err := w.estimateSpendFee(1000, wallet.NORMAL)
+	if err != nil {
+		t.Error(err)
+	}
+	if fee <= 0 {
+		t.Error("Returned incorrect fee")
+	}
+}
