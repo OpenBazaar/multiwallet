@@ -408,7 +408,7 @@ func TestBitcoinWallet_Multisign(t *testing.T) {
 func TestBitcoinWallet_bumpFee(t *testing.T) {
 	w, err := newMockWallet()
 	w.ws.Start()
-	time.Sleep(time.Second)
+	time.Sleep(time.Second / 2)
 	if err != nil {
 		t.Error(err)
 	}
@@ -454,7 +454,7 @@ func TestBitcoinWallet_bumpFee(t *testing.T) {
 func TestBitcoinWallet_sweepAddress(t *testing.T) {
 	w, err := newMockWallet()
 	w.ws.Start()
-	time.Sleep(time.Second)
+	time.Sleep(time.Second / 2)
 	if err != nil {
 		t.Error(err)
 	}
@@ -470,10 +470,21 @@ func TestBitcoinWallet_sweepAddress(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	var u wallet.Utxo
+	for _, ut := range utxos {
+		script, err := w.AddressToScript(addr)
+		if err != nil {
+			t.Error(err)
+		}
+		if bytes.Equal(script, ut.ScriptPubkey) {
+			u = ut
+		}
+	}
 	// P2PKH addr
-	_, err = w.sweepAddress([]wallet.Utxo{utxos[0]}, nil, key, nil, wallet.NORMAL)
+	_, err = w.sweepAddress([]wallet.Utxo{u}, nil, key, nil, wallet.NORMAL)
 	if err != nil {
 		t.Error(err)
+		return
 	}
 
 	// 1 of 2 P2WSH
@@ -490,7 +501,7 @@ func TestBitcoinWallet_sweepAddress(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	_, err = w.sweepAddress([]wallet.Utxo{utxos[0]}, nil, key1, &redeemScript, wallet.NORMAL)
+	_, err = w.sweepAddress([]wallet.Utxo{u}, nil, key1, &redeemScript, wallet.NORMAL)
 	if err != nil {
 		t.Error(err)
 	}

@@ -277,11 +277,14 @@ func (w *BitcoinWallet) sweepAddress(utxos []wi.Utxo, address *btc.Address, key 
 	if err != nil {
 		return nil, err
 	}
-	pk := privKey.PubKey().SerializeCompressed()
-	addressPub, err := btc.NewAddressPubKey(pk, w.params)
+
+	keyAddr, err := key.Address(w.params)
+	if err != nil {
+		return nil, err
+	}
 
 	getKey := txscript.KeyClosure(func(addr btc.Address) (*btcec.PrivateKey, bool, error) {
-		if addressPub.EncodeAddress() == addr.EncodeAddress() {
+		if keyAddr.String() == addr.String() {
 			wif, err := btc.NewWIF(privKey, w.params, true)
 			if err != nil {
 				return nil, false, err
