@@ -8,6 +8,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/config"
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/multiwallet/service"
+	"github.com/OpenBazaar/multiwallet/util"
 	"github.com/OpenBazaar/spvwallet"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -135,25 +136,7 @@ func (w *BitcoinWallet) HasKey(addr btcutil.Address) bool {
 func (w *BitcoinWallet) Balance() (confirmed, unconfirmed int64) {
 	utxos, _ := w.db.Utxos().GetAll()
 	txns, _ := w.db.Txns().GetAll(false)
-	var txmap = make(map[string]wi.Txn)
-	for _, tx := range txns {
-		txmap[tx.Txid] = tx
-	}
-
-	for _, utxo := range utxos {
-		if !utxo.WatchOnly {
-			if utxo.AtHeight > 0 {
-				confirmed += utxo.Value
-			} else {
-				if checkIfStxoIsConfirmed(utxo.Op.Hash.String(), txmap) {
-					confirmed += utxo.Value
-				} else {
-					unconfirmed += utxo.Value
-				}
-			}
-		}
-	}
-	return confirmed, unconfirmed
+	return util.CalcBalance(utxos, txns)
 }
 
 func (w *BitcoinWallet) Transactions() ([]wi.Txn, error) {
@@ -291,36 +274,6 @@ func (w *BitcoinWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, e
 func (w *BitcoinWallet) Close() {
 	w.ws.Stop()
 	w.client.Close()
-}
-
-func checkIfStxoIsConfirmed(txid string, txmap map[string]wi.Txn) bool {
-	// First look up tx and derserialize
-	txn, ok := txmap[txid]
-	if !ok {
-		return false
-	}
-	tx := wire.NewMsgTx(1)
-	rbuf := bytes.NewReader(txn.Bytes)
-	err := tx.BtcDecode(rbuf, wire.ProtocolVersion, wire.WitnessEncoding)
-	if err != nil {
-		return false
-	}
-
-	// For each input, recursively check if confirmed
-	inputsConfirmed := true
-	for _, in := range tx.TxIn {
-		checkTx, ok := txmap[in.PreviousOutPoint.Hash.String()]
-		if ok { // Is an stxo. If confirmed we can return true. If no, we need to check the dependency.
-			if checkTx.Height == 0 {
-				if !checkIfStxoIsConfirmed(in.PreviousOutPoint.Hash.String(), txmap) {
-					inputsConfirmed = false
-				}
-			}
-		} else { // We don't have the tx in our db so it can't be an stxo. Return false.
-			return false
-		}
-	}
-	return inputsConfirmed
 }
 
 func (w *BitcoinWallet) DumpTables(wr io.Writer) {
