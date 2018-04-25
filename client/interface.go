@@ -6,8 +6,11 @@ import (
 
 type APIClient interface {
 
-	// For a given txid get back the full transaction
+	// For a given txid get back the transaction metadata
 	GetTransaction(txid string) (*Transaction, error)
+
+	// For a given txid get back the full transaction bytes
+	GetRawTransaction(txid string) ([]byte, error)
 
 	// Get back all the transactions for the given list of addresses
 	GetTransactions(addrs []btcutil.Address) ([]Transaction, error)

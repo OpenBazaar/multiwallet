@@ -142,6 +142,19 @@ func (i *InsightClient) GetTransaction(txid string) (*Transaction, error) {
 	return tx, nil
 }
 
+func (i *InsightClient) GetRawTransaction(txid string) ([]byte, error) {
+	resp, err := i.doRequest("rawtx/"+txid, http.MethodGet, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	tx := new(RawTxResponse)
+	if err = json.NewDecoder(resp.Body).Decode(tx); err != nil {
+		return nil, fmt.Errorf("error decoding transactions: %s\n", err)
+	}
+	return hex.DecodeString(tx.RawTx)
+}
+
 func (i *InsightClient) GetTransactions(addrs []btcutil.Address) ([]Transaction, error) {
 	var txs []Transaction
 	from := 0

@@ -63,6 +63,10 @@ type Transaction struct {
 	BlockTime     int64    `json:"blocktime"`
 }
 
+type RawTxResponse struct {
+	RawTx string `json:"rawtx"`
+}
+
 type Input struct {
 	Txid            string      `json:"txid"`
 	Vout            int         `json:"vout"`
