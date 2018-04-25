@@ -5,6 +5,8 @@ import (
 )
 
 type APIClient interface {
+	// Get info about the server
+	GetInfo() (*Info, error)
 
 	// For a given txid get back the transaction metadata
 	GetTransaction(txid string) (*Transaction, error)
