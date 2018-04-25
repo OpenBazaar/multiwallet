@@ -63,9 +63,8 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	socketClient.On(gosocketio.OnConnection, func(h *gosocketio.Channel, args interface{}) {
 		close(socketReady)
 	})
-	ticker := time.NewTicker(time.Second * 10)
 	select {
-	case <-ticker.C:
+	case <-time.After(10 * time.Second):
 		return nil, errors.New("Timed out waiting for websocket connection")
 	case <-socketReady:
 		break
