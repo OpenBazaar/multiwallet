@@ -19,17 +19,46 @@ type Info struct {
 	Network         string `json:"network"`
 }
 
-type BlockSummaryList struct {
-	Blocks []Block `json:"blocks"`
+type BlockList struct {
+	Blocks     []Block    `json:"blocks"`
+	Length     int        `json:"length"`
+	Pagination Pagination `json:"pagination"`
+}
+
+type Pagination struct {
+	Next      string `json:"next"`
+	Prev      string `json:"prev"`
+	CurrentTs int    `json:"currentTs"`
+	Current   string `json:"current"`
+	IsToday   bool   `json:"isToday"`
+	More      bool   `json:"more"`
+	MoreTs    int    `json:"moreTs"`
 }
 
 type Block struct {
-	Height   int    `json:"height"`
-	Size     int    `json:"size"`
-	Hash     string `json:"hash"`
-	Parent   string `json:"parent"`
-	Time     int    `json:"time"`
-	TxLength int    `json:"txlength"`
+	Hash              string    `json:"hash"`
+	Size              int       `json:"size"`
+	Height            int       `json:"height"`
+	Version           int       `json:"version"`
+	MerkleRoot        string    `json:"merkleroot"`
+	Tx                []string  `json:"tx"`
+	Time              int64     `json:"time"`
+	Nonce             string    `json:"nonce"`
+	Solution          string    `json:"solution"`
+	Bits              string    `json:"bits"`
+	Difficulty        float64   `json:"difficulty"`
+	Chainwork         string    `json:"chainwork"`
+	Confirmations     int       `json:"confirmations"`
+	PreviousBlockhash string    `json:"previousblockhash"`
+	NextBlockhash     string    `json:"nextblockhash"`
+	Reward            float64   `json:"reward"`
+	IsMainChain       bool      `json:"isMainChain"`
+	PoolInfo          *PoolInfo `json:"poolinfo"`
+}
+
+type PoolInfo struct {
+	PoolName string `json:"poolName"`
+	URL      string `json:"url"`
 }
 
 type Utxo struct {

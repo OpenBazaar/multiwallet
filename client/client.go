@@ -376,7 +376,7 @@ func (i *InsightClient) GetBestBlock() (*Block, error) {
 		return nil, err
 	}
 	decoder := json.NewDecoder(resp.Body)
-	sl := new(BlockSummaryList)
+	sl := new(BlockList)
 	defer resp.Body.Close()
 	if err = decoder.Decode(sl); err != nil {
 		return nil, fmt.Errorf("error decoding block list: %s\n", err)
@@ -385,7 +385,7 @@ func (i *InsightClient) GetBestBlock() (*Block, error) {
 		return nil, fmt.Errorf("API returned incorrect number of block summaries")
 	}
 	sum := sl.Blocks[0]
-	sum.Parent = sl.Blocks[1].Hash
+	sum.PreviousBlockhash = sl.Blocks[1].Hash
 	return &sum, nil
 }
 
