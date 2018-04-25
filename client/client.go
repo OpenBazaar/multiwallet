@@ -377,3 +377,16 @@ func toFloat(i interface{}) (float64, error) {
 		return 0, errors.New("Unknown value type in response")
 	}
 }
+
+func (i *InsightClient) EstimateFee(nbBlocks int) (int, error) {
+	resp, err := i.doRequest("utils/estimatefee", http.MethodGet, nil, url.Values{"nbBlocks": {fmt.Sprint(nbBlocks)}})
+	if err != nil {
+		return 0, err
+	}
+	data := map[int]float64{}
+	defer resp.Body.Close()
+	if err = json.NewDecoder(resp.Body).Decode(data); err != nil {
+		return 0, fmt.Errorf("error decoding fee estimate: %s\n", err)
+	}
+	return int(data[nbBlocks] * 1e8), nil
+}

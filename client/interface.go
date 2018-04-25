@@ -34,6 +34,9 @@ type APIClient interface {
 	// Get info on the current chain tip
 	GetBestBlock() (*Block, error)
 
+	// Estimate the fee required for a transaction
+	EstimateFee(nBlocks int) (int, error)
+
 	// Close all connections and shutdown
 	Close()
 }
