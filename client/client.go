@@ -114,6 +114,35 @@ func (i *InsightClient) doRequest(endpoint, method string, body io.Reader, query
 	return resp, nil
 }
 
+func (i *InsightClient) GetInfo() (*Info, error) {
+	q, err := url.ParseQuery("?q=values")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := i.doRequest("status", http.MethodGet, nil, q)
+	if err != nil {
+		return nil, err
+	}
+	decoder := json.NewDecoder(resp.Body)
+	stat := new(Status)
+	defer resp.Body.Close()
+	if err = decoder.Decode(stat); err != nil {
+		return nil, fmt.Errorf("error decoding utxo list: %s\n", err)
+	}
+	info := stat.Info
+	f, err := toFloat(stat.Info.RelayFeeIface)
+	if err != nil {
+		return nil, err
+	}
+	info.RelayFee = f
+	f, err = toFloat(stat.Info.DifficultyIface)
+	if err != nil {
+		return nil, err
+	}
+	info.Difficulty = f
+	return &info, nil
+}
+
 func (i *InsightClient) GetTransaction(txid string) (*Transaction, error) {
 	resp, err := i.doRequest("tx/"+txid, http.MethodGet, nil, nil)
 	if err != nil {
