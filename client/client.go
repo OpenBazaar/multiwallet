@@ -389,6 +389,24 @@ func (i *InsightClient) GetBestBlock() (*Block, error) {
 	return &sum, nil
 }
 
+func (i *InsightClient) GetBlocksBefore(to time.Time, limit int) (*BlockList, error) {
+	resp, err := i.doRequest("blocks", http.MethodGet, nil, url.Values{
+		"blockDate":      {to.Format("2006-01-02")},
+		"startTimestamp": {fmt.Sprint(to.Unix())},
+		"limit":          {fmt.Sprint(limit)},
+	})
+	if err != nil {
+		return nil, err
+	}
+	list := new(BlockList)
+	decoder := json.NewDecoder(resp.Body)
+	defer resp.Body.Close()
+	if err = decoder.Decode(list); err != nil {
+		return nil, fmt.Errorf("error decoding block list: %s\n", err)
+	}
+	return list, nil
+}
+
 // API sometimees returns a float64 or a string so we'll always convert it into a float64
 func toFloat(i interface{}) (float64, error) {
 	_, fok := i.(float64)
