@@ -277,7 +277,7 @@ type MockAPIClient struct {
 	chainTip       int
 }
 
-func NewMockApiClient() APIClient {
+func NewMockApiClient() *MockAPIClient {
 	return &MockAPIClient{blockChan: make(chan Block), txChan: make(chan Transaction), chainTip: 0}
 }
 
