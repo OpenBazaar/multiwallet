@@ -47,7 +47,7 @@ func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.P
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(cfg.DB.Keys(), params, mPrivKey, wi.Bitcoin)
+	km, err := keys.NewKeyManager(cfg.DB.Keys(), params, mPrivKey, wi.Bitcoin, keyToAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +62,10 @@ func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.P
 	fp := spvwallet.NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, cfg.FeeAPI.String(), proxy)
 
 	return &BitcoinWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey}, nil
+}
+
+func keyToAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
+	return key.Address(params)
 }
 
 func (w *BitcoinWallet) Start() {

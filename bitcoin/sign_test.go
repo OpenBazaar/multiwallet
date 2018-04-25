@@ -43,7 +43,7 @@ func newMockWallet() (*BitcoinWallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.Bitcoin)
+	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.Bitcoin, keyToAddress)
 	if err != nil {
 		return nil, err
 	}

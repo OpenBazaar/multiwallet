@@ -2,16 +2,18 @@ package service
 
 import (
 	"encoding/hex"
+	"strconv"
+	"testing"
+	"time"
+
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/ltcsuite/ltcd/chaincfg/chainhash"
-	"strconv"
-	"testing"
-	"time"
 )
 
 func mockWalletService() (*WalletService, error) {
@@ -32,11 +34,15 @@ func mockWalletService() (*WalletService, error) {
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.Bitcoin)
+	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.Bitcoin, bitcoinAddress)
 	if err != nil {
 		return nil, err
 	}
 	return NewWalletService(db, km, cli, params, wallet.Bitcoin), nil
+}
+
+func bitcoinAddress(key *hdkeychain.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
+	return key.Address(params)
 }
 
 func TestWalletService_ChainTip(t *testing.T) {

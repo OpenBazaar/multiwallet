@@ -2,13 +2,10 @@ package keys
 
 import (
 	"errors"
-	"github.com/OpenBazaar/multiwallet/litecoin"
-	"github.com/OpenBazaar/multiwallet/zcash"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/cpacia/bchutil"
 )
 
 const LOOKAHEADWINDOW = 20
@@ -21,9 +18,12 @@ type KeyManager struct {
 	externalKey *hd.ExtendedKey
 
 	coinType wallet.CoinType
+	getAddr  AddrFunc
 }
 
-func NewKeyManager(db wallet.Keys, params *chaincfg.Params, masterPrivKey *hd.ExtendedKey, coinType wallet.CoinType) (*KeyManager, error) {
+type AddrFunc func(k *hd.ExtendedKey, net *chaincfg.Params) (btcutil.Address, error)
+
+func NewKeyManager(db wallet.Keys, params *chaincfg.Params, masterPrivKey *hd.ExtendedKey, coinType wallet.CoinType, getAddr AddrFunc) (*KeyManager, error) {
 	internal, external, err := Bip44Derivation(masterPrivKey, coinType)
 	if err != nil {
 		return nil, err
@@ -34,6 +34,7 @@ func NewKeyManager(db wallet.Keys, params *chaincfg.Params, masterPrivKey *hd.Ex
 		internalKey: internal,
 		externalKey: external,
 		coinType:    coinType,
+		getAddr:     getAddr,
 	}
 	if err := km.lookahead(); err != nil {
 		return nil, err
@@ -100,7 +101,7 @@ func (km *KeyManager) GetFreshKey(purpose wallet.KeyPurpose) (*hd.ExtendedKey, e
 		}
 		index += 1
 	}
-	addr, err := childKey.Address(km.params)
+	addr, err := km.KeyToAddress(childKey)
 	if err != nil {
 		return nil, err
 	}
@@ -181,20 +182,5 @@ func (km *KeyManager) lookahead() error {
 }
 
 func (km *KeyManager) KeyToAddress(key *hd.ExtendedKey) (btcutil.Address, error) {
-	addr, err := key.Address(km.params)
-	if err != nil {
-		return nil, err
-	}
-	var newAddr btcutil.Address
-	switch km.coinType {
-	case wallet.Bitcoin:
-		newAddr = btcutil.Address(addr)
-	case wallet.BitcoinCash:
-		newAddr, err = bchutil.NewCashAddressPubKeyHash(addr.ScriptAddress(), km.params)
-	case wallet.Zcash:
-		newAddr, err = zcash.NewAddressPubKeyHash(addr.ScriptAddress(), km.params)
-	case wallet.Litecoin:
-		newAddr, err = litecoin.NewAddressPubKeyHash(addr.ScriptAddress(), km.params)
-	}
-	return newAddr, err
+	return km.getAddr(key, km.params)
 }
