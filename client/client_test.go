@@ -386,21 +386,21 @@ func TestInsightClient_GetBestBlock(t *testing.T) {
 	var (
 		c        = NewTestClient()
 		testPath = fmt.Sprintf("http://%s/blocks", c.apiUrl.Host)
-		expected = BlockSummaryList{
+		expected = BlockList{
 			Blocks: []Block{
 				{
-					Hash:     "00000000000000000108a1f4d4db839702d72f16561b1154600a26c453ecb378",
-					Height:   2,
-					Time:     12345,
-					Size:     200,
-					TxLength: 5,
+					Hash:   "00000000000000000108a1f4d4db839702d72f16561b1154600a26c453ecb378",
+					Height: 2,
+					Time:   12345,
+					Size:   200,
+					Tx:     make([]string, 5),
 				},
 				{
-					Hash:     "0000000000c96f193d23fde69a2fff56793e99e23cbd51947828a33e287ff659",
-					Height:   1,
-					Time:     23456,
-					Size:     300,
-					TxLength: 6,
+					Hash:   "0000000000c96f193d23fde69a2fff56793e99e23cbd51947828a33e287ff659",
+					Height: 1,
+					Time:   23456,
+					Size:   300,
+					Tx:     make([]string, 6),
 				},
 			},
 		}
@@ -421,7 +421,7 @@ func TestInsightClient_GetBestBlock(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if best.TxLength != expected.Blocks[0].TxLength {
+	if len(best.Tx) != len(expected.Blocks[0].Tx) {
 		t.Errorf("Invalid block obj")
 	}
 	if best.Size != expected.Blocks[0].Size {
@@ -436,7 +436,7 @@ func TestInsightClient_GetBestBlock(t *testing.T) {
 	if best.Hash != expected.Blocks[0].Hash {
 		t.Errorf("Invalid block obj")
 	}
-	if best.Parent != expected.Blocks[1].Hash {
+	if best.PreviousBlockhash != expected.Blocks[1].Hash {
 		t.Errorf("Invalid block obj")
 	}
 }
@@ -466,21 +466,21 @@ func TestInsightClient_setupListeners(t *testing.T) {
 		c             = NewTestClient()
 		mockSocket    = &MockSocketClient{make(map[string]func(h *gosocketio.Channel, args interface{})), []string{}}
 		testBlockPath = fmt.Sprintf("http://%s/blocks", c.apiUrl.Host)
-		expected      = BlockSummaryList{
+		expected      = BlockList{
 			Blocks: []Block{
 				{
-					Hash:     "00000000000000000108a1f4d4db839702d72f16561b1154600a26c453ecb378",
-					Height:   2,
-					Time:     12345,
-					Size:     200,
-					TxLength: 5,
+					Hash:   "00000000000000000108a1f4d4db839702d72f16561b1154600a26c453ecb378",
+					Height: 2,
+					Time:   12345,
+					Size:   200,
+					Tx:     make([]string, 5),
 				},
 				{
-					Hash:     "0000000000c96f193d23fde69a2fff56793e99e23cbd51947828a33e287ff659",
-					Height:   1,
-					Time:     23456,
-					Size:     300,
-					TxLength: 6,
+					Hash:   "0000000000c96f193d23fde69a2fff56793e99e23cbd51947828a33e287ff659",
+					Height: 1,
+					Time:   23456,
+					Size:   300,
+					Tx:     make([]string, 6),
 				},
 			},
 		}
@@ -526,7 +526,7 @@ func TestInsightClient_setupListeners(t *testing.T) {
 		t.Error("Block notify listener timed out")
 		return
 	}
-	if best.TxLength != expected.Blocks[0].TxLength {
+	if len(best.Tx) != len(expected.Blocks[0].Tx) {
 		t.Errorf("Invalid block obj")
 	}
 	if best.Size != expected.Blocks[0].Size {
@@ -541,7 +541,7 @@ func TestInsightClient_setupListeners(t *testing.T) {
 	if best.Hash != expected.Blocks[0].Hash {
 		t.Errorf("Invalid block obj")
 	}
-	if best.Parent != expected.Blocks[1].Hash {
+	if best.PreviousBlockhash != expected.Blocks[1].Hash {
 		t.Errorf("Invalid block obj")
 	}
 

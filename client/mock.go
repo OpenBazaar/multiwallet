@@ -236,6 +236,8 @@ var MockTransactions = []Transaction{
 	},
 }
 
+var MockRawTransactions = map[string][]byte{}
+
 var MockUtxos = []Utxo{
 	{
 		Address:       "1Pd17mbYsVPcCKLtNdPkngtizTj7zjzqeK",
@@ -275,10 +277,27 @@ type MockAPIClient struct {
 
 	listeningAddrs []btcutil.Address
 	chainTip       int
+	feePerBlock    int
+	info           *Info
 }
 
 func NewMockApiClient() *MockAPIClient {
-	return &MockAPIClient{blockChan: make(chan Block), txChan: make(chan Transaction), chainTip: 0}
+	return &MockAPIClient{
+		blockChan:   make(chan Block),
+		txChan:      make(chan Transaction),
+		chainTip:    0,
+		feePerBlock: 1,
+		info: &Info{
+			Version:         1,
+			ProtocolVersion: 9005,
+			Testnet:         true,
+			Network:         "testnet",
+		},
+	}
+}
+
+func (m *MockAPIClient) GetInfo() (*Info, error) {
+	return m.info, nil
 }
 
 func (m *MockAPIClient) GetTransaction(txid string) (*Transaction, error) {
@@ -286,6 +305,13 @@ func (m *MockAPIClient) GetTransaction(txid string) (*Transaction, error) {
 		if tx.Txid == txid {
 			return &tx, nil
 		}
+	}
+	return nil, errors.New("Not found")
+}
+
+func (m *MockAPIClient) GetRawTransaction(txid string) ([]byte, error) {
+	if raw, ok := MockRawTransactions[txid]; ok {
+		return raw, nil
 	}
 	return nil, errors.New("Not found")
 }
@@ -316,6 +342,10 @@ func (m *MockAPIClient) Broadcast(tx []byte) (string, error) {
 
 func (m *MockAPIClient) GetBestBlock() (*Block, error) {
 	return &MockBlocks[m.chainTip], nil
+}
+
+func (m *MockAPIClient) EstimateFee(nBlocks int) (int, error) {
+	return m.feePerBlock * nBlocks, nil
 }
 
 func (m *MockAPIClient) Close() {}
