@@ -433,11 +433,7 @@ func TestBitcoinWallet_bumpFee(t *testing.T) {
 	}
 	w.ws.Start()
 	waitForTxnSync(t, w.db.Txns())
-	txns, err := w.db.Txns().GetAll(false)
-	if err != nil {
-		t.Error(err)
-	}
-	ch, err := chainhash.NewHashFromStr(txns[2].Txid)
+	ch, err := chainhash.NewHashFromStr("7fe0f12c1f77b33128c1b4a79fcc1f723c5be90dd1216b0664a8307060d4345e")
 	if err != nil {
 		t.Error(err)
 	}
