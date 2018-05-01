@@ -1,15 +1,17 @@
 package client
 
 import (
+	"encoding/hex"
 	"fmt"
-	"github.com/OpenBazaar/golang-socketio"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcutil"
-	"gopkg.in/jarcoal/httpmock.v1"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/OpenBazaar/golang-socketio"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcutil"
+	"gopkg.in/jarcoal/httpmock.v1"
 )
 
 func NewTestClient() *InsightClient {
@@ -76,6 +78,36 @@ var TestTx = Transaction{
 	Confirmations: 1,
 }
 
+func TestInsightClient_GetInfo(t *testing.T) {
+	setup()
+	defer teardown()
+
+	var (
+		c            = NewTestClient()
+		testPath     = fmt.Sprintf("http://%s/status", c.apiUrl.Host)
+		expectedInfo = MockInfo
+	)
+
+	response, err := httpmock.NewJsonResponse(http.StatusOK, Status{Info: expectedInfo})
+	if err != nil {
+		t.Error(err)
+	}
+
+	httpmock.RegisterResponder(http.MethodGet, testPath,
+		func(req *http.Request) (*http.Response, error) {
+			return response, nil
+		},
+	)
+
+	info, err := c.GetInfo()
+	if err != nil {
+		t.Error(err)
+	}
+	if !expectedInfo.IsEqual(*info) {
+		t.Errorf("returned invalid info: %v", info)
+	}
+}
+
 func TestInsightClient_GetTransaction(t *testing.T) {
 	setup()
 	defer teardown()
@@ -102,6 +134,36 @@ func TestInsightClient_GetTransaction(t *testing.T) {
 		t.Error(err)
 	}
 	validateTransaction(*tx, expectedTx, t)
+}
+
+func TestInsightClient_GetRawTransaction(t *testing.T) {
+	setup()
+	defer teardown()
+
+	var (
+		c               = NewTestClient()
+		testPath        = fmt.Sprintf("http://%s/rawtx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", c.apiUrl.Host)
+		expectedTxBytes = []byte("encoded tx data here")
+	)
+
+	response, err := httpmock.NewJsonResponse(http.StatusOK, RawTxResponse{RawTx: hex.EncodeToString(expectedTxBytes)})
+	if err != nil {
+		t.Error(err)
+	}
+
+	httpmock.RegisterResponder(http.MethodGet, testPath,
+		func(req *http.Request) (*http.Response, error) {
+			return response, nil
+		},
+	)
+
+	txBytes, err := c.GetRawTransaction("1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428")
+	if err != nil {
+		t.Error(err)
+	}
+	if string(txBytes) != string(expectedTxBytes) {
+		t.Errorf("returned unexpected raw tx bytes: %v\n", hex.EncodeToString(txBytes))
+	}
 }
 
 func TestInsightClient_GetTransactions(t *testing.T) {
@@ -421,24 +483,70 @@ func TestInsightClient_GetBestBlock(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if len(best.Tx) != len(expected.Blocks[0].Tx) {
+	validateBlock(*best, expected.Blocks[0], expected.Blocks[1].Hash, t)
+}
+
+func validateBlock(b, expected Block, prevhash string, t *testing.T) {
+	if len(b.Tx) != len(expected.Tx) {
 		t.Errorf("Invalid block obj")
 	}
-	if best.Size != expected.Blocks[0].Size {
+	if b.Size != expected.Size {
 		t.Errorf("Invalid block obj")
 	}
-	if best.Time != expected.Blocks[0].Time {
+	if b.Time != expected.Time {
 		t.Errorf("Invalid block obj")
 	}
-	if best.Height != expected.Blocks[0].Height {
+	if b.Height != expected.Height {
 		t.Errorf("Invalid block obj")
 	}
-	if best.Hash != expected.Blocks[0].Hash {
+	if b.Hash != expected.Hash {
 		t.Errorf("Invalid block obj")
 	}
-	if best.PreviousBlockhash != expected.Blocks[1].Hash {
+	if b.PreviousBlockhash != prevhash {
 		t.Errorf("Invalid block obj")
 	}
+}
+
+func TestInsightClient_GetBlocksBefore(t *testing.T) {
+	setup()
+	defer teardown()
+
+	var (
+		c        = NewTestClient()
+		testPath = fmt.Sprintf("http://%s/blocks", c.apiUrl.Host)
+		expected = BlockList{
+			Blocks: []Block{
+				{
+					Hash:              "0000000000c96f193d23fde69a2fff56793e99e23cbd51947828a33e287ff659",
+					Height:            1,
+					Time:              12345,
+					Size:              300,
+					Tx:                make([]string, 6),
+					PreviousBlockhash: "000000000be13618b0149ade349a6da46c0f434b65033017de5d450a9bc1bd7f",
+				},
+			},
+		}
+	)
+
+	response, err := httpmock.NewJsonResponse(http.StatusOK, expected)
+	if err != nil {
+		t.Error(err)
+	}
+
+	httpmock.RegisterResponder(http.MethodGet, testPath,
+		func(req *http.Request) (*http.Response, error) {
+			return response, nil
+		},
+	)
+
+	blocks, err := c.GetBlocksBefore(time.Unix(23450, 0), 1)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(blocks.Blocks) != 1 {
+		t.Fatalf("returned incorrect number of blocks: %v", len(blocks.Blocks))
+	}
+	validateBlock(blocks.Blocks[0], expected.Blocks[0], expected.Blocks[0].PreviousBlockhash, t)
 }
 
 func Test_toFloat64(t *testing.T) {
@@ -576,5 +684,35 @@ func TestInsightClient_ListenAddress(t *testing.T) {
 
 	if mockSocket.listeningAddresses[0] != addr.String() {
 		t.Error("Failed to listen on address")
+	}
+}
+
+func TestInsightClient_EstimateFee(t *testing.T) {
+	setup()
+	defer teardown()
+
+	var (
+		c        = NewTestClient()
+		testPath = fmt.Sprintf("http://%s/utils/estimatefee", c.apiUrl.Host)
+		expected = map[int]float64{2: 1.234}
+	)
+
+	response, err := httpmock.NewJsonResponse(http.StatusOK, expected)
+	if err != nil {
+		t.Error(err)
+	}
+
+	httpmock.RegisterResponder(http.MethodGet, testPath,
+		func(req *http.Request) (*http.Response, error) {
+			return response, nil
+		},
+	)
+
+	fee, err := c.EstimateFee(2)
+	if err != nil {
+		t.Error(err)
+	}
+	if fee != int(expected[2]*1e8) {
+		t.Errorf("returned unexpected fee: %v", fee)
 	}
 }

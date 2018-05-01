@@ -127,7 +127,7 @@ func (i *InsightClient) GetInfo() (*Info, error) {
 	stat := new(Status)
 	defer resp.Body.Close()
 	if err = decoder.Decode(stat); err != nil {
-		return nil, fmt.Errorf("error decoding utxo list: %s\n", err)
+		return nil, fmt.Errorf("error decoding status: %s\n", err)
 	}
 	info := stat.Info
 	f, err := toFloat(stat.Info.RelayFeeIface)
@@ -432,7 +432,7 @@ func (i *InsightClient) EstimateFee(nbBlocks int) (int, error) {
 	}
 	data := map[int]float64{}
 	defer resp.Body.Close()
-	if err = json.NewDecoder(resp.Body).Decode(data); err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return 0, fmt.Errorf("error decoding fee estimate: %s\n", err)
 	}
 	return int(data[nbBlocks] * 1e8), nil

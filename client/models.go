@@ -11,12 +11,46 @@ type Info struct {
 	TimeOffset      int         `json:"timeoffset"`
 	Connections     int         `json:"connections"`
 	DifficultyIface interface{} `json:"difficulty"`
-	Difficulty      float64
+	Difficulty      float64     `json:"-"`
 	Testnet         bool        `json:"testnet"`
 	RelayFeeIface   interface{} `json:"relayfee"`
-	RelayFee        float64
-	Errors          string `json:"errors"`
-	Network         string `json:"network"`
+	RelayFee        float64     `json:"-"`
+	Errors          string      `json:"errors"`
+	Network         string      `json:"network"`
+}
+
+func (i Info) IsEqual(other Info) bool {
+	if i.Version != other.Version {
+		return false
+	}
+	if i.ProtocolVersion != other.ProtocolVersion {
+		return false
+	}
+	if i.Blocks != other.Blocks {
+		return false
+	}
+	if i.TimeOffset != other.TimeOffset {
+		return false
+	}
+	if i.Connections != other.Connections {
+		return false
+	}
+	if i.Difficulty != other.Difficulty {
+		return false
+	}
+	if i.Testnet != other.Testnet {
+		return false
+	}
+	if i.RelayFee != other.RelayFee {
+		return false
+	}
+	if i.Errors != other.Errors {
+		return false
+	}
+	if i.Network != other.Network {
+		return false
+	}
+	return true
 }
 
 type BlockList struct {

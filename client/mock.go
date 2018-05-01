@@ -6,6 +6,21 @@ import (
 	"github.com/btcsuite/btcutil"
 )
 
+var MockInfo = Info{
+	Version:         1,
+	ProtocolVersion: 9005,
+	Blocks:          1289596,
+	TimeOffset:      0,
+	Connections:     1024,
+	DifficultyIface: "1.23",
+	Difficulty:      1.23,
+	Testnet:         true,
+	RelayFeeIface:   "1.00",
+	RelayFee:        1.00,
+	Errors:          "",
+	Network:         "testnet",
+}
+
 var MockBlocks = []Block{
 	{
 		Hash:              "000000000000004c68a477283a8db18c1d1c2155b03d9bc23d587ac5e1c4d1af",
@@ -287,12 +302,7 @@ func NewMockApiClient() *MockAPIClient {
 		txChan:      make(chan Transaction),
 		chainTip:    0,
 		feePerBlock: 1,
-		info: &Info{
-			Version:         1,
-			ProtocolVersion: 9005,
-			Testnet:         true,
-			Network:         "testnet",
-		},
+		info:        &MockInfo,
 	}
 }
 
