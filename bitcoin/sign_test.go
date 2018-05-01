@@ -63,13 +63,34 @@ func newMockWallet() (*BitcoinWallet, error) {
 	return bw, nil
 }
 
+func waitForTxnSync(t *testing.T, txnStore wallet.Txns) {
+	// Look for a known txn, this sucks a bit. It would be better to check if the
+	// number of stored txns matched the expected, but not all the mock
+	// transactions are relevant, so the numbers don't add up.
+	// Even better would be for the wallet to signal that the initial sync was
+	// done.
+	lastTxn := client.MockTransactions[len(client.MockTransactions)-2]
+	txHash, err := chainhash.NewHashFromStr(lastTxn.Txid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 100; i++ {
+		if _, err := txnStore.Get(*txHash); err == nil {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatal("timeout waiting for wallet to sync transactions")
+}
+
 func TestBitcoinWallet_buildTx(t *testing.T) {
 	w, err := newMockWallet()
-	w.ws.Start()
-	time.Sleep(time.Second / 2)
 	if err != nil {
 		t.Error(err)
 	}
+	w.ws.Start()
+	waitForTxnSync(t, w.db.Txns())
 	addr, err := w.DecodeAddress("1AhsMpyyyVyPZ9KDUgwsX3zTDJWWSsRo4f")
 	if err != nil {
 		t.Error(err)
@@ -226,11 +247,11 @@ func TestBitcoinWallet_GenerateMultisigScript(t *testing.T) {
 
 func TestBitcoinWallet_newUnsignedTransaction(t *testing.T) {
 	w, err := newMockWallet()
-	w.ws.Start()
-	time.Sleep(time.Second / 2)
 	if err != nil {
 		t.Error(err)
 	}
+	w.ws.Start()
+	waitForTxnSync(t, w.db.Txns())
 	utxos, err := w.db.Utxos().GetAll()
 	if err != nil {
 		t.Error(err)
@@ -407,11 +428,11 @@ func TestBitcoinWallet_Multisign(t *testing.T) {
 
 func TestBitcoinWallet_bumpFee(t *testing.T) {
 	w, err := newMockWallet()
-	w.ws.Start()
-	time.Sleep(time.Second / 2)
 	if err != nil {
 		t.Error(err)
 	}
+	w.ws.Start()
+	waitForTxnSync(t, w.db.Txns())
 	txns, err := w.db.Txns().GetAll(false)
 	if err != nil {
 		t.Error(err)
@@ -453,11 +474,11 @@ func TestBitcoinWallet_bumpFee(t *testing.T) {
 
 func TestBitcoinWallet_sweepAddress(t *testing.T) {
 	w, err := newMockWallet()
-	w.ws.Start()
-	time.Sleep(time.Second / 2)
 	if err != nil {
 		t.Error(err)
 	}
+	w.ws.Start()
+	waitForTxnSync(t, w.db.Txns())
 	utxos, err := w.db.Utxos().GetAll()
 	if err != nil {
 		t.Error(err)
@@ -509,11 +530,11 @@ func TestBitcoinWallet_sweepAddress(t *testing.T) {
 
 func TestBitcoinWallet_estimateSpendFee(t *testing.T) {
 	w, err := newMockWallet()
-	w.ws.Start()
-	time.Sleep(time.Second / 2)
 	if err != nil {
 		t.Error(err)
 	}
+	w.ws.Start()
+	waitForTxnSync(t, w.db.Txns())
 	fee, err := w.estimateSpendFee(1000, wallet.NORMAL)
 	if err != nil {
 		t.Error(err)
