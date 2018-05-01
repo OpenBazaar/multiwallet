@@ -19,7 +19,7 @@ func createKeyManager() (*KeyManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewKeyManager(&datastore.MockKeyStore{make(map[string]*datastore.KeyStoreEntry)}, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin, bitcoinAddress)
+	return NewKeyManager(&datastore.MockKeyStore{Keys: make(map[string]*datastore.KeyStoreEntry)}, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin, bitcoinAddress)
 }
 
 func bitcoinAddress(key *hdkeychain.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
@@ -102,7 +102,7 @@ func TestKeyManager_lookahead(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	mock := &datastore.MockKeyStore{make(map[string]*datastore.KeyStoreEntry)}
+	mock := &datastore.MockKeyStore{Keys: make(map[string]*datastore.KeyStoreEntry)}
 	km, err := NewKeyManager(mock, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin, bitcoinAddress)
 	if err != nil {
 		t.Error(err)
@@ -172,7 +172,7 @@ func TestKeyManager_GetCurrentKey(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	mock := &datastore.MockKeyStore{make(map[string]*datastore.KeyStoreEntry)}
+	mock := &datastore.MockKeyStore{Keys: make(map[string]*datastore.KeyStoreEntry)}
 	km, err := NewKeyManager(mock, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin, bitcoinAddress)
 	if err != nil {
 		t.Error(err)
@@ -239,7 +239,7 @@ func TestKeyManager_GetKeyForScript(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	mock := &datastore.MockKeyStore{make(map[string]*datastore.KeyStoreEntry)}
+	mock := &datastore.MockKeyStore{Keys: make(map[string]*datastore.KeyStoreEntry)}
 	km, err := NewKeyManager(mock, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin, bitcoinAddress)
 	if err != nil {
 		t.Error(err)
