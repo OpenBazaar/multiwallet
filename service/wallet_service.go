@@ -427,7 +427,6 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 		value += v
 		if !sa.WatchOnly {
 			hits++
-
 			// Mark the key we received coins to as used
 			ws.db.Keys().MarkKeyAsUsed(sa.Addr.ScriptAddress())
 		}
@@ -443,13 +442,16 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 	saved, err := ws.db.Txns().Get(*txHash)
 	if err != nil {
 		ts := time.Now()
+		if u.Confirmations > 0 {
+			ts = time.Unix(u.BlockTime, 0)
+		}
 		var buf bytes.Buffer
 		msgTx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
 		ws.db.Txns().Put(buf.Bytes(), msgTx.TxHash().String(), int(value), int(height), ts, hits == 0)
 		cb.Timestamp = ts
 		ws.callbackListeners(cb)
 	} else {
-		ws.db.Txns().UpdateHeight(*txHash, int(height))
+		ws.db.Txns().UpdateHeight(*txHash, int(height), time.Unix(u.BlockTime, 0))
 		if saved.Height != height {
 			cb.Timestamp = saved.Timestamp
 			ws.callbackListeners(cb)

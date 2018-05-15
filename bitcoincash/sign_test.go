@@ -1,4 +1,4 @@
-package bitcoin
+package bitcoincash
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/multiwallet/service"
-	"github.com/OpenBazaar/spvwallet"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -17,6 +16,8 @@ import (
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"testing"
 	"time"
+	bcw "github.com/cpacia/BitcoinCash-Wallet"
+	"github.com/cpacia/bchutil"
 )
 
 type FeeResponse struct {
@@ -25,10 +26,10 @@ type FeeResponse struct {
 	Economic int `json:"economic"`
 }
 
-func newMockWallet() (*BitcoinWallet, error) {
+func newMockWallet() (*BitcoinCashWallet, error) {
 	mockDb := datastore.NewMockMultiwalletDatastore()
 
-	db, err := mockDb.GetDatastoreForWallet(wallet.Bitcoin)
+	db, err := mockDb.GetDatastoreForWallet(wallet.BitcoinCash)
 	if err != nil {
 		return nil, err
 	}
@@ -43,16 +44,16 @@ func newMockWallet() (*BitcoinWallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.Bitcoin)
+	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.BitcoinCash)
 	if err != nil {
 		return nil, err
 	}
 
-	ws := service.NewWalletService(db, km, cli, params, wallet.Bitcoin)
+	ws := service.NewWalletService(db, km, cli, params, wallet.BitcoinCash)
 
-	fp := spvwallet.NewFeeProvider(2000, 300, 200, 100, "", nil)
+	fp := bcw.NewFeeProvider(2000, 300, 200, 100, nil)
 
-	bw := &BitcoinWallet{
+	bw := &BitcoinCashWallet{
 		params: params,
 		km:     km,
 		client: cli,
@@ -63,7 +64,7 @@ func newMockWallet() (*BitcoinWallet, error) {
 	return bw, nil
 }
 
-func TestBitcoinWallet_buildTx(t *testing.T) {
+func TestBitcoinCashWallet_buildTx(t *testing.T) {
 	w, err := newMockWallet()
 	w.ws.Start()
 	time.Sleep(time.Second / 2)
@@ -105,7 +106,7 @@ func TestBitcoinWallet_buildTx(t *testing.T) {
 
 func containsOutput(tx *wire.MsgTx, addr btcutil.Address) bool {
 	for _, o := range tx.TxOut {
-		script, _ := txscript.PayToAddrScript(addr)
+		script, _ := bchutil.PayToAddrScript(addr)
 		if bytes.Equal(script, o.PkScript) {
 			return true
 		}
@@ -144,7 +145,7 @@ func validChangeAddress(tx *wire.MsgTx, db wallet.Datastore, params *chaincfg.Pa
 	return false
 }
 
-func TestBitcoinWallet_GenerateMultisigScript(t *testing.T) {
+func TestBitcoinCashWallet_GenerateMultisigScript(t *testing.T) {
 	w, err := newMockWallet()
 	if err != nil {
 		t.Error(err)
@@ -224,7 +225,7 @@ func TestBitcoinWallet_GenerateMultisigScript(t *testing.T) {
 	}
 }
 
-func TestBitcoinWallet_newUnsignedTransaction(t *testing.T) {
+func TestBitcoinCashWallet_newUnsignedTransaction(t *testing.T) {
 	w, err := newMockWallet()
 	w.ws.Start()
 	time.Sleep(time.Second / 2)
@@ -284,7 +285,7 @@ func TestBitcoinWallet_newUnsignedTransaction(t *testing.T) {
 	}
 }
 
-func TestBitcoinWallet_CreateMultisigSignature(t *testing.T) {
+func TestBitcoinCashWallet_CreateMultisigSignature(t *testing.T) {
 	w, err := newMockWallet()
 	if err != nil {
 		t.Error(err)
@@ -313,7 +314,7 @@ func TestBitcoinWallet_CreateMultisigSignature(t *testing.T) {
 	}
 }
 
-func buildTxData(w *BitcoinWallet) ([]wallet.TransactionInput, []wallet.TransactionOutput, []byte, error) {
+func buildTxData(w *BitcoinCashWallet) ([]wallet.TransactionInput, []wallet.TransactionOutput, []byte, error) {
 	redeemScript := "522103c157f2a7c178430972263232c9306110090c50b44d4e906ecd6d377eec89a53c210205b02b9dbe570f36d1c12e3100e55586b2b9dc61d6778c1d24a8eaca03625e7e21030c83b025cd6bdd8c06e93a2b953b821b4a8c29da211335048d7dc3389706d7e853ae"
 	redeemScriptBytes, err := hex.DecodeString(redeemScript)
 	if err != nil {
@@ -351,7 +352,7 @@ func buildTxData(w *BitcoinWallet) ([]wallet.TransactionInput, []wallet.Transact
 	return []wallet.TransactionInput{in1, in2}, []wallet.TransactionOutput{out}, redeemScriptBytes, nil
 }
 
-func TestBitcoinWallet_Multisign(t *testing.T) {
+func TestBitcoinCashWallet_Multisign(t *testing.T) {
 	w, err := newMockWallet()
 	if err != nil {
 		t.Error(err)
@@ -405,7 +406,7 @@ func TestBitcoinWallet_Multisign(t *testing.T) {
 	}
 }
 
-func TestBitcoinWallet_bumpFee(t *testing.T) {
+func TestBitcoinCashWallet_bumpFee(t *testing.T) {
 	w, err := newMockWallet()
 	w.ws.Start()
 	time.Sleep(time.Second / 2)
@@ -431,7 +432,7 @@ func TestBitcoinWallet_bumpFee(t *testing.T) {
 		}
 	}
 
-	w.db.Txns().UpdateHeight(*ch, 0, time.Now())
+	w.db.Txns().UpdateHeight(*ch, 0)
 
 	// Test unconfirmed
 	_, err = w.bumpFee(*ch)
@@ -439,7 +440,7 @@ func TestBitcoinWallet_bumpFee(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = w.db.Txns().UpdateHeight(*ch, 1289597, time.Now())
+	err = w.db.Txns().UpdateHeight(*ch, 1289597)
 	if err != nil {
 		t.Error(err)
 	}
@@ -451,7 +452,7 @@ func TestBitcoinWallet_bumpFee(t *testing.T) {
 	}
 }
 
-func TestBitcoinWallet_sweepAddress(t *testing.T) {
+func TestBitcoinCashWallet_sweepAddress(t *testing.T) {
 	w, err := newMockWallet()
 	w.ws.Start()
 	time.Sleep(time.Second / 2)
@@ -507,7 +508,7 @@ func TestBitcoinWallet_sweepAddress(t *testing.T) {
 	}
 }
 
-func TestBitcoinWallet_estimateSpendFee(t *testing.T) {
+func TestBitcoinCashWallet_estimateSpendFee(t *testing.T) {
 	w, err := newMockWallet()
 	w.ws.Start()
 	time.Sleep(time.Second / 2)
