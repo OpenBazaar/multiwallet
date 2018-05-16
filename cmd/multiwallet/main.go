@@ -58,6 +58,7 @@ func (x *Version) Execute(args []string) error {
 func (x *Start) Execute(args []string) error {
 	m := make(map[wi.CoinType]bool)
 	m[wi.Bitcoin] = true
+	m[wi.BitcoinCash] = true
 	params := &chaincfg.MainNetParams
 	if x.Testnet {
 		params = &chaincfg.TestNet3Params

@@ -14,10 +14,11 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
-	"testing"
-	"time"
 	bcw "github.com/cpacia/BitcoinCash-Wallet"
 	"github.com/cpacia/bchutil"
+	"os"
+	"testing"
+	"time"
 )
 
 type FeeResponse struct {
@@ -33,7 +34,6 @@ func newMockWallet() (*BitcoinCashWallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	cli := client.NewMockApiClient()
 	params := &chaincfg.MainNetParams
 
 	seed, err := hex.DecodeString("16c034c59522326867593487c03a8f9615fb248406dd0d4ffb3a6b976a248403")
@@ -49,18 +49,18 @@ func newMockWallet() (*BitcoinCashWallet, error) {
 		return nil, err
 	}
 
-	ws := service.NewWalletService(db, km, cli, params, wallet.BitcoinCash)
-
 	fp := bcw.NewFeeProvider(2000, 300, 200, 100, nil)
 
 	bw := &BitcoinCashWallet{
 		params: params,
 		km:     km,
-		client: cli,
-		ws:     ws,
 		db:     db,
 		fp:     fp,
 	}
+	cli := client.NewMockApiClient(bw.AddressToScript)
+	ws := service.NewWalletService(db, km, cli, params, wallet.BitcoinCash)
+	bw.client = cli
+	bw.ws = ws
 	return bw, nil
 }
 
@@ -71,15 +71,16 @@ func TestBitcoinCashWallet_buildTx(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	addr, err := w.DecodeAddress("1AhsMpyyyVyPZ9KDUgwsX3zTDJWWSsRo4f")
+	addr, err := w.DecodeAddress("qz0443l4f9a7667yvpcmwru8uk5us7p64qm6yc46zy")
 	if err != nil {
 		t.Error(err)
 	}
-
 	// Test build normal tx
 	tx, err := w.buildTx(1500000, addr, wallet.NORMAL, nil)
 	if err != nil {
+		w.DumpTables(os.Stdout)
 		t.Error(err)
+		return
 	}
 	if !containsOutput(tx, addr) {
 		t.Error("Built tx does not contain the requested output")
@@ -154,11 +155,23 @@ func TestBitcoinCashWallet_GenerateMultisigScript(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	pubkey1, err := key1.ECPubKey()
+	if err != nil {
+		t.Error(err)
+	}
 	key2, err := w.km.GetFreshKey(wallet.INTERNAL)
 	if err != nil {
 		t.Error(err)
 	}
+	pubkey2, err := key2.ECPubKey()
+	if err != nil {
+		t.Error(err)
+	}
 	key3, err := w.km.GetFreshKey(wallet.INTERNAL)
+	if err != nil {
+		t.Error(err)
+	}
+	pubkey3, err := key3.ECPubKey()
 	if err != nil {
 		t.Error(err)
 	}
@@ -169,17 +182,17 @@ func TestBitcoinCashWallet_GenerateMultisigScript(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if addr.String() != "bc1q7ckk79my7g0jltxtae34yk7e6nzth40dy6j6a67c96mhh6ue0hyqtmf66p" {
+	if addr.String() != "pzjfg2pg2q6uz445vx7hvmuw6rp0ay5f9q9vnhwqfl" {
 		t.Error("Returned invalid address")
 	}
 
 	rs := "52" + // OP_2
 		"21" + // OP_PUSHDATA(33)
-		"03c157f2a7c178430972263232c9306110090c50b44d4e906ecd6d377eec89a53c" + // pubkey1
+		hex.EncodeToString(pubkey1.SerializeCompressed()) + // pubkey1
 		"21" + // OP_PUSHDATA(33)
-		"0205b02b9dbe570f36d1c12e3100e55586b2b9dc61d6778c1d24a8eaca03625e7e" + // pubkey2
+		hex.EncodeToString(pubkey2.SerializeCompressed()) + // pubkey2
 		"21" + // OP_PUSHDATA(33)
-		"030c83b025cd6bdd8c06e93a2b953b821b4a8c29da211335048d7dc3389706d7e8" + // pubkey3
+		hex.EncodeToString(pubkey3.SerializeCompressed()) + // pubkey3
 		"53" + // OP_3
 		"ae" // OP_CHECKMULTISIG
 	rsBytes, err := hex.DecodeString(rs)
@@ -192,22 +205,26 @@ func TestBitcoinCashWallet_GenerateMultisigScript(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	pubkey4, err := key4.ECPubKey()
+	if err != nil {
+		t.Error(err)
+	}
 	addr, redeemScript, err = w.generateMultisigScript(keys, 2, time.Hour*10, key4)
 	if err != nil {
 		t.Error(err)
 	}
-	if addr.String() != "bc1qlx7djex36u6ttf7kvqk0uzhvyu0ug3t695r4xjqz0s7pl4kkyzmqwxp2mc" {
+	if addr.String() != "ppx5mmammxfs42m0p6ypvf6znnkq3llskvlz0texus" {
 		t.Error("Returned invalid address")
 	}
 
 	rs = "63" + // OP_IF
 		"52" + // OP_2
 		"21" + // OP_PUSHDATA(33)
-		"03c157f2a7c178430972263232c9306110090c50b44d4e906ecd6d377eec89a53c" + // pubkey1
+		hex.EncodeToString(pubkey1.SerializeCompressed()) + // pubkey1
 		"21" + // OP_PUSHDATA(33)
-		"0205b02b9dbe570f36d1c12e3100e55586b2b9dc61d6778c1d24a8eaca03625e7e" + // pubkey2
+		hex.EncodeToString(pubkey2.SerializeCompressed()) + // pubkey2
 		"21" + // OP_PUSHDATA(33)
-		"030c83b025cd6bdd8c06e93a2b953b821b4a8c29da211335048d7dc3389706d7e8" + // pubkey3
+		hex.EncodeToString(pubkey3.SerializeCompressed()) + // pubkey3
 		"53" + // OP_3
 		"ae" + // OP_CHECKMULTISIG
 		"67" + // OP_ELSE
@@ -216,7 +233,7 @@ func TestBitcoinCashWallet_GenerateMultisigScript(t *testing.T) {
 		"b2" + // OP_CHECKSEQUENCEVERIFY
 		"75" + // OP_DROP
 		"21" + // OP_PUSHDATA(33)
-		"02c2902e25457d7780471890b957fbbc3d80af94e3bba9a6b89fd28f618bf4147e" + // timeout pubkey
+		hex.EncodeToString(pubkey4.SerializeCompressed()) + // timeout pubkey
 		"ac" + // OP_CHECKSIG
 		"68" // OP_ENDIF
 	rsBytes, err = hex.DecodeString(rs)
@@ -236,12 +253,12 @@ func TestBitcoinCashWallet_newUnsignedTransaction(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	addr, err := w.DecodeAddress("1AhsMpyyyVyPZ9KDUgwsX3zTDJWWSsRo4f")
+	addr, err := w.DecodeAddress("ppx5mmammxfs42m0p6ypvf6znnkq3llskvlz0texus")
 	if err != nil {
 		t.Error(err)
 	}
 
-	script, err := txscript.PayToAddrScript(addr)
+	script, err := bchutil.PayToAddrScript(addr)
 	if err != nil {
 		t.Error(err)
 	}
@@ -336,12 +353,12 @@ func buildTxData(w *BitcoinCashWallet) ([]wallet.TransactionInput, []wallet.Tran
 		OutpointHash:  h2,
 		OutpointIndex: 0,
 	}
-	addr, err := w.DecodeAddress("1AhsMpyyyVyPZ9KDUgwsX3zTDJWWSsRo4f")
+	addr, err := w.DecodeAddress("ppx5mmammxfs42m0p6ypvf6znnkq3llskvlz0texus")
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	script, err := txscript.PayToAddrScript(addr)
+	script, err := bchutil.PayToAddrScript(addr)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -400,8 +417,8 @@ func TestBitcoinCashWallet_Multisign(t *testing.T) {
 		t.Error("Transactions has incorrect number of outputs")
 	}
 	for _, in := range tx.TxIn {
-		if len(in.Witness) == 0 {
-			t.Error("Input witness has zero length")
+		if len(in.SignatureScript) == 0 {
+			t.Error("Input script has zero length")
 		}
 	}
 }
@@ -432,7 +449,7 @@ func TestBitcoinCashWallet_bumpFee(t *testing.T) {
 		}
 	}
 
-	w.db.Txns().UpdateHeight(*ch, 0)
+	w.db.Txns().UpdateHeight(*ch, 0, time.Now())
 
 	// Test unconfirmed
 	_, err = w.bumpFee(*ch)
@@ -440,7 +457,7 @@ func TestBitcoinCashWallet_bumpFee(t *testing.T) {
 		t.Error(err)
 	}
 
-	err = w.db.Txns().UpdateHeight(*ch, 1289597)
+	err = w.db.Txns().UpdateHeight(*ch, 1289597, time.Now())
 	if err != nil {
 		t.Error(err)
 	}
@@ -463,22 +480,19 @@ func TestBitcoinCashWallet_sweepAddress(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	addr, err := btcutil.DecodeAddress("1Pd17mbYsVPcCKLtNdPkngtizTj7zjzqeK", &chaincfg.MainNetParams)
-	if err != nil {
-		t.Error(err)
-	}
-	key, err := w.km.GetKeyForScript(addr.ScriptAddress())
-	if err != nil {
-		t.Error(err)
-	}
 	var u wallet.Utxo
+	var key *hdkeychain.ExtendedKey
 	for _, ut := range utxos {
-		script, err := w.AddressToScript(addr)
-		if err != nil {
-			t.Error(err)
-		}
-		if bytes.Equal(script, ut.ScriptPubkey) {
+		if ut.Value > 0 && !ut.WatchOnly {
 			u = ut
+			addr, err := w.ScriptToAddress(ut.ScriptPubkey)
+			if err != nil {
+				t.Error(err)
+			}
+			key, err = w.km.GetKeyForScript(addr.ScriptAddress())
+			if err != nil {
+				t.Error(err)
+			}
 		}
 	}
 	// P2PKH addr
@@ -489,6 +503,11 @@ func TestBitcoinCashWallet_sweepAddress(t *testing.T) {
 	}
 
 	// 1 of 2 P2WSH
+	for _, ut := range utxos {
+		if ut.Value > 0 && ut.WatchOnly {
+			u = ut
+		}
+	}
 	key1, err := w.km.GetFreshKey(wallet.INTERNAL)
 	if err != nil {
 		t.Error(err)

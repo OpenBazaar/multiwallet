@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/hex"
 	"errors"
 	"github.com/OpenBazaar/golang-socketio"
 	"github.com/btcsuite/btcutil"
@@ -72,7 +73,7 @@ var MockTransactions = []Transaction{
 						Hex: "76a914f99b84270843bdab59a71ce9af15b89bef5087a388ac",
 					},
 					Type:      "pay-to-pubkey-hash",
-					Addresses: []string{"1PkoZDtXT63BnYGd429Vy4DoyGhdDcjQiN"},
+					Addresses: []string{"1PkoZDtXT63BnYGd429Vy4DoyGhdDcjQiN"}, // var
 				},
 				ValueIface: "0.02717080",
 				Value:      0.02717080,
@@ -99,7 +100,7 @@ var MockTransactions = []Transaction{
 				ScriptSig: Script{
 					Hex: "4830450221008665481674067564ef562cfd8d1ca8f1506133fb26a2319e4b8dfba3cedfd5de022038f27121c44e6c64b93b94d72620e11b9de35fd864730175db9176ca98f1ec610121022023e49335a0dddb864ff673468a6cc04e282571b1227933fcf3ff9babbcc662",
 				},
-				Addr:     "1PkoZDtXT63BnYGd429Vy4DoyGhdDcjQiN",
+				Addr:     "1PkoZDtXT63BnYGd429Vy4DoyGhdDcjQiN", // var tx0:1
 				Satoshis: 2717080,
 			},
 		},
@@ -122,7 +123,7 @@ var MockTransactions = []Transaction{
 						Hex: "76a914f821d6db9376dc60124de46a8683110877e1f13188ac",
 					},
 					Type:      "pay-to-pubkey-hash",
-					Addresses: []string{"1Pd17mbYsVPcCKLtNdPkngtizTj7zjzqeK"},
+					Addresses: []string{"1Pd17mbYsVPcCKLtNdPkngtizTj7zjzqeK"}, // var change
 				},
 				ValueIface: "0.01",
 				Value:      0.01,
@@ -172,7 +173,7 @@ var MockTransactions = []Transaction{
 						Hex: "76a914594963287fe6684872340e9078a78d0accbec26288ac",
 					},
 					Type:      "pay-to-pubkey-hash",
-					Addresses: []string{"199747e2arXMBPiWfTqpBTXz3eFbeJPMqS"},
+					Addresses: []string{"199747e2arXMBPiWfTqpBTXz3eFbeJPMqS"}, // var
 				},
 				ValueIface: "0.1",
 				Value:      0.1,
@@ -238,7 +239,7 @@ var MockTransactions = []Transaction{
 
 var MockUtxos = []Utxo{
 	{
-		Address:       "1Pd17mbYsVPcCKLtNdPkngtizTj7zjzqeK",
+		Address:       "1Pd17mbYsVPcCKLtNdPkngtizTj7zjzqeK", // tx1:1
 		ScriptPubKey:  "76a914f821d6db9376dc60124de46a8683110877e1f13188ac",
 		Vout:          1,
 		Satoshis:      1000000,
@@ -248,7 +249,7 @@ var MockUtxos = []Utxo{
 		Amount:        0.01,
 	},
 	{
-		Address:       "199747e2arXMBPiWfTqpBTXz3eFbeJPMqS",
+		Address:       "199747e2arXMBPiWfTqpBTXz3eFbeJPMqS", //tx2:1
 		ScriptPubKey:  "76a914594963287fe6684872340e9078a78d0accbec26288ac",
 		Vout:          1,
 		Satoshis:      10000000,
@@ -275,10 +276,11 @@ type MockAPIClient struct {
 
 	listeningAddrs []btcutil.Address
 	chainTip       int
+	addrToScript   func(btcutil.Address) ([]byte, error)
 }
 
-func NewMockApiClient() APIClient {
-	return &MockAPIClient{blockChan: make(chan Block), txChan: make(chan Transaction), chainTip: 0}
+func NewMockApiClient(addrToScript func(btcutil.Address) ([]byte, error)) APIClient {
+	return &MockAPIClient{blockChan: make(chan Block), txChan: make(chan Transaction), chainTip: 0, addrToScript: addrToScript}
 }
 
 func (m *MockAPIClient) GetTransaction(txid string) (*Transaction, error) {
@@ -291,11 +293,25 @@ func (m *MockAPIClient) GetTransaction(txid string) (*Transaction, error) {
 }
 
 func (m *MockAPIClient) GetTransactions(addrs []btcutil.Address) ([]Transaction, error) {
-	return MockTransactions, nil
+	txs := make([]Transaction, len(MockTransactions))
+	copy(txs, MockTransactions)
+	txs[0].Outputs[1].ScriptPubKey.Addresses = []string{addrs[0].String()}
+	txs[1].Inputs[0].Addr = addrs[0].String()
+	txs[1].Outputs[1].ScriptPubKey.Addresses = []string{addrs[1].String()}
+	txs[2].Outputs[1].ScriptPubKey.Addresses = []string{addrs[2].String()}
+	return txs, nil
 }
 
 func (m *MockAPIClient) GetUtxos(addrs []btcutil.Address) ([]Utxo, error) {
-	return MockUtxos, nil
+	utxos := make([]Utxo, len(MockUtxos))
+	copy(utxos, MockUtxos)
+	utxos[0].Address = addrs[1].String()
+	script, _ := m.addrToScript(addrs[1])
+	utxos[0].ScriptPubKey = hex.EncodeToString(script)
+	utxos[1].Address = addrs[2].String()
+	script, _ = m.addrToScript(addrs[2])
+	utxos[1].ScriptPubKey = hex.EncodeToString(script)
+	return utxos, nil
 }
 
 func (m *MockAPIClient) BlockNotify() <-chan Block {

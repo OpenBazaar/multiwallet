@@ -19,8 +19,8 @@ import (
 	"github.com/btcsuite/btcutil/txsort"
 	"github.com/btcsuite/btcwallet/wallet/txauthor"
 	"github.com/btcsuite/btcwallet/wallet/txrules"
-	"time"
 	"github.com/cpacia/bchutil"
+	"time"
 )
 
 func (w *BitcoinCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLevel, optionalOutput *wire.TxOut) (*wire.MsgTx, error) {
@@ -587,4 +587,3 @@ func (w *BitcoinCashWallet) estimateSpendFee(amount int64, feeLevel wi.FeeLevel)
 	}
 	return uint64(inval - outval), err
 }
-

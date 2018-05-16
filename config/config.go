@@ -58,7 +58,6 @@ type CoinConfig struct {
 }
 
 func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Params) *Config {
-
 	cfg := &Config{
 		Params: params,
 		Logger: logging.NewLogBackend(os.Stdout, "", 0),
@@ -69,6 +68,28 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 	}
 	mockDB := datastore.NewMockMultiwalletDatastore()
 	if coinTypes[wallet.Bitcoin] {
+		var apiEndpoint string
+		if !testnet {
+			apiEndpoint = "https://insight.bitpay.com/api"
+		} else {
+			apiEndpoint = "https://test-insight.bitpay.com/api"
+		}
+		feeApi, _ := url.Parse("https://btc.fees.openbazaar.org")
+		clientApi, _ := url.Parse(apiEndpoint)
+		db, _ := mockDB.GetDatastoreForWallet(wallet.Bitcoin)
+		btcCfg := CoinConfig{
+			CoinType:  wallet.Bitcoin,
+			FeeAPI:    *feeApi,
+			LowFee:    140,
+			MediumFee: 160,
+			HighFee:   180,
+			MaxFee:    2000,
+			ClientAPI: *clientApi,
+			DB:        db,
+		}
+		cfg.Coins = append(cfg.Coins, btcCfg)
+	}
+	if coinTypes[wallet.BitcoinCash] {
 		var apiEndpoint string
 		if !testnet {
 			apiEndpoint = "https://insight.bitpay.com/api"

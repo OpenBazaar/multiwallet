@@ -32,7 +32,7 @@ func newMockWallet() (*BitcoinWallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	cli := client.NewMockApiClient()
+
 	params := &chaincfg.MainNetParams
 
 	seed, err := hex.DecodeString("16c034c59522326867593487c03a8f9615fb248406dd0d4ffb3a6b976a248403")
@@ -48,18 +48,18 @@ func newMockWallet() (*BitcoinWallet, error) {
 		return nil, err
 	}
 
-	ws := service.NewWalletService(db, km, cli, params, wallet.Bitcoin)
-
 	fp := spvwallet.NewFeeProvider(2000, 300, 200, 100, "", nil)
 
 	bw := &BitcoinWallet{
 		params: params,
 		km:     km,
-		client: cli,
-		ws:     ws,
 		db:     db,
 		fp:     fp,
 	}
+	cli := client.NewMockApiClient(bw.AddressToScript)
+	ws := service.NewWalletService(db, km, cli, params, wallet.Bitcoin)
+	bw.client = cli
+	bw.ws = ws
 	return bw, nil
 }
 
@@ -462,22 +462,20 @@ func TestBitcoinWallet_sweepAddress(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	addr, err := btcutil.DecodeAddress("1Pd17mbYsVPcCKLtNdPkngtizTj7zjzqeK", &chaincfg.MainNetParams)
-	if err != nil {
-		t.Error(err)
-	}
-	key, err := w.km.GetKeyForScript(addr.ScriptAddress())
-	if err != nil {
-		t.Error(err)
-	}
+
 	var u wallet.Utxo
+	var key *hdkeychain.ExtendedKey
 	for _, ut := range utxos {
-		script, err := w.AddressToScript(addr)
-		if err != nil {
-			t.Error(err)
-		}
-		if bytes.Equal(script, ut.ScriptPubkey) {
+		if ut.Value > 0 && !ut.WatchOnly {
 			u = ut
+			addr, err := w.ScriptToAddress(ut.ScriptPubkey)
+			if err != nil {
+				t.Error(err)
+			}
+			key, err = w.km.GetKeyForScript(addr.ScriptAddress())
+			if err != nil {
+				t.Error(err)
+			}
 		}
 	}
 	// P2PKH addr
@@ -488,6 +486,11 @@ func TestBitcoinWallet_sweepAddress(t *testing.T) {
 	}
 
 	// 1 of 2 P2WSH
+	for _, ut := range utxos {
+		if ut.Value > 0 && ut.WatchOnly {
+			u = ut
+		}
+	}
 	key1, err := w.km.GetFreshKey(wallet.INTERNAL)
 	if err != nil {
 		t.Error(err)

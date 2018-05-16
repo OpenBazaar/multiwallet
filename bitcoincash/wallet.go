@@ -8,8 +8,6 @@ import (
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
-	bcw "github.com/cpacia/BitcoinCash-Wallet"
-	er "github.com/cpacia/BitcoinCash-Wallet/exchangerates"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -17,11 +15,13 @@ import (
 	"github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/btcsuite/btcwallet/wallet/txrules"
+	bcw "github.com/cpacia/BitcoinCash-Wallet"
+	er "github.com/cpacia/BitcoinCash-Wallet/exchangerates"
+	"github.com/cpacia/bchutil"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
 	"io"
 	"time"
-	"github.com/cpacia/bchutil"
 )
 
 type BitcoinCashWallet struct {
@@ -107,7 +107,7 @@ func (w *BitcoinCashWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
 }
 
 func (w *BitcoinCashWallet) DecodeAddress(addr string) (btcutil.Address, error) {
-	return btcutil.DecodeAddress(addr, w.params)
+	return bchutil.DecodeAddress(addr, w.params)
 }
 
 func (w *BitcoinCashWallet) ScriptToAddress(script []byte) (btcutil.Address, error) {
@@ -252,4 +252,3 @@ func (w *BitcoinCashWallet) DumpTables(wr io.Writer) {
 		fmt.Fprintf(wr, "Hash: %s, Index: %d, Height: %d, Value: %d, WatchOnly: %t\n", u.Op.Hash.String(), int(u.Op.Index), int(u.AtHeight), int(u.Value), u.WatchOnly)
 	}
 }
-
