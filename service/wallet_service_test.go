@@ -7,6 +7,8 @@ import (
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/ltcsuite/ltcd/chaincfg/chainhash"
 	"strconv"
@@ -21,7 +23,6 @@ func mockWalletService() (*WalletService, error) {
 	if err != nil {
 		return nil, err
 	}
-	cli := client.NewMockApiClient()
 	params := &chaincfg.MainNetParams
 
 	seed, err := hex.DecodeString("16c034c59522326867593487c03a8f9615fb248406dd0d4ffb3a6b976a248403")
@@ -36,6 +37,9 @@ func mockWalletService() (*WalletService, error) {
 	if err != nil {
 		return nil, err
 	}
+	cli := client.NewMockApiClient(func(addr btcutil.Address) ([]byte, error) {
+		return txscript.PayToAddrScript(addr)
+	})
 	return NewWalletService(db, km, cli, params, wallet.Bitcoin), nil
 }
 
@@ -460,7 +464,7 @@ func TestWalletService_getStoredAddresses(t *testing.T) {
 				t.Error("Returned incorrect watch only address")
 			}
 		case wallet.BitcoinCash:
-			sa, ok := addrs["bitcoincash:pptlcu5a525rmjxd8svr2dguf2qnc2hghgln5xu4l7"]
+			sa, ok := addrs["pptlcu5a525rmjxd8svr2dguf2qnc2hghgln5xu4l7"]
 			if !sa.WatchOnly || !ok {
 				t.Error("Returned incorrect watch only address")
 			}
