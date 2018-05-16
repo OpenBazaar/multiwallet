@@ -96,12 +96,11 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		} else {
 			apiEndpoint = "https://test-insight.bitpay.com/api"
 		}
-		feeApi, _ := url.Parse("https://btc.fees.openbazaar.org")
 		clientApi, _ := url.Parse(apiEndpoint)
-		db, _ := mockDB.GetDatastoreForWallet(wallet.Bitcoin)
-		btcCfg := CoinConfig{
-			CoinType:  wallet.Bitcoin,
-			FeeAPI:    *feeApi,
+		db, _ := mockDB.GetDatastoreForWallet(wallet.BitcoinCash)
+		bchCfg := CoinConfig{
+			CoinType:  wallet.BitcoinCash,
+			FeeAPI:    url.URL{},
 			LowFee:    140,
 			MediumFee: 160,
 			HighFee:   180,
@@ -109,7 +108,7 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 			ClientAPI: *clientApi,
 			DB:        db,
 		}
-		cfg.Coins = append(cfg.Coins, btcCfg)
+		cfg.Coins = append(cfg.Coins, bchCfg)
 	}
 
 	return cfg

@@ -316,7 +316,7 @@ func TestKeyManager_KeyToAddress(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if testAddr.String() != "bitcoincash:qp95xutemhp2ppkwsz4ggjv8gkcdn9hdpgqwcjvs4c" {
+	if testAddr.String() != "qp95xutemhp2ppkwsz4ggjv8gkcdn9hdpgqwcjvs4c" {
 		t.Error("Returned incorrect address")
 	}
 	km.coinType = wallet.Zcash
