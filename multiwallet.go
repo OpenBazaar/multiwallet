@@ -7,6 +7,7 @@ import (
 	"github.com/op/go-logging"
 	"github.com/tyler-smith/go-bip39"
 	"time"
+	"github.com/OpenBazaar/multiwallet/bitcoincash"
 )
 
 var log = logging.MustGetLogger("multiwallet")
@@ -29,13 +30,19 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 		cfg.CreationDate = time.Now()
 	}
 
-	multiwallet := make(MultiWallet) // TODO: change to wallet interface when BitcoinWallet conforms
+	multiwallet := make(MultiWallet)
 	var err error
 	for _, coin := range cfg.Coins {
-		var w *bitcoin.BitcoinWallet // TODO: change to wallet interface when BitcoinWallet conforms
+		var w wallet.Wallet
 		switch coin.CoinType {
 		case wallet.Bitcoin:
 			w, err = bitcoin.NewBitcoinWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy)
+			if err != nil {
+				return nil, err
+			}
+			multiwallet[coin.CoinType] = w
+		case wallet.BitcoinCash:
+			w, err = bitcoincash.NewBitcoinCashWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy)
 			if err != nil {
 				return nil, err
 			}
