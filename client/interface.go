@@ -5,9 +5,14 @@ import (
 )
 
 type APIClient interface {
+	// Get info about the server
+	GetInfo() (*Info, error)
 
-	// For a given txid get back the full transaction
+	// For a given txid get back the transaction metadata
 	GetTransaction(txid string) (*Transaction, error)
+
+	// For a given txid get back the full transaction bytes
+	GetRawTransaction(txid string) ([]byte, error)
 
 	// Get back all the transactions for the given list of addresses
 	GetTransactions(addrs []btcutil.Address) ([]Transaction, error)
@@ -30,6 +35,9 @@ type APIClient interface {
 
 	// Get info on the current chain tip
 	GetBestBlock() (*Block, error)
+
+	// Estimate the fee required for a transaction
+	EstimateFee(nBlocks int) (int, error)
 
 	// Close all connections and shutdown
 	Close()

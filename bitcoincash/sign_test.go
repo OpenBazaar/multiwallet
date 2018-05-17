@@ -44,7 +44,7 @@ func newMockWallet() (*BitcoinCashWallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.BitcoinCash)
+	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.BitcoinCash, bitcoinCashAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +267,7 @@ func TestBitcoinCashWallet_newUnsignedTransaction(t *testing.T) {
 
 	changeSource := func() ([]byte, error) {
 		addr := w.CurrentAddress(wallet.INTERNAL)
-		script, err := txscript.PayToAddrScript(addr)
+		script, err := bchutil.PayToAddrScript(addr)
 		if err != nil {
 			return []byte{}, err
 		}

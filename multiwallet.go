@@ -2,12 +2,12 @@ package multiwallet
 
 import (
 	"github.com/OpenBazaar/multiwallet/bitcoin"
+	"github.com/OpenBazaar/multiwallet/bitcoincash"
 	"github.com/OpenBazaar/multiwallet/config"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/op/go-logging"
 	"github.com/tyler-smith/go-bip39"
 	"time"
-	"github.com/OpenBazaar/multiwallet/bitcoincash"
 )
 
 var log = logging.MustGetLogger("multiwallet")

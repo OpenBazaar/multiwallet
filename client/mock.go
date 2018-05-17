@@ -7,30 +7,45 @@ import (
 	"github.com/btcsuite/btcutil"
 )
 
+var MockInfo = Info{
+	Version:         1,
+	ProtocolVersion: 9005,
+	Blocks:          1289596,
+	TimeOffset:      0,
+	Connections:     1024,
+	DifficultyIface: "1.23",
+	Difficulty:      1.23,
+	Testnet:         true,
+	RelayFeeIface:   "1.00",
+	RelayFee:        1.00,
+	Errors:          "",
+	Network:         "testnet",
+}
+
 var MockBlocks = []Block{
 	{
-		Hash:     "000000000000004c68a477283a8db18c1d1c2155b03d9bc23d587ac5e1c4d1af",
-		Height:   1289594,
-		Parent:   "00000000000003df72ec254d787b216ae913cb82c6ab601c4b3f19fd5d1cf9aa",
-		TxLength: 21,
-		Size:     4705,
-		Time:     1522349145,
+		Hash:              "000000000000004c68a477283a8db18c1d1c2155b03d9bc23d587ac5e1c4d1af",
+		Height:            1289594,
+		PreviousBlockhash: "00000000000003df72ec254d787b216ae913cb82c6ab601c4b3f19fd5d1cf9aa",
+		Tx:                make([]string, 21),
+		Size:              4705,
+		Time:              1522349145,
 	},
 	{
-		Hash:     "0000000000000142ffae87224cb67206e93bf934f9fdeba75d02a7050acc6136",
-		Height:   1289595,
-		Parent:   "000000000000004c68a477283a8db18c1d1c2155b03d9bc23d587ac5e1c4d1af",
-		TxLength: 30,
-		Size:     6623,
-		Time:     1522349136,
+		Hash:              "0000000000000142ffae87224cb67206e93bf934f9fdeba75d02a7050acc6136",
+		Height:            1289595,
+		PreviousBlockhash: "000000000000004c68a477283a8db18c1d1c2155b03d9bc23d587ac5e1c4d1af",
+		Tx:                make([]string, 30),
+		Size:              6623,
+		Time:              1522349136,
 	},
 	{
-		Hash:     "000000000000033ef24180d5d282d0e6d03b1185e29421fda97e1ba0ffd7c918",
-		Height:   1289596,
-		Parent:   "0000000000000142ffae87224cb67206e93bf934f9fdeba75d02a7050acc6136",
-		TxLength: 5,
-		Size:     1186,
-		Time:     1522349156,
+		Hash:              "000000000000033ef24180d5d282d0e6d03b1185e29421fda97e1ba0ffd7c918",
+		Height:            1289596,
+		PreviousBlockhash: "0000000000000142ffae87224cb67206e93bf934f9fdeba75d02a7050acc6136",
+		Tx:                make([]string, 5),
+		Size:              1186,
+		Time:              1522349156,
 	},
 }
 
@@ -237,6 +252,8 @@ var MockTransactions = []Transaction{
 	},
 }
 
+var MockRawTransactions = map[string][]byte{}
+
 var MockUtxos = []Utxo{
 	{
 		Address:       "1Pd17mbYsVPcCKLtNdPkngtizTj7zjzqeK", // tx1:1
@@ -276,11 +293,24 @@ type MockAPIClient struct {
 
 	listeningAddrs []btcutil.Address
 	chainTip       int
+	feePerBlock    int
+	info           *Info
 	addrToScript   func(btcutil.Address) ([]byte, error)
 }
 
 func NewMockApiClient(addrToScript func(btcutil.Address) ([]byte, error)) APIClient {
-	return &MockAPIClient{blockChan: make(chan Block), txChan: make(chan Transaction), chainTip: 0, addrToScript: addrToScript}
+	return &MockAPIClient{
+		blockChan:    make(chan Block),
+		txChan:       make(chan Transaction),
+		chainTip:     0,
+		addrToScript: addrToScript,
+		feePerBlock:  1,
+		info:         &MockInfo,
+	}
+}
+
+func (m *MockAPIClient) GetInfo() (*Info, error) {
+	return m.info, nil
 }
 
 func (m *MockAPIClient) GetTransaction(txid string) (*Transaction, error) {
@@ -288,6 +318,13 @@ func (m *MockAPIClient) GetTransaction(txid string) (*Transaction, error) {
 		if tx.Txid == txid {
 			return &tx, nil
 		}
+	}
+	return nil, errors.New("Not found")
+}
+
+func (m *MockAPIClient) GetRawTransaction(txid string) ([]byte, error) {
+	if raw, ok := MockRawTransactions[txid]; ok {
+		return raw, nil
 	}
 	return nil, errors.New("Not found")
 }
@@ -332,6 +369,10 @@ func (m *MockAPIClient) Broadcast(tx []byte) (string, error) {
 
 func (m *MockAPIClient) GetBestBlock() (*Block, error) {
 	return &MockBlocks[m.chainTip], nil
+}
+
+func (m *MockAPIClient) EstimateFee(nBlocks int) (int, error) {
+	return m.feePerBlock * nBlocks, nil
 }
 
 func (m *MockAPIClient) Close() {}

@@ -47,7 +47,7 @@ func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chainc
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(cfg.DB.Keys(), params, mPrivKey, wi.BitcoinCash)
+	km, err := keys.NewKeyManager(cfg.DB.Keys(), params, mPrivKey, wi.BitcoinCash, bitcoinCashAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +62,14 @@ func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chainc
 	fp := bcw.NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, er.NewBitcoinCashPriceFetcher(proxy))
 
 	return &BitcoinCashWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey}, nil
+}
+
+func bitcoinCashAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
+	addr, err := key.Address(params)
+	if err != nil {
+		return nil, err
+	}
+	return bchutil.NewCashAddressPubKeyHash(addr.ScriptAddress(), params)
 }
 
 func (w *BitcoinCashWallet) Start() {

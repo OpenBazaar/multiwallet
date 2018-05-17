@@ -3,6 +3,8 @@ package keys
 import (
 	"bytes"
 	"encoding/hex"
+	"testing"
+
 	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/btcec"
@@ -10,7 +12,6 @@ import (
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
-	"testing"
 )
 
 func createKeyManager() (*KeyManager, error) {
@@ -18,7 +19,11 @@ func createKeyManager() (*KeyManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewKeyManager(&datastore.MockKeyStore{make(map[string]*datastore.KeyStoreEntry)}, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin)
+	return NewKeyManager(&datastore.MockKeyStore{Keys: make(map[string]*datastore.KeyStoreEntry)}, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin, bitcoinAddress)
+}
+
+func bitcoinAddress(key *hdkeychain.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
+	return key.Address(params)
 }
 
 func TestNewKeyManager(t *testing.T) {
@@ -97,8 +102,8 @@ func TestKeyManager_lookahead(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	mock := &datastore.MockKeyStore{make(map[string]*datastore.KeyStoreEntry)}
-	km, err := NewKeyManager(mock, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin)
+	mock := &datastore.MockKeyStore{Keys: make(map[string]*datastore.KeyStoreEntry)}
+	km, err := NewKeyManager(mock, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin, bitcoinAddress)
 	if err != nil {
 		t.Error(err)
 	}
@@ -167,8 +172,8 @@ func TestKeyManager_GetCurrentKey(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	mock := &datastore.MockKeyStore{make(map[string]*datastore.KeyStoreEntry)}
-	km, err := NewKeyManager(mock, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin)
+	mock := &datastore.MockKeyStore{Keys: make(map[string]*datastore.KeyStoreEntry)}
+	km, err := NewKeyManager(mock, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin, bitcoinAddress)
 	if err != nil {
 		t.Error(err)
 	}
@@ -234,8 +239,8 @@ func TestKeyManager_GetKeyForScript(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	mock := &datastore.MockKeyStore{make(map[string]*datastore.KeyStoreEntry)}
-	km, err := NewKeyManager(mock, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin)
+	mock := &datastore.MockKeyStore{Keys: make(map[string]*datastore.KeyStoreEntry)}
+	km, err := NewKeyManager(mock, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin, bitcoinAddress)
 	if err != nil {
 		t.Error(err)
 	}
@@ -283,56 +288,5 @@ func TestKeyManager_GetKeyForScript(t *testing.T) {
 	}
 	if !bytes.Equal(retECKey.Serialize(), importKey.Serialize()) {
 		t.Error("Failed to return imported key")
-	}
-}
-
-func TestKeyManager_KeyToAddress(t *testing.T) {
-	masterPrivKey, err := hdkeychain.NewKeyFromString("xprv9s21ZrQH143K25QhxbucbDDuQ4naNntJRi4KUfWT7xo4EKsHt2QJDu7KXp1A3u7Bi1j8ph3EGsZ9Xvz9dGuVrtHHs7pXeTzjuxBrCmmhgC6")
-	if err != nil {
-		t.Error(err)
-	}
-	mock := &datastore.MockKeyStore{make(map[string]*datastore.KeyStoreEntry)}
-	km, err := NewKeyManager(mock, &chaincfg.MainNetParams, masterPrivKey, wallet.Bitcoin)
-	if err != nil {
-		t.Error(err)
-	}
-	addr, err := btcutil.DecodeAddress("17rxURoF96VhmkcEGCj5LNQkmN9HVhWb7F", &chaincfg.MainNetParams)
-	if err != nil {
-		t.Error(err)
-	}
-	key, err := km.GetKeyForScript(addr.ScriptAddress())
-	if err != nil {
-		t.Error(err)
-	}
-	testAddr, err := km.KeyToAddress(key)
-	if err != nil {
-		t.Error(err)
-	}
-	if testAddr.String() != "17rxURoF96VhmkcEGCj5LNQkmN9HVhWb7F" {
-		t.Error("Returned incorrect address")
-	}
-	km.coinType = wallet.BitcoinCash
-	testAddr, err = km.KeyToAddress(key)
-	if err != nil {
-		t.Error(err)
-	}
-	if testAddr.String() != "qp95xutemhp2ppkwsz4ggjv8gkcdn9hdpgqwcjvs4c" {
-		t.Error("Returned incorrect address")
-	}
-	km.coinType = wallet.Zcash
-	testAddr, err = km.KeyToAddress(key)
-	if err != nil {
-		t.Error(err)
-	}
-	if testAddr.String() != "t1QjZUmDP7RHJNPf8CdYCUBWg22LNMSbEzk" {
-		t.Error("Returned incorrect address")
-	}
-	km.coinType = wallet.Litecoin
-	testAddr, err = km.KeyToAddress(key)
-	if err != nil {
-		t.Error(err)
-	}
-	if testAddr.String() != "LS5uje75Dkjm2ZJPSLiNcPUWyaWZd1wyqS" {
-		t.Error("Returned incorrect address")
 	}
 }

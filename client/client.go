@@ -14,13 +14,13 @@ import (
 	"github.com/op/go-logging"
 	"golang.org/x/net/proxy"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
 	"time"
-	"io/ioutil"
 )
 
 var log = logging.MustGetLogger("client")
@@ -64,9 +64,8 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	socketClient.On(gosocketio.OnConnection, func(h *gosocketio.Channel, args interface{}) {
 		close(socketReady)
 	})
-	ticker := time.NewTicker(time.Second * 10)
 	select {
-	case <-ticker.C:
+	case <-time.After(10 * time.Second):
 		return nil, errors.New("Timed out waiting for websocket connection")
 	case <-socketReady:
 		break
@@ -119,6 +118,35 @@ func (i *InsightClient) doRequest(endpoint, method string, body io.Reader, query
 	return resp, nil
 }
 
+func (i *InsightClient) GetInfo() (*Info, error) {
+	q, err := url.ParseQuery("?q=values")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := i.doRequest("status", http.MethodGet, nil, q)
+	if err != nil {
+		return nil, err
+	}
+	decoder := json.NewDecoder(resp.Body)
+	stat := new(Status)
+	defer resp.Body.Close()
+	if err = decoder.Decode(stat); err != nil {
+		return nil, fmt.Errorf("error decoding status: %s\n", err)
+	}
+	info := stat.Info
+	f, err := toFloat(stat.Info.RelayFeeIface)
+	if err != nil {
+		return nil, err
+	}
+	info.RelayFee = f
+	f, err = toFloat(stat.Info.DifficultyIface)
+	if err != nil {
+		return nil, err
+	}
+	info.Difficulty = f
+	return &info, nil
+}
+
 func (i *InsightClient) GetTransaction(txid string) (*Transaction, error) {
 	resp, err := i.doRequest("tx/"+txid, http.MethodGet, nil, nil)
 	if err != nil {
@@ -145,6 +173,19 @@ func (i *InsightClient) GetTransaction(txid string) (*Transaction, error) {
 		tx.Outputs[n].Value = f
 	}
 	return tx, nil
+}
+
+func (i *InsightClient) GetRawTransaction(txid string) ([]byte, error) {
+	resp, err := i.doRequest("rawtx/"+txid, http.MethodGet, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	tx := new(RawTxResponse)
+	if err = json.NewDecoder(resp.Body).Decode(tx); err != nil {
+		return nil, fmt.Errorf("error decoding transactions: %s\n", err)
+	}
+	return hex.DecodeString(tx.RawTx)
 }
 
 func (i *InsightClient) GetTransactions(addrs []btcutil.Address) ([]Transaction, error) {
@@ -344,7 +385,7 @@ func (i *InsightClient) GetBestBlock() (*Block, error) {
 		return nil, err
 	}
 	decoder := json.NewDecoder(resp.Body)
-	sl := new(BlockSummaryList)
+	sl := new(BlockList)
 	defer resp.Body.Close()
 	if err = decoder.Decode(sl); err != nil {
 		return nil, fmt.Errorf("error decoding block list: %s\n", err)
@@ -353,8 +394,26 @@ func (i *InsightClient) GetBestBlock() (*Block, error) {
 		return nil, fmt.Errorf("API returned incorrect number of block summaries")
 	}
 	sum := sl.Blocks[0]
-	sum.Parent = sl.Blocks[1].Hash
+	sum.PreviousBlockhash = sl.Blocks[1].Hash
 	return &sum, nil
+}
+
+func (i *InsightClient) GetBlocksBefore(to time.Time, limit int) (*BlockList, error) {
+	resp, err := i.doRequest("blocks", http.MethodGet, nil, url.Values{
+		"blockDate":      {to.Format("2006-01-02")},
+		"startTimestamp": {fmt.Sprint(to.Unix())},
+		"limit":          {fmt.Sprint(limit)},
+	})
+	if err != nil {
+		return nil, err
+	}
+	list := new(BlockList)
+	decoder := json.NewDecoder(resp.Body)
+	defer resp.Body.Close()
+	if err = decoder.Decode(list); err != nil {
+		return nil, fmt.Errorf("error decoding block list: %s\n", err)
+	}
+	return list, nil
 }
 
 // API sometimees returns a float64 or a string so we'll always convert it into a float64
@@ -373,4 +432,17 @@ func toFloat(i interface{}) (float64, error) {
 	} else {
 		return 0, errors.New("Unknown value type in response")
 	}
+}
+
+func (i *InsightClient) EstimateFee(nbBlocks int) (int, error) {
+	resp, err := i.doRequest("utils/estimatefee", http.MethodGet, nil, url.Values{"nbBlocks": {fmt.Sprint(nbBlocks)}})
+	if err != nil {
+		return 0, err
+	}
+	data := map[int]float64{}
+	defer resp.Body.Close()
+	if err = json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return 0, fmt.Errorf("error decoding fee estimate: %s\n", err)
+	}
+	return int(data[nbBlocks] * 1e8), nil
 }
