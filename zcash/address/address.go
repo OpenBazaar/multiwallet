@@ -1,4 +1,4 @@
-package zcash
+package address
 
 import (
 	"errors"

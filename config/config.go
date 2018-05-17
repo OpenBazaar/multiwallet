@@ -110,5 +110,26 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		}
 		cfg.Coins = append(cfg.Coins, bchCfg)
 	}
+	if coinTypes[wallet.Zcash] {
+		var apiEndpoint string
+		if !testnet {
+			apiEndpoint = "https://zcashnetwork.info/api"
+		} else {
+			apiEndpoint = "https://explorer.testnet.z.cash/api"
+		}
+		clientApi, _ := url.Parse(apiEndpoint)
+		db, _ := mockDB.GetDatastoreForWallet(wallet.Zcash)
+		zecCfg := CoinConfig{
+			CoinType:  wallet.Zcash,
+			FeeAPI:    url.URL{},
+			LowFee:    140,
+			MediumFee: 160,
+			HighFee:   180,
+			MaxFee:    2000,
+			ClientAPI: *clientApi,
+			DB:        db,
+		}
+		cfg.Coins = append(cfg.Coins, zecCfg)
+	}
 	return cfg
 }

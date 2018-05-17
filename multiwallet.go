@@ -8,6 +8,7 @@ import (
 	"github.com/op/go-logging"
 	"github.com/tyler-smith/go-bip39"
 	"time"
+	"github.com/OpenBazaar/multiwallet/zcash"
 )
 
 var log = logging.MustGetLogger("multiwallet")
@@ -43,6 +44,12 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 			multiwallet[coin.CoinType] = w
 		case wallet.BitcoinCash:
 			w, err = bitcoincash.NewBitcoinCashWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy)
+			if err != nil {
+				return nil, err
+			}
+			multiwallet[coin.CoinType] = w
+		case wallet.Zcash:
+			w, err = zcash.NewZCashWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy)
 			if err != nil {
 				return nil, err
 			}
