@@ -20,6 +20,7 @@ import (
 	"path"
 	"strconv"
 	"time"
+	"io/ioutil"
 )
 
 var log = logging.MustGetLogger("client")
@@ -108,6 +109,9 @@ func (i *InsightClient) doRequest(endpoint, method string, body io.Reader, query
 	// Try again if for some reason it returned a bad request
 	if resp.StatusCode == http.StatusBadRequest {
 		resp, err = i.httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status not ok: %s\n", resp.Status)
@@ -284,7 +288,6 @@ func (i *InsightClient) setupListeners() {
 		for _, v := range m {
 			txid, ok := v.(string)
 			if !ok {
-				fmt.Println(arg)
 				log.Errorf("Error checking type after socket notification: %T", arg)
 				return
 			}
@@ -314,15 +317,21 @@ func (i *InsightClient) Broadcast(tx []byte) (string, error) {
 	resp, err := i.doRequest("tx/send", http.MethodPost, bytes.NewBuffer(txJson), nil)
 	decoder := json.NewDecoder(resp.Body)
 
-	type txid struct {
-		Txid string `json:"txid"`
+	b, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println(string(b))
+
+	type Txid struct {
+		Result string `json:"result"`
+	}
+	type Response struct {
+		Txid Txid `json:"txid"`
 	}
 	defer resp.Body.Close()
-	id := new(txid)
-	if err = decoder.Decode(id); err != nil {
+	rs := new(Response)
+	if err = decoder.Decode(rs); err != nil {
 		return "", fmt.Errorf("error decoding txid: %s\n", err)
 	}
-	return id.Txid, nil
+	return rs.Txid.Result, nil
 }
 
 func (i *InsightClient) GetBestBlock() (*Block, error) {

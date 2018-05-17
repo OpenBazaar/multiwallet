@@ -92,9 +92,9 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 	if coinTypes[wallet.BitcoinCash] {
 		var apiEndpoint string
 		if !testnet {
-			apiEndpoint = "https://insight.bitpay.com/api"
+			apiEndpoint = "https://bch-insight.bitpay.com/api"
 		} else {
-			apiEndpoint = "https://test-insight.bitpay.com/api"
+			apiEndpoint = "https://test-bch-insight.bitpay.com/api"
 		}
 		clientApi, _ := url.Parse(apiEndpoint)
 		db, _ := mockDB.GetDatastoreForWallet(wallet.BitcoinCash)
@@ -110,6 +110,5 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		}
 		cfg.Coins = append(cfg.Coins, bchCfg)
 	}
-
 	return cfg
 }

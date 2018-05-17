@@ -94,14 +94,14 @@ func (w *BitcoinCashWallet) MasterPublicKey() *hd.ExtendedKey {
 
 func (w *BitcoinCashWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
 	key, _ := w.km.GetCurrentKey(purpose)
-	addr, _ := key.Address(w.params)
+	addr, _ := w.km.KeyToAddress(key)
 	return btcutil.Address(addr)
 }
 
 func (w *BitcoinCashWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
 	i, _ := w.db.Keys().GetUnused(purpose)
 	key, _ := w.km.GenerateChildKey(purpose, uint32(i[1]))
-	addr, _ := key.Address(w.params)
+	addr, _ := w.km.KeyToAddress(key)
 	w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress())
 	return btcutil.Address(addr)
 }

@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"net"
+	"github.com/OpenBazaar/multiwallet/bitcoincash"
 )
 
 const Addr = "127.0.0.1:8234"
@@ -228,6 +229,12 @@ func (s *server) DumpTables(in *pb.CoinSelection, stream pb.API_DumpTablesServer
 	bitcoinWallet, ok := s.w[coinType(in.Coin)].(*bitcoin.BitcoinWallet)
 	if ok {
 		bitcoinWallet.DumpTables(&writer)
+		return nil
+	}
+	bitcoincashWallet, ok := s.w[coinType(in.Coin)].(*bitcoincash.BitcoinCashWallet)
+	if ok {
+		bitcoincashWallet.DumpTables(&writer)
+		return nil
 	}
 	return nil
 }

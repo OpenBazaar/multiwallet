@@ -215,7 +215,7 @@ func (ws *WalletService) syncUtxos(addrs map[string]storedAddress) {
 	}
 	utxos, err := ws.client.GetUtxos(query)
 	if err != nil {
-		log.Error("Error downloading utxos for %s: %s", ws.coinType.String(), err.Error())
+		log.Errorf("Error downloading utxos for %s: %s", ws.coinType.String(), err.Error())
 	} else {
 		log.Debugf("Downloaded %d %s utxos", len(utxos), ws.coinType.String())
 		ws.saveUtxosToDB(utxos, addrs)
@@ -310,7 +310,7 @@ func (ws *WalletService) syncTxs(addrs map[string]storedAddress) {
 	}
 	txs, err := ws.client.GetTransactions(query)
 	if err != nil {
-		log.Error("Error downloading txs for %s: %s", ws.coinType.String(), err.Error())
+		log.Errorf("Error downloading txs for %s: %s", ws.coinType.String(), err.Error())
 	} else {
 		log.Debugf("Downloaded %d %s transactions", len(txs), ws.coinType.String())
 		ws.saveTxsToDB(txs, addrs)

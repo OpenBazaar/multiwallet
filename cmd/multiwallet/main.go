@@ -64,7 +64,7 @@ func (x *Start) Execute(args []string) error {
 		params = &chaincfg.TestNet3Params
 	}
 	cfg := config.NewDefaultConfig(m, params)
-	cfg.Mnemonic = "design author ability expose illegal saddle antique setup pledge wife innocent treat"
+	cfg.Mnemonic = "bottle author ability expose illegal saddle antique setup pledge wife innocent treat"
 	var err error
 	mw, err = multiwallet.NewMultiWallet(cfg)
 	if err != nil {
