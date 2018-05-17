@@ -1,4 +1,4 @@
-package litecoin
+package params
 
 import (
 	"github.com/btcsuite/btcd/chaincfg"

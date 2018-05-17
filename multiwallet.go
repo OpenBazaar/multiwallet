@@ -4,11 +4,12 @@ import (
 	"github.com/OpenBazaar/multiwallet/bitcoin"
 	"github.com/OpenBazaar/multiwallet/bitcoincash"
 	"github.com/OpenBazaar/multiwallet/config"
+	"github.com/OpenBazaar/multiwallet/litecoin"
+	"github.com/OpenBazaar/multiwallet/zcash"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/op/go-logging"
 	"github.com/tyler-smith/go-bip39"
 	"time"
-	"github.com/OpenBazaar/multiwallet/zcash"
 )
 
 var log = logging.MustGetLogger("multiwallet")
@@ -50,6 +51,12 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 			multiwallet[coin.CoinType] = w
 		case wallet.Zcash:
 			w, err = zcash.NewZCashWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy)
+			if err != nil {
+				return nil, err
+			}
+			multiwallet[coin.CoinType] = w
+		case wallet.Litecoin:
+			w, err = litecoin.NewLitecoinWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy)
 			if err != nil {
 				return nil, err
 			}

@@ -131,5 +131,26 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		}
 		cfg.Coins = append(cfg.Coins, zecCfg)
 	}
+	if coinTypes[wallet.Litecoin] {
+		var apiEndpoint string
+		if !testnet {
+			apiEndpoint = "https://insight.litecore.io/api"
+		} else {
+			apiEndpoint = "https://testnet.litecore.io/api"
+		}
+		clientApi, _ := url.Parse(apiEndpoint)
+		db, _ := mockDB.GetDatastoreForWallet(wallet.Litecoin)
+		ltcCfg := CoinConfig{
+			CoinType:  wallet.Litecoin,
+			FeeAPI:    url.URL{},
+			LowFee:    140,
+			MediumFee: 160,
+			HighFee:   180,
+			MaxFee:    2000,
+			ClientAPI: *clientApi,
+			DB:        db,
+		}
+		cfg.Coins = append(cfg.Coins, ltcCfg)
+	}
 	return cfg
 }

@@ -1,4 +1,4 @@
-package zcash
+package litecoin
 
 import (
 	"bytes"
@@ -6,8 +6,9 @@ import (
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/multiwallet/keys"
+	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
 	"github.com/OpenBazaar/multiwallet/service"
-	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
+	"github.com/OpenBazaar/spvwallet"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -15,8 +16,6 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
-	bcw "github.com/cpacia/BitcoinCash-Wallet"
-	"os"
 	"testing"
 	"time"
 )
@@ -27,13 +26,14 @@ type FeeResponse struct {
 	Economic int `json:"economic"`
 }
 
-func newMockWallet() (*ZCashWallet, error) {
+func newMockWallet() (*LitecoinWallet, error) {
 	mockDb := datastore.NewMockMultiwalletDatastore()
 
-	db, err := mockDb.GetDatastoreForWallet(wallet.BitcoinCash)
+	db, err := mockDb.GetDatastoreForWallet(wallet.Litecoin)
 	if err != nil {
 		return nil, err
 	}
+
 	params := &chaincfg.MainNetParams
 
 	seed, err := hex.DecodeString("16c034c59522326867593487c03a8f9615fb248406dd0d4ffb3a6b976a248403")
@@ -44,43 +44,63 @@ func newMockWallet() (*ZCashWallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.BitcoinCash, zcashCashAddress)
+	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.Litecoin, litecoinAddress)
 	if err != nil {
 		return nil, err
 	}
 
-	fp := bcw.NewFeeProvider(2000, 300, 200, 100, nil)
+	fp := spvwallet.NewFeeProvider(2000, 300, 200, 100, "", nil)
 
-	bw := &ZCashWallet{
+	bw := &LitecoinWallet{
 		params: params,
 		km:     km,
 		db:     db,
 		fp:     fp,
 	}
 	cli := client.NewMockApiClient(bw.AddressToScript)
-	ws := service.NewWalletService(db, km, cli, params, wallet.BitcoinCash)
+	ws := service.NewWalletService(db, km, cli, params, wallet.Litecoin)
 	bw.client = cli
 	bw.ws = ws
 	return bw, nil
 }
 
-func TestZCashWallet_buildTx(t *testing.T) {
+func waitForTxnSync(t *testing.T, txnStore wallet.Txns) {
+	// Look for a known txn, this sucks a bit. It would be better to check if the
+	// number of stored txns matched the expected, but not all the mock
+	// transactions are relevant, so the numbers don't add up.
+	// Even better would be for the wallet to signal that the initial sync was
+	// done.
+	lastTxn := client.MockTransactions[len(client.MockTransactions)-2]
+	txHash, err := chainhash.NewHashFromStr(lastTxn.Txid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 100; i++ {
+		if _, err := txnStore.Get(*txHash); err == nil {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatal("timeout waiting for wallet to sync transactions")
+}
+
+func TestLitecoinWallet_buildTx(t *testing.T) {
 	w, err := newMockWallet()
+	if err != nil {
+		t.Error(err)
+	}
 	w.ws.Start()
-	time.Sleep(time.Second / 2)
+	waitForTxnSync(t, w.db.Txns())
+	addr, err := w.DecodeAddress("Lep9b95MtHofxS72Hjdg4Wfmr43sHetrZT")
 	if err != nil {
 		t.Error(err)
 	}
-	addr, err := w.DecodeAddress("t1hASvMj8e6TXWryuB3L5TKXJB7XfNioZP3")
-	if err != nil {
-		t.Error(err)
-	}
+
 	// Test build normal tx
 	tx, err := w.buildTx(1500000, addr, wallet.NORMAL, nil)
 	if err != nil {
-		w.DumpTables(os.Stdout)
 		t.Error(err)
-		return
 	}
 	if !containsOutput(tx, addr) {
 		t.Error("Built tx does not contain the requested output")
@@ -107,7 +127,7 @@ func TestZCashWallet_buildTx(t *testing.T) {
 
 func containsOutput(tx *wire.MsgTx, addr btcutil.Address) bool {
 	for _, o := range tx.TxOut {
-		script, _ := zaddr.PayToAddrScript(addr)
+		script, _ := laddr.PayToAddrScript(addr)
 		if bytes.Equal(script, o.PkScript) {
 			return true
 		}
@@ -146,7 +166,7 @@ func validChangeAddress(tx *wire.MsgTx, db wallet.Datastore, params *chaincfg.Pa
 	return false
 }
 
-func TestZCashWallet_GenerateMultisigScript(t *testing.T) {
+func TestLitecoinWallet_GenerateMultisigScript(t *testing.T) {
 	w, err := newMockWallet()
 	if err != nil {
 		t.Error(err)
@@ -182,7 +202,7 @@ func TestZCashWallet_GenerateMultisigScript(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if addr.String() != "t3ZZqETXWTohq3xXHxD9yzfq4UxpcACLkVc" {
+	if addr.String() != "ltc1qrrsyr5ktgfl3w8aahzzdz5g87yplaze7ump2vht7lj7g5fg34ruspm8n44" {
 		t.Error("Returned invalid address")
 	}
 
@@ -199,25 +219,66 @@ func TestZCashWallet_GenerateMultisigScript(t *testing.T) {
 	if !bytes.Equal(rsBytes, redeemScript) {
 		t.Error("Returned invalid redeem script")
 	}
-}
 
-func TestZCashWallet_newUnsignedTransaction(t *testing.T) {
-	w, err := newMockWallet()
-	w.ws.Start()
-	time.Sleep(time.Second / 2)
+	// test with timeout
+	key4, err := w.km.GetFreshKey(wallet.INTERNAL)
 	if err != nil {
 		t.Error(err)
 	}
+	pubkey4, err := key4.ECPubKey()
+	if err != nil {
+		t.Error(err)
+	}
+	addr, redeemScript, err = w.generateMultisigScript(keys, 2, time.Hour*10, key4)
+	if err != nil {
+		t.Error(err)
+	}
+	if addr.String() != "ltc1qf5x040t6thd6mkcjsde2zxpxq2lmzp3grwau055e085vqs00qa3qscdl2k" {
+		t.Error("Returned invalid address")
+	}
+
+	rs = "63" + // OP_IF
+		"52" + // OP_2
+		"21" + // OP_PUSHDATA(33)
+		hex.EncodeToString(pubkey1.SerializeCompressed()) + // pubkey1
+		"21" + // OP_PUSHDATA(33)
+		hex.EncodeToString(pubkey2.SerializeCompressed()) + // pubkey2
+		"21" + // OP_PUSHDATA(33)
+		hex.EncodeToString(pubkey3.SerializeCompressed()) + // pubkey3
+		"53" + // OP_3
+		"ae" + // OP_CHECKMULTISIG
+		"67" + // OP_ELSE
+		"01" + // OP_PUSHDATA(1)
+		"3c" + // 60 blocks
+		"b2" + // OP_CHECKSEQUENCEVERIFY
+		"75" + // OP_DROP
+		"21" + // OP_PUSHDATA(33)
+		hex.EncodeToString(pubkey4.SerializeCompressed()) + // timeout pubkey
+		"ac" + // OP_CHECKSIG
+		"68" // OP_ENDIF
+	rsBytes, err = hex.DecodeString(rs)
+	if !bytes.Equal(rsBytes, redeemScript) {
+		t.Error("Returned invalid redeem script")
+	}
+}
+
+func TestLitecoinWallet_newUnsignedTransaction(t *testing.T) {
+	w, err := newMockWallet()
+	if err != nil {
+		t.Error(err)
+	}
+	w.ws.Start()
+	waitForTxnSync(t, w.db.Txns())
 	utxos, err := w.db.Utxos().GetAll()
 	if err != nil {
 		t.Error(err)
 	}
-	addr, err := w.DecodeAddress("t3ZZqETXWTohq3xXHxD9yzfq4UxpcACLkVc")
+	addr, err := w.DecodeAddress("Lep9b95MtHofxS72Hjdg4Wfmr43sHetrZT")
 	if err != nil {
 		t.Error(err)
 	}
 
-	script, err := zaddr.PayToAddrScript(addr)
+	script, err := laddr.PayToAddrScript(addr)
 	if err != nil {
 		t.Error(err)
 	}
@@ -226,7 +287,7 @@ func TestZCashWallet_newUnsignedTransaction(t *testing.T) {
 
 	changeSource := func() ([]byte, error) {
 		addr := w.CurrentAddress(wallet.INTERNAL)
-		script, err := zaddr.PayToAddrScript(addr)
+		script, err := laddr.PayToAddrScript(addr)
 		if err != nil {
 			return []byte{}, err
 		}
@@ -261,7 +322,7 @@ func TestZCashWallet_newUnsignedTransaction(t *testing.T) {
 	}
 }
 
-func TestZCashWallet_CreateMultisigSignature(t *testing.T) {
+func TestLitecoinWallet_CreateMultisigSignature(t *testing.T) {
 	w, err := newMockWallet()
 	if err != nil {
 		t.Error(err)
@@ -290,7 +351,7 @@ func TestZCashWallet_CreateMultisigSignature(t *testing.T) {
 	}
 }
 
-func buildTxData(w *ZCashWallet) ([]wallet.TransactionInput, []wallet.TransactionOutput, []byte, error) {
+func buildTxData(w *LitecoinWallet) ([]wallet.TransactionInput, []wallet.TransactionOutput, []byte, error) {
 	redeemScript := "522103c157f2a7c178430972263232c9306110090c50b44d4e906ecd6d377eec89a53c210205b02b9dbe570f36d1c12e3100e55586b2b9dc61d6778c1d24a8eaca03625e7e21030c83b025cd6bdd8c06e93a2b953b821b4a8c29da211335048d7dc3389706d7e853ae"
 	redeemScriptBytes, err := hex.DecodeString(redeemScript)
 	if err != nil {
@@ -312,12 +373,12 @@ func buildTxData(w *ZCashWallet) ([]wallet.TransactionInput, []wallet.Transactio
 		OutpointHash:  h2,
 		OutpointIndex: 0,
 	}
-	addr, err := w.DecodeAddress("t3ZZqETXWTohq3xXHxD9yzfq4UxpcACLkVc")
+	addr, err := w.DecodeAddress("Lep9b95MtHofxS72Hjdg4Wfmr43sHetrZT")
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	script, err := zaddr.PayToAddrScript(addr)
+	script, err := laddr.PayToAddrScript(addr)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -328,7 +389,7 @@ func buildTxData(w *ZCashWallet) ([]wallet.TransactionInput, []wallet.Transactio
 	return []wallet.TransactionInput{in1, in2}, []wallet.TransactionOutput{out}, redeemScriptBytes, nil
 }
 
-func TestZCashWallet_Multisign(t *testing.T) {
+func TestLitecoinWallet_Multisign(t *testing.T) {
 	w, err := newMockWallet()
 	if err != nil {
 		t.Error(err)
@@ -376,24 +437,20 @@ func TestZCashWallet_Multisign(t *testing.T) {
 		t.Error("Transactions has incorrect number of outputs")
 	}
 	for _, in := range tx.TxIn {
-		if len(in.SignatureScript) == 0 {
-			t.Error("Input script has zero length")
+		if len(in.Witness) == 0 {
+			t.Error("Input witness has zero length")
 		}
 	}
 }
 
-func TestZCashWallet_bumpFee(t *testing.T) {
+func TestLitecoinWallet_bumpFee(t *testing.T) {
 	w, err := newMockWallet()
+	if err != nil {
+		t.Error(err)
+	}
 	w.ws.Start()
-	time.Sleep(time.Second / 2)
-	if err != nil {
-		t.Error(err)
-	}
-	txns, err := w.db.Txns().GetAll(false)
-	if err != nil {
-		t.Error(err)
-	}
-	ch, err := chainhash.NewHashFromStr(txns[2].Txid)
+	waitForTxnSync(t, w.db.Txns())
+	ch, err := chainhash.NewHashFromStr("7fe0f12c1f77b33128c1b4a79fcc1f723c5be90dd1216b0664a8307060d4345e")
 	if err != nil {
 		t.Error(err)
 	}
@@ -428,17 +485,18 @@ func TestZCashWallet_bumpFee(t *testing.T) {
 	}
 }
 
-func TestZCashWallet_sweepAddress(t *testing.T) {
+func TestLitecoinWallet_sweepAddress(t *testing.T) {
 	w, err := newMockWallet()
-	w.ws.Start()
-	time.Sleep(time.Second / 2)
 	if err != nil {
 		t.Error(err)
 	}
+	w.ws.Start()
+	waitForTxnSync(t, w.db.Txns())
 	utxos, err := w.db.Utxos().GetAll()
 	if err != nil {
 		t.Error(err)
 	}
+
 	var u wallet.Utxo
 	var key *hdkeychain.ExtendedKey
 	for _, ut := range utxos {
@@ -486,13 +544,13 @@ func TestZCashWallet_sweepAddress(t *testing.T) {
 	}
 }
 
-func TestZCashWallet_estimateSpendFee(t *testing.T) {
+func TestLitecoinWallet_estimateSpendFee(t *testing.T) {
 	w, err := newMockWallet()
-	w.ws.Start()
-	time.Sleep(time.Second / 2)
 	if err != nil {
 		t.Error(err)
 	}
+	w.ws.Start()
+	waitForTxnSync(t, w.db.Txns())
 	fee, err := w.estimateSpendFee(1000, wallet.NORMAL)
 	if err != nil {
 		t.Error(err)

@@ -1,4 +1,4 @@
-package litecoin
+package address
 
 import (
 	"bytes"
@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"strings"
 
+	lparams "github.com/OpenBazaar/multiwallet/litecoin/params"
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/bech32"
 	"github.com/btcsuite/golangcrypto/ripemd160"
@@ -257,7 +259,7 @@ type AddressPubKeyHash struct {
 // NewAddressPubKeyHash returns a new AddressPubKeyHash.  pkHash mustbe 20
 // bytes.
 func NewAddressPubKeyHash(pkHash []byte, net *chaincfg.Params) (*AddressPubKeyHash, error) {
-	params := ConvertParams(net)
+	params := lparams.ConvertParams(net)
 	return newAddressPubKeyHash(pkHash, params.PubKeyHashAddrID)
 }
 
@@ -292,7 +294,7 @@ func (a *AddressPubKeyHash) ScriptAddress() []byte {
 // IsForNet returns whether or not the pay-to-pubkey-hash address is associated
 // with the passed litecoin network.
 func (a *AddressPubKeyHash) IsForNet(net *chaincfg.Params) bool {
-	params := ConvertParams(net)
+	params := lparams.ConvertParams(net)
 	return a.netID == params.PubKeyHashAddrID
 }
 
@@ -320,14 +322,14 @@ type AddressScriptHash struct {
 // NewAddressScriptHash returns a new AddressScriptHash.
 func NewAddressScriptHash(serializedScript []byte, net *chaincfg.Params) (*AddressScriptHash, error) {
 	scriptHash := btcutil.Hash160(serializedScript)
-	params := ConvertParams(net)
+	params := lparams.ConvertParams(net)
 	return newAddressScriptHashFromHash(scriptHash, params.ScriptHashAddrID)
 }
 
 // NewAddressScriptHashFromHash returns a new AddressScriptHash.  scriptHash
 // must be 20 bytes.
 func NewAddressScriptHashFromHash(scriptHash []byte, net *chaincfg.Params) (*AddressScriptHash, error) {
-	params := ConvertParams(net)
+	params := lparams.ConvertParams(net)
 	return newAddressScriptHashFromHash(scriptHash, params.ScriptHashAddrID)
 }
 
@@ -362,7 +364,7 @@ func (a *AddressScriptHash) ScriptAddress() []byte {
 // IsForNet returns whether or not the pay-to-script-hash address is associated
 // with the passed litecoin network.
 func (a *AddressScriptHash) IsForNet(net *chaincfg.Params) bool {
-	params := ConvertParams(net)
+	params := lparams.ConvertParams(net)
 	return a.netID == params.ScriptHashAddrID
 }
 
@@ -424,7 +426,7 @@ func NewAddressPubKey(serializedPubKey []byte, net *chaincfg.Params) (*AddressPu
 	case 0x06, 0x07:
 		pkFormat = PKFHybrid
 	}
-	params := ConvertParams(net)
+	params := lparams.ConvertParams(net)
 
 	return &AddressPubKey{
 		pubKeyFormat: pkFormat,
@@ -472,7 +474,7 @@ func (a *AddressPubKey) ScriptAddress() []byte {
 // IsForNet returns whether or not the pay-to-pubkey address is associated
 // with the passed litecoin network.
 func (a *AddressPubKey) IsForNet(net *chaincfg.Params) bool {
-	params := ConvertParams(net)
+	params := lparams.ConvertParams(net)
 	return a.pubKeyHashID == params.PubKeyHashAddrID
 }
 
@@ -523,7 +525,7 @@ type AddressWitnessPubKeyHash struct {
 
 // NewAddressWitnessPubKeyHash returns a new AddressWitnessPubKeyHash.
 func NewAddressWitnessPubKeyHash(witnessProg []byte, net *chaincfg.Params) (*AddressWitnessPubKeyHash, error) {
-	params := ConvertParams(net)
+	params := lparams.ConvertParams(net)
 	return newAddressWitnessPubKeyHash(params.Bech32HRPSegwit, witnessProg)
 }
 
@@ -570,7 +572,7 @@ func (a *AddressWitnessPubKeyHash) ScriptAddress() []byte {
 // with the passed litecoin network.
 // Part of the Address interface.
 func (a *AddressWitnessPubKeyHash) IsForNet(net *chaincfg.Params) bool {
-	params := ConvertParams(net)
+	params := lparams.ConvertParams(net)
 	return a.hrp == params.Bech32HRPSegwit
 }
 
@@ -616,7 +618,7 @@ type AddressWitnessScriptHash struct {
 
 // NewAddressWitnessScriptHash returns a new AddressWitnessPubKeyHash.
 func NewAddressWitnessScriptHash(witnessProg []byte, net *chaincfg.Params) (*AddressWitnessScriptHash, error) {
-	params := ConvertParams(net)
+	params := lparams.ConvertParams(net)
 	return newAddressWitnessScriptHash(params.Bech32HRPSegwit, witnessProg)
 }
 
@@ -663,7 +665,7 @@ func (a *AddressWitnessScriptHash) ScriptAddress() []byte {
 // with the passed litecoin network.
 // Part of the Address interface.
 func (a *AddressWitnessScriptHash) IsForNet(net *chaincfg.Params) bool {
-	params := ConvertParams(net)
+	params := lparams.ConvertParams(net)
 	return a.hrp == params.Bech32HRPSegwit
 }
 
@@ -689,6 +691,44 @@ func (a *AddressWitnessScriptHash) WitnessVersion() byte {
 // WitnessProgram returns the witness program of the AddressWitnessScriptHash.
 func (a *AddressWitnessScriptHash) WitnessProgram() []byte {
 	return a.witnessProgram[:]
+}
+
+// PayToAddrScript creates a new script to pay a transaction output to a the
+// specified address.
+func PayToAddrScript(addr btcutil.Address) ([]byte, error) {
+	const nilAddrErrStr = "unable to generate payment script for nil address"
+
+	switch addr := addr.(type) {
+	case *AddressPubKeyHash:
+		if addr == nil {
+			return nil, errors.New(nilAddrErrStr)
+		}
+		return payToPubKeyHashScript(addr.ScriptAddress())
+
+	case *AddressScriptHash:
+		if addr == nil {
+			return nil, errors.New(nilAddrErrStr)
+		}
+		return payToScriptHashScript(addr.ScriptAddress())
+	}
+	return nil, fmt.Errorf("unable to generate payment script for unsupported "+
+		"address type %T", addr)
+}
+
+// payToPubKeyHashScript creates a new script to pay a transaction
+// output to a 20-byte pubkey hash. It is expected that the input is a valid
+// hash.
+func payToPubKeyHashScript(pubKeyHash []byte) ([]byte, error) {
+	return txscript.NewScriptBuilder().AddOp(txscript.OP_DUP).AddOp(txscript.OP_HASH160).
+		AddData(pubKeyHash).AddOp(txscript.OP_EQUALVERIFY).AddOp(txscript.OP_CHECKSIG).
+		Script()
+}
+
+// payToScriptHashScript creates a new script to pay a transaction output to a
+// script hash. It is expected that the input is a valid hash.
+func payToScriptHashScript(scriptHash []byte) ([]byte, error) {
+	return txscript.NewScriptBuilder().AddOp(txscript.OP_HASH160).AddData(scriptHash).
+		AddOp(txscript.OP_EQUAL).Script()
 }
 
 func ExtractPkScriptAddrs(pkScript []byte, chainParams *chaincfg.Params) (btcutil.Address, error) {

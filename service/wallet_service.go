@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/keys"
-	"github.com/OpenBazaar/multiwallet/litecoin"
+	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
 	"github.com/OpenBazaar/multiwallet/util"
 	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
 	"github.com/OpenBazaar/wallet-interface"
@@ -514,7 +514,7 @@ func (ws *WalletService) getStoredAddresses() map[string]storedAddress {
 				}
 				addrs[addr.String()] = storedAddress{addr, true}
 			case wallet.Litecoin:
-				addr, err := litecoin.ExtractPkScriptAddrs(script, ws.params)
+				addr, err := laddr.ExtractPkScriptAddrs(script, ws.params)
 				if err != nil {
 					log.Errorf("Error serializing %s script: %s", ws.coinType.String(), err.Error())
 					continue

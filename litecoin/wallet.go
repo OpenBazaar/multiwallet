@@ -1,4 +1,4 @@
-package zcash
+package litecoin
 
 import (
 	"bytes"
@@ -6,9 +6,10 @@ import (
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/config"
 	"github.com/OpenBazaar/multiwallet/keys"
+	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
-	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
+	"github.com/OpenBazaar/spvwallet"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -16,27 +17,25 @@ import (
 	"github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/btcsuite/btcwallet/wallet/txrules"
-	bcw "github.com/cpacia/BitcoinCash-Wallet"
-	er "github.com/cpacia/BitcoinCash-Wallet/exchangerates"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
 	"io"
 	"time"
 )
 
-type ZCashWallet struct {
+type LitecoinWallet struct {
 	db     wi.Datastore
 	km     *keys.KeyManager
 	params *chaincfg.Params
 	client client.APIClient
 	ws     *service.WalletService
-	fp     *bcw.FeeProvider
+	fp     *spvwallet.FeeProvider
 
 	mPrivKey *hd.ExtendedKey
 	mPubKey  *hd.ExtendedKey
 }
 
-func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer) (*ZCashWallet, error) {
+func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer) (*LitecoinWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -47,7 +46,7 @@ func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Par
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(cfg.DB.Keys(), params, mPrivKey, wi.Zcash, zcashCashAddress)
+	km, err := keys.NewKeyManager(cfg.DB.Keys(), params, mPrivKey, wi.Litecoin, litecoinAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -57,81 +56,76 @@ func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Par
 		return nil, err
 	}
 
-	wm := service.NewWalletService(cfg.DB, km, c, params, wi.Zcash)
+	wm := service.NewWalletService(cfg.DB, km, c, params, wi.Litecoin)
 
-	// TODO: create zcash fee provider
-	fp := bcw.NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, er.NewBitcoinCashPriceFetcher(proxy))
+	// TODO: create litecoin fee provider
+	fp := spvwallet.NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, cfg.FeeAPI.String(), proxy)
 
-	return &ZCashWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey}, nil
+	return &LitecoinWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey}, nil
 }
 
-func zcashCashAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
+func litecoinAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
 	addr, err := key.Address(params)
 	if err != nil {
 		return nil, err
 	}
-	return zaddr.NewAddressPubKeyHash(addr.ScriptAddress(), params)
+	return laddr.NewAddressPubKeyHash(addr.ScriptAddress(), params)
 }
-
-func (w *ZCashWallet) Start() {
+func (w *LitecoinWallet) Start() {
 	w.ws.Start()
 }
 
-func (w *ZCashWallet) Params() *chaincfg.Params {
+func (w *LitecoinWallet) Params() *chaincfg.Params {
 	return w.params
 }
 
-func (w *ZCashWallet) CurrencyCode() string {
+func (w *LitecoinWallet) CurrencyCode() string {
 	if w.params.Name == chaincfg.MainNetParams.Name {
-		return "zec"
+		return "ltc"
 	} else {
-		return "tzec"
+		return "tltc"
 	}
 }
 
-func (w *ZCashWallet) IsDust(amount int64) bool {
+func (w *LitecoinWallet) IsDust(amount int64) bool {
 	return txrules.IsDustAmount(btcutil.Amount(amount), 25, txrules.DefaultRelayFeePerKb)
 }
 
-func (w *ZCashWallet) MasterPrivateKey() *hd.ExtendedKey {
+func (w *LitecoinWallet) MasterPrivateKey() *hd.ExtendedKey {
 	return w.mPrivKey
 }
 
-func (w *ZCashWallet) MasterPublicKey() *hd.ExtendedKey {
+func (w *LitecoinWallet) MasterPublicKey() *hd.ExtendedKey {
 	return w.mPubKey
 }
 
-func (w *ZCashWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
+func (w *LitecoinWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
 	key, _ := w.km.GetCurrentKey(purpose)
-	addr, _ := zcashCashAddress(key, w.params)
+	addr, _ := litecoinAddress(key, w.params)
 	return btcutil.Address(addr)
 }
 
-func (w *ZCashWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
+func (w *LitecoinWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
 	i, _ := w.db.Keys().GetUnused(purpose)
 	key, _ := w.km.GenerateChildKey(purpose, uint32(i[1]))
-	addr, _ := zcashCashAddress(key, w.params)
+	addr, _ := litecoinAddress(key, w.params)
 	w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress())
 	return btcutil.Address(addr)
 }
 
-func (w *ZCashWallet) DecodeAddress(addr string) (btcutil.Address, error) {
-	return zaddr.DecodeAddress(addr, w.params)
+func (w *LitecoinWallet) DecodeAddress(addr string) (btcutil.Address, error) {
+	return laddr.DecodeAddress(addr, w.params)
 }
 
-func (w *ZCashWallet) ScriptToAddress(script []byte) (btcutil.Address, error) {
-	addr, err := zaddr.ExtractPkScriptAddrs(script, w.params)
-	if err != nil {
-		return nil, err
-	}
-	return addr, nil
+func (w *LitecoinWallet) ScriptToAddress(script []byte) (btcutil.Address, error) {
+	return laddr.ExtractPkScriptAddrs(script, w.params)
 }
 
-func (w *ZCashWallet) AddressToScript(addr btcutil.Address) ([]byte, error) {
-	return zaddr.PayToAddrScript(addr)
+func (w *LitecoinWallet) AddressToScript(addr btcutil.Address) ([]byte, error) {
+	return laddr.PayToAddrScript(addr)
 }
 
-func (w *ZCashWallet) HasKey(addr btcutil.Address) bool {
+func (w *LitecoinWallet) HasKey(addr btcutil.Address) bool {
 	_, err := w.km.GetKeyForScript(addr.ScriptAddress())
 	if err != nil {
 		return false
@@ -139,30 +133,30 @@ func (w *ZCashWallet) HasKey(addr btcutil.Address) bool {
 	return true
 }
 
-func (w *ZCashWallet) Balance() (confirmed, unconfirmed int64) {
+func (w *LitecoinWallet) Balance() (confirmed, unconfirmed int64) {
 	utxos, _ := w.db.Utxos().GetAll()
 	txns, _ := w.db.Txns().GetAll(false)
 	return util.CalcBalance(utxos, txns)
 }
 
-func (w *ZCashWallet) Transactions() ([]wi.Txn, error) {
+func (w *LitecoinWallet) Transactions() ([]wi.Txn, error) {
 	return w.db.Txns().GetAll(false)
 }
 
-func (w *ZCashWallet) GetTransaction(txid chainhash.Hash) (wi.Txn, error) {
+func (w *LitecoinWallet) GetTransaction(txid chainhash.Hash) (wi.Txn, error) {
 	txn, err := w.db.Txns().Get(txid)
 	return txn, err
 }
 
-func (w *ZCashWallet) ChainTip() (uint32, chainhash.Hash) {
+func (w *LitecoinWallet) ChainTip() (uint32, chainhash.Hash) {
 	return w.ws.ChainTip()
 }
 
-func (w *ZCashWallet) GetFeePerByte(feeLevel wi.FeeLevel) uint64 {
+func (w *LitecoinWallet) GetFeePerByte(feeLevel wi.FeeLevel) uint64 {
 	return w.fp.GetFeePerByte(feeLevel)
 }
 
-func (w *ZCashWallet) Spend(amount int64, addr btcutil.Address, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+func (w *LitecoinWallet) Spend(amount int64, addr btcutil.Address, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
 	tx, err := w.buildTx(amount, addr, feeLevel, nil)
 	if err != nil {
 		return nil, err
@@ -180,11 +174,11 @@ func (w *ZCashWallet) Spend(amount int64, addr btcutil.Address, feeLevel wi.FeeL
 	return &ch, nil
 }
 
-func (w *ZCashWallet) BumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
+func (w *LitecoinWallet) BumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 	return w.bumpFee(txid)
 }
 
-func (w *ZCashWallet) EstimateFee(ins []wi.TransactionInput, outs []wi.TransactionOutput, feePerByte uint64) uint64 {
+func (w *LitecoinWallet) EstimateFee(ins []wi.TransactionInput, outs []wi.TransactionOutput, feePerByte uint64) uint64 {
 	tx := new(wire.MsgTx)
 	for _, out := range outs {
 		output := wire.NewTxOut(out.Value, out.ScriptPubKey)
@@ -195,27 +189,27 @@ func (w *ZCashWallet) EstimateFee(ins []wi.TransactionInput, outs []wi.Transacti
 	return uint64(fee)
 }
 
-func (w *ZCashWallet) EstimateSpendFee(amount int64, feeLevel wi.FeeLevel) (uint64, error) {
+func (w *LitecoinWallet) EstimateSpendFee(amount int64, feeLevel wi.FeeLevel) (uint64, error) {
 	return w.estimateSpendFee(amount, feeLevel)
 }
 
-func (w *ZCashWallet) SweepAddress(utxos []wi.Utxo, address *btcutil.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+func (w *LitecoinWallet) SweepAddress(utxos []wi.Utxo, address *btcutil.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
 	return w.sweepAddress(utxos, address, key, redeemScript, feeLevel)
 }
 
-func (w *ZCashWallet) CreateMultisigSignature(ins []wi.TransactionInput, outs []wi.TransactionOutput, key *hd.ExtendedKey, redeemScript []byte, feePerByte uint64) ([]wi.Signature, error) {
+func (w *LitecoinWallet) CreateMultisigSignature(ins []wi.TransactionInput, outs []wi.TransactionOutput, key *hd.ExtendedKey, redeemScript []byte, feePerByte uint64) ([]wi.Signature, error) {
 	return w.createMultisigSignature(ins, outs, key, redeemScript, feePerByte)
 }
 
-func (w *ZCashWallet) Multisign(ins []wi.TransactionInput, outs []wi.TransactionOutput, sigs1 []wi.Signature, sigs2 []wi.Signature, redeemScript []byte, feePerByte uint64, broadcast bool) ([]byte, error) {
+func (w *LitecoinWallet) Multisign(ins []wi.TransactionInput, outs []wi.TransactionOutput, sigs1 []wi.Signature, sigs2 []wi.Signature, redeemScript []byte, feePerByte uint64, broadcast bool) ([]byte, error) {
 	return w.multisign(ins, outs, sigs1, sigs2, redeemScript, feePerByte, broadcast)
 }
 
-func (w *ZCashWallet) GenerateMultisigScript(keys []hd.ExtendedKey, threshold int, timeout time.Duration, timeoutKey *hd.ExtendedKey) (addr btcutil.Address, redeemScript []byte, err error) {
+func (w *LitecoinWallet) GenerateMultisigScript(keys []hd.ExtendedKey, threshold int, timeout time.Duration, timeoutKey *hd.ExtendedKey) (addr btcutil.Address, redeemScript []byte, err error) {
 	return w.generateMultisigScript(keys, threshold, timeout, timeoutKey)
 }
 
-func (w *ZCashWallet) AddWatchedScript(script []byte) error {
+func (w *LitecoinWallet) AddWatchedScript(script []byte) error {
 	err := w.db.WatchedScripts().Put(script)
 	if err != nil {
 		return err
@@ -228,15 +222,15 @@ func (w *ZCashWallet) AddWatchedScript(script []byte) error {
 	return nil
 }
 
-func (w *ZCashWallet) AddTransactionListener(callback func(wi.TransactionCallback)) {
+func (w *LitecoinWallet) AddTransactionListener(callback func(wi.TransactionCallback)) {
 	w.ws.AddTransactionListener(callback)
 }
 
-func (w *ZCashWallet) ReSyncBlockchain(fromTime time.Time) {
+func (w *LitecoinWallet) ReSyncBlockchain(fromTime time.Time) {
 	go w.ws.UpdateState()
 }
 
-func (w *ZCashWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, error) {
+func (w *LitecoinWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, error) {
 	txn, err := w.db.Txns().Get(txid)
 	if err != nil {
 		return 0, 0, err
@@ -248,12 +242,12 @@ func (w *ZCashWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, err
 	return chainTip - uint32(txn.Height) + 1, uint32(txn.Height), nil
 }
 
-func (w *ZCashWallet) Close() {
+func (w *LitecoinWallet) Close() {
 	w.ws.Stop()
 	w.client.Close()
 }
 
-func (w *ZCashWallet) DumpTables(wr io.Writer) {
+func (w *LitecoinWallet) DumpTables(wr io.Writer) {
 	fmt.Fprintln(wr, "Transactions-----")
 	txns, _ := w.db.Txns().GetAll(true)
 	for _, tx := range txns {
