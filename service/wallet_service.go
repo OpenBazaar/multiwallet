@@ -130,7 +130,7 @@ func (ws *WalletService) processIncomingTransaction(tx client.Transaction) {
 
 // A new block was found let's update our chain height and best hash and check for a reorg
 func (ws *WalletService) processIncomingBlock(block client.Block) {
-	log.Debugf("Received new %s block at height %d: %s", ws.coinType.String(), block.Height, block.Hash)
+	log.Infof("Received new %s block at height %d: %s", ws.coinType.String(), block.Height, block.Hash)
 	ws.lock.RLock()
 	currentBest := ws.bestBlock
 	ws.lock.RUnlock()
@@ -195,7 +195,7 @@ func (ws *WalletService) UpdateState() {
 		ws.bestBlock = best.Hash
 		ws.lock.Unlock()
 	} else {
-		log.Error("Error querying API for chain height: %s", err.Error())
+		log.Errorf("Error querying API for %s chain height: %s", ws.coinType.String(), err.Error())
 	}
 
 	// Load wallet addresses and watch only addresses from the db

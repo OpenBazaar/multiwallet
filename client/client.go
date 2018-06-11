@@ -358,9 +358,6 @@ func (i *InsightClient) Broadcast(tx []byte) (string, error) {
 	resp, err := i.doRequest("tx/send", http.MethodPost, bytes.NewBuffer(txJson), nil)
 	decoder := json.NewDecoder(resp.Body)
 
-	b, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println(string(b))
-
 	type Txid struct {
 		Result string `json:"result"`
 	}
@@ -390,8 +387,8 @@ func (i *InsightClient) GetBestBlock() (*Block, error) {
 	if err = decoder.Decode(sl); err != nil {
 		return nil, fmt.Errorf("error decoding block list: %s\n", err)
 	}
-	if len(sl.Blocks) != 2 {
-		return nil, fmt.Errorf("API returned incorrect number of block summaries")
+	if len(sl.Blocks) < 2 {
+		return nil, fmt.Errorf("API returned incorrect number of block summaries: n=%d", len(sl.Blocks))
 	}
 	sum := sl.Blocks[0]
 	sum.PreviousBlockhash = sl.Blocks[1].Hash

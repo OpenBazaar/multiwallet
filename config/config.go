@@ -92,7 +92,7 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 	if coinTypes[wallet.BitcoinCash] {
 		var apiEndpoint string
 		if !testnet {
-			apiEndpoint = "https://bch-insight.bitpay.com/api"
+			apiEndpoint = "https://bitcoincash.blockexplorer.com/api"
 		} else {
 			apiEndpoint = "https://test-bch-insight.bitpay.com/api"
 		}
