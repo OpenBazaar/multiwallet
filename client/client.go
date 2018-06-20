@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -113,7 +114,8 @@ func (i *InsightClient) doRequest(endpoint, method string, body io.Reader, query
 		}
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status not ok: %s", resp.Status)
+		respBody, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf("status not ok: %s, body: %s", resp.Status, string(respBody))
 	}
 	return resp, nil
 }
