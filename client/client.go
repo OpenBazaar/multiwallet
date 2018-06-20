@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -90,10 +89,10 @@ func (i *InsightClient) Close() {
 	i.socketClient.Close()
 }
 
-func (i *InsightClient) doRequest(endpoint, method string, body io.Reader, query url.Values) (*http.Response, error) {
+func (i *InsightClient) doRequest(endpoint, method string, body []byte, query url.Values) (*http.Response, error) {
 	requestUrl := i.apiUrl
 	requestUrl.Path = path.Join(i.apiUrl.Path, endpoint)
-	req, err := http.NewRequest(method, requestUrl.String(), body)
+	req, err := http.NewRequest(method, requestUrl.String(), bytes.NewReader(body))
 	if query != nil {
 		req.URL.RawQuery = query.Encode()
 	}
@@ -108,6 +107,8 @@ func (i *InsightClient) doRequest(endpoint, method string, body io.Reader, query
 	}
 	// Try again if for some reason it returned a bad request
 	if resp.StatusCode == http.StatusBadRequest {
+		// Reset the body so we can read it again.
+		req.Body = ioutil.NopCloser(bytes.NewReader(body))
 		resp, err = i.httpClient.Do(req)
 		if err != nil {
 			return nil, err
@@ -229,7 +230,7 @@ func (i *InsightClient) getTransactions(addrs []btcutil.Address, from, to int) (
 	if err != nil {
 		return nil, err
 	}
-	resp, err := i.doRequest("addrs/txs", http.MethodPost, bytes.NewReader(b), nil)
+	resp, err := i.doRequest("addrs/txs", http.MethodPost, b, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +277,7 @@ func (i *InsightClient) GetUtxos(addrs []btcutil.Address) ([]Utxo, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := i.doRequest("addrs/utxo", http.MethodPost, bytes.NewReader(b), nil)
+	resp, err := i.doRequest("addrs/utxo", http.MethodPost, b, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +358,7 @@ func (i *InsightClient) Broadcast(tx []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error encoding tx: %s", err)
 	}
-	resp, err := i.doRequest("tx/send", http.MethodPost, bytes.NewBuffer(txJson), nil)
+	resp, err := i.doRequest("tx/send", http.MethodPost, txJson, nil)
 	if err != nil {
 		return "", fmt.Errorf("error broadcasting tx: %s", err)
 	}
