@@ -6,6 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"path"
+	"strconv"
+	"time"
+
 	"github.com/OpenBazaar/golang-socketio"
 	"github.com/OpenBazaar/golang-socketio/protocol"
 	"github.com/OpenBazaar/multiwallet/client/transport"
@@ -13,14 +21,6 @@ import (
 	"github.com/btcsuite/btcutil"
 	"github.com/op/go-logging"
 	"golang.org/x/net/proxy"
-	"io"
-	"io/ioutil"
-	"net"
-	"net/http"
-	"net/url"
-	"path"
-	"strconv"
-	"time"
 )
 
 var log = logging.MustGetLogger("client")
@@ -353,13 +353,13 @@ func (i *InsightClient) Broadcast(tx []byte) (string, error) {
 	t := RawTx{txHex}
 	txJson, err := json.Marshal(&t)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error encoding tx: %s\n", err)
 	}
 	resp, err := i.doRequest("tx/send", http.MethodPost, bytes.NewBuffer(txJson), nil)
-	decoder := json.NewDecoder(resp.Body)
-
-	b, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println(string(b))
+	if err != nil {
+		return "", fmt.Errorf("error broadcasting tx: %s\n", err)
+	}
+	defer resp.Body.Close()
 
 	type Txid struct {
 		Result string `json:"result"`
@@ -367,9 +367,8 @@ func (i *InsightClient) Broadcast(tx []byte) (string, error) {
 	type Response struct {
 		Txid Txid `json:"txid"`
 	}
-	defer resp.Body.Close()
 	rs := new(Response)
-	if err = decoder.Decode(rs); err != nil {
+	if err = json.NewDecoder(resp.Body).Decode(rs); err != nil {
 		return "", fmt.Errorf("error decoding txid: %s\n", err)
 	}
 	return rs.Txid.Result, nil
