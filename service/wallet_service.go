@@ -369,7 +369,7 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 		return
 	}
 	var relevant bool
-	cb := wallet.TransactionCallback{Txid: txHash.CloneBytes(), Height: height}
+	cb := wallet.TransactionCallback{Txid: txHash.String(), Height: height}
 	for _, in := range u.Inputs {
 		ch, err := chainhash.NewHashFromStr(in.Txid)
 		if err != nil {
