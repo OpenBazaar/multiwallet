@@ -46,11 +46,11 @@ func (w *BitcoinCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.
 	for k := range coinMap {
 		coins = append(coins, k)
 	}
-	inputSource := func(target btc.Amount) (total btc.Amount, inputs []*wire.TxIn, scripts [][]byte, err error) {
+	inputSource := func(target btc.Amount) (total btc.Amount, inputs []*wire.TxIn, inputValues []btc.Amount, scripts [][]byte, err error) {
 		coinSelector := coinset.MaxValueAgeCoinSelector{MaxInputs: 10000, MinChangeAmount: btc.Amount(0)}
 		coins, err := coinSelector.CoinSelect(target, coins)
 		if err != nil {
-			return total, inputs, scripts, wi.ErrorInsuffientFunds
+			return total, inputs, []btc.Amount{}, scripts, wi.ErrorInsuffientFunds
 		}
 		additionalPrevScripts = make(map[wire.OutPoint][]byte)
 		additionalKeysByAddress = make(map[string]*btc.WIF)
@@ -77,7 +77,7 @@ func (w *BitcoinCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.
 			sat := val.ToUnit(btc.AmountSatoshi)
 			inVals[*outpoint] = int64(sat)
 		}
-		return total, inputs, scripts, nil
+		return total, inputs, []btc.Amount{}, scripts, nil
 	}
 
 	// Get the fee per kilobyte
@@ -142,7 +142,7 @@ func newUnsignedTransaction(outputs []*wire.TxOut, feePerKb btc.Amount, fetchInp
 	targetFee := txrules.FeeForSerializeSize(feePerKb, estimatedSize)
 
 	for {
-		inputAmount, inputs, scripts, err := fetchInputs(targetAmount + targetFee)
+		inputAmount, inputs, _, scripts, err := fetchInputs(targetAmount + targetFee)
 		if err != nil {
 			return nil, err
 		}

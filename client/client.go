@@ -14,7 +14,6 @@ import (
 	"github.com/op/go-logging"
 	"golang.org/x/net/proxy"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
