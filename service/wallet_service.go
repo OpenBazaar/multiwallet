@@ -3,11 +3,10 @@ package service
 import (
 	"bytes"
 	"encoding/hex"
-	"github.com/OpenBazaar/multiwallet/client"
-	"github.com/OpenBazaar/multiwallet/keys"
-	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
-	"github.com/OpenBazaar/multiwallet/util"
-	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -16,9 +15,12 @@ import (
 	"github.com/btcsuite/btcutil"
 	"github.com/cpacia/bchutil"
 	"github.com/op/go-logging"
-	"strconv"
-	"sync"
-	"time"
+
+	"github.com/OpenBazaar/multiwallet/client"
+	"github.com/OpenBazaar/multiwallet/keys"
+	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
+	"github.com/OpenBazaar/multiwallet/util"
+	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
 )
 
 var log = logging.MustGetLogger("WalletService")
@@ -344,7 +346,7 @@ func (ws *WalletService) saveTxsToDB(txns []client.Transaction, addrs map[string
 		if !newTxs[cur.Txid] {
 			ch, err := chainhash.NewHashFromStr(cur.Txid)
 			if err != nil {
-				log.Error("Error converting to chainhash for %s: %s", ws.coinType.String(), err.Error())
+				log.Errorf("error converting to chainhash for %s: %s", ws.coinType.String(), err.Error())
 				continue
 			}
 			ws.db.Txns().Delete(ch)
@@ -365,7 +367,7 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 
 	txHash, err := chainhash.NewHashFromStr(u.Txid)
 	if err != nil {
-		log.Error("Error converting to txHash for %s: %s", ws.coinType.String(), err.Error())
+		log.Errorf("error converting to txHash for %s: %s", ws.coinType.String(), err.Error())
 		return
 	}
 	var relevant bool
@@ -373,24 +375,32 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 	for _, in := range u.Inputs {
 		ch, err := chainhash.NewHashFromStr(in.Txid)
 		if err != nil {
-			log.Error("Error converting to chainhash for %s: %s", ws.coinType.String(), err.Error())
+			log.Errorf("error converting to chainhash for %s: %s", ws.coinType.String(), err.Error())
+			continue
+		}
+		script, err := hex.DecodeString(in.ScriptSig.Hex)
+		if err != nil {
+			log.Errorf("error converting to scriptsig for %s: %s", ws.coinType.String(), err.Error())
 			continue
 		}
 		op := wire.NewOutPoint(ch, uint32(in.Vout))
-		script, err := hex.DecodeString(in.ScriptSig.Hex)
-		if err != nil {
-			log.Error("Error converting to scriptSig for %s: %s", ws.coinType.String(), err.Error())
-			continue
-		}
+		// Skip the error check here as someone may have sent from an exotic script
+		// that we cannot turn into an address.
+		addr, _ := util.DecodeAddress(in.Addr, ws.params)
+
 		txin := wire.NewTxIn(op, script, [][]byte{})
 		txin.Sequence = uint32(in.Sequence)
 		msgTx.TxIn = append(msgTx.TxIn, txin)
-
+		h, err := hex.DecodeString(op.Hash.String())
+		if err != nil {
+			log.Errorf("error converting outpoint hash for %s: %s", ws.coinType.String(), err.Error())
+			return
+		}
 		cbin := wallet.TransactionInput{
-			OutpointHash:       op.Hash.CloneBytes(),
-			OutpointIndex:      op.Index,
-			LinkedScriptPubKey: script,
-			Value:              in.Satoshis,
+			OutpointHash:  h,
+			OutpointIndex: op.Index,
+			LinkedAddress: addr,
+			Value:         in.Satoshis,
 		}
 		cb.Inputs = append(cb.Inputs, cbin)
 
@@ -407,9 +417,13 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 	for i, out := range u.Outputs {
 		script, err := hex.DecodeString(out.ScriptPubKey.Hex)
 		if err != nil {
-			log.Error("Error converting to scriptPubkey for %s: %s", ws.coinType.String(), err.Error())
+			log.Errorf("error converting to scriptPubkey for %s: %s", ws.coinType.String(), err.Error())
 			continue
 		}
+		// Skip the error check here as someone may have sent from an exotic script
+		// that we cannot turn into an address.
+		addr, _ := util.DecodeAddress(out.ScriptPubKey.Addresses[0], ws.params)
+
 		if len(out.ScriptPubKey.Addresses) == 0 {
 			continue
 		}
@@ -417,7 +431,7 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 
 		txout := wire.NewTxOut(v, script)
 		msgTx.TxOut = append(msgTx.TxOut, txout)
-		cbout := wallet.TransactionOutput{ScriptPubKey: script, Value: v, Index: uint32(i)}
+		cbout := wallet.TransactionOutput{Address: addr, Value: v, Index: uint32(i)}
 		cb.Outputs = append(cb.Outputs, cbout)
 
 		sa, ok := addrs[out.ScriptPubKey.Addresses[0]]

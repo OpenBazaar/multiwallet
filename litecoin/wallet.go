@@ -3,12 +3,9 @@ package litecoin
 import (
 	"bytes"
 	"fmt"
-	"github.com/OpenBazaar/multiwallet/client"
-	"github.com/OpenBazaar/multiwallet/config"
-	"github.com/OpenBazaar/multiwallet/keys"
-	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
-	"github.com/OpenBazaar/multiwallet/service"
-	"github.com/OpenBazaar/multiwallet/util"
+	"io"
+	"time"
+
 	"github.com/OpenBazaar/spvwallet"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -19,8 +16,13 @@ import (
 	"github.com/btcsuite/btcwallet/wallet/txrules"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
-	"io"
-	"time"
+
+	"github.com/OpenBazaar/multiwallet/client"
+	"github.com/OpenBazaar/multiwallet/config"
+	"github.com/OpenBazaar/multiwallet/keys"
+	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
+	"github.com/OpenBazaar/multiwallet/service"
+	"github.com/OpenBazaar/multiwallet/util"
 )
 
 type LitecoinWallet struct {
@@ -97,6 +99,25 @@ func (w *LitecoinWallet) MasterPrivateKey() *hd.ExtendedKey {
 
 func (w *LitecoinWallet) MasterPublicKey() *hd.ExtendedKey {
 	return w.mPubKey
+}
+
+func (w *LitecoinWallet) ChildKey(keyBytes []byte, chaincode []byte, isPrivateKey bool) (*hd.ExtendedKey, error) {
+	parentFP := []byte{0x00, 0x00, 0x00, 0x00}
+	var id []byte
+	if isPrivateKey {
+		id = w.params.HDPrivateKeyID[:]
+	} else {
+		id = w.params.HDPublicKeyID[:]
+	}
+	hdKey := hd.NewExtendedKey(
+		id,
+		keyBytes,
+		chaincode,
+		parentFP,
+		0,
+		0,
+		isPrivateKey)
+	return hdKey.Child(0)
 }
 
 func (w *LitecoinWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
@@ -181,7 +202,8 @@ func (w *LitecoinWallet) BumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 func (w *LitecoinWallet) EstimateFee(ins []wi.TransactionInput, outs []wi.TransactionOutput, feePerByte uint64) uint64 {
 	tx := new(wire.MsgTx)
 	for _, out := range outs {
-		output := wire.NewTxOut(out.Value, out.ScriptPubKey)
+		scriptPubKey, _ := laddr.PayToAddrScript(out.Address)
+		output := wire.NewTxOut(out.Value, scriptPubKey)
 		tx.TxOut = append(tx.TxOut, output)
 	}
 	estimatedSize := EstimateSerializeSize(len(ins), tx.TxOut, false, P2PKH)
@@ -193,8 +215,8 @@ func (w *LitecoinWallet) EstimateSpendFee(amount int64, feeLevel wi.FeeLevel) (u
 	return w.estimateSpendFee(amount, feeLevel)
 }
 
-func (w *LitecoinWallet) SweepAddress(utxos []wi.Utxo, address *btcutil.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
-	return w.sweepAddress(utxos, address, key, redeemScript, feeLevel)
+func (w *LitecoinWallet) SweepAddress(ins []wi.TransactionInput, address *btcutil.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+	return w.sweepAddress(ins, address, key, redeemScript, feeLevel)
 }
 
 func (w *LitecoinWallet) CreateMultisigSignature(ins []wi.TransactionInput, outs []wi.TransactionOutput, key *hd.ExtendedKey, redeemScript []byte, feePerByte uint64) ([]wi.Signature, error) {
@@ -207,6 +229,19 @@ func (w *LitecoinWallet) Multisign(ins []wi.TransactionInput, outs []wi.Transact
 
 func (w *LitecoinWallet) GenerateMultisigScript(keys []hd.ExtendedKey, threshold int, timeout time.Duration, timeoutKey *hd.ExtendedKey) (addr btcutil.Address, redeemScript []byte, err error) {
 	return w.generateMultisigScript(keys, threshold, timeout, timeoutKey)
+}
+
+func (w *LitecoinWallet) AddWatchedAddress(addr btcutil.Address) error {
+	script, err := w.AddressToScript(addr)
+	if err != nil {
+		return err
+	}
+	err = w.db.WatchedScripts().Put(script)
+	if err != nil {
+		return err
+	}
+	w.client.ListenAddress(addr)
+	return nil
 }
 
 func (w *LitecoinWallet) AddWatchedScript(script []byte) error {

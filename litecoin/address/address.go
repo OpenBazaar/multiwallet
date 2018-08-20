@@ -142,7 +142,7 @@ func DecodeAddress(addr string, defaultNet *chaincfg.Params) (Address, error) {
 	oneIndex := strings.LastIndexByte(addr, '1')
 	if oneIndex > 1 {
 		prefix := addr[:oneIndex+1]
-		if chaincfg.IsBech32SegwitPrefix(prefix) {
+		if IsBech32SegwitPrefix(prefix) {
 			witnessVer, witnessProg, err := decodeSegWitAddress(addr)
 			if err != nil {
 				return nil, err
@@ -204,6 +204,17 @@ func DecodeAddress(addr string, defaultNet *chaincfg.Params) (Address, error) {
 	default:
 		return nil, errors.New("decoded address is of unknown size")
 	}
+}
+
+// IsBech32SegwitPrefix returns whether the prefix is a known prefix for segwit
+// addresses on any default or registered network.  This is used when decoding
+// an address string into a specific address type.
+func IsBech32SegwitPrefix(prefix string) bool {
+	prefix = strings.ToLower(prefix)
+	if prefix == "ltc1" {
+		return true
+	}
+	return false
 }
 
 // decodeSegWitAddress parses a bech32 encoded segwit address string and

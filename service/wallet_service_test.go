@@ -98,7 +98,7 @@ func TestWalletService_syncTxs(t *testing.T) {
 	if tx.Value != -1717080 || tx.WatchOnly {
 		t.Error("Failed to return incorrect value for tx")
 	}
-	tx, ok = txMap["7fe0f12c1f77b33128c1b4a79fcc1f723c5be90dd1216b0664a8307060d4345e"]
+	tx, ok = txMap["1d4288fa682fa376fbae73dbd74ea04b9ea33011d63315ca9d2d50d081e671d5"]
 	if !ok {
 		t.Error("Failed to return tx")
 	}
@@ -141,7 +141,7 @@ func TestWalletService_syncUtxos(t *testing.T) {
 	if u.Value != 1000000 || u.WatchOnly {
 		t.Error("Returned incorrect value")
 	}
-	u, ok = utxoMap["7fe0f12c1f77b33128c1b4a79fcc1f723c5be90dd1216b0664a8307060d4345e:1"]
+	u, ok = utxoMap["1d4288fa682fa376fbae73dbd74ea04b9ea33011d63315ca9d2d50d081e671d5:1"]
 	if !ok {
 		t.Error("Failed to return correct utxo")
 	}
@@ -365,7 +365,7 @@ func TestWalletService_listenersFired(t *testing.T) {
 	if nCallbacks != 1 {
 		t.Error("Failed to fire transaction callback")
 	}
-	ch, err := chainhash.NewHash(response.Txid)
+	ch, err := chainhash.NewHashFromStr(response.Txid)
 	if err != nil {
 		t.Error(err)
 	}
@@ -393,7 +393,7 @@ func TestWalletService_listenersFired(t *testing.T) {
 	if nCallbacks != 2 {
 		t.Error("Failed to fire transaction callback")
 	}
-	ch, err = chainhash.NewHash(response.Txid)
+	ch, err = chainhash.NewHashFromStr(response.Txid)
 	if err != nil {
 		t.Error(err)
 	}
@@ -417,7 +417,7 @@ func TestWalletService_listenersFired(t *testing.T) {
 	if nCallbacks != 3 {
 		t.Error("Failed to fire transaction callback")
 	}
-	ch, err = chainhash.NewHash(response.Txid)
+	ch, err = chainhash.NewHashFromStr(response.Txid)
 	if err != nil {
 		t.Error(err)
 	}
