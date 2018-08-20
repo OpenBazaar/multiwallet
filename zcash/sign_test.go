@@ -233,12 +233,12 @@ func TestZCashWallet_newUnsignedTransaction(t *testing.T) {
 		return script, nil
 	}
 
-	inputSource := func(target btcutil.Amount) (total btcutil.Amount, inputs []*wire.TxIn, scripts [][]byte, err error) {
+	inputSource := func(target btcutil.Amount) (total btcutil.Amount, inputs []*wire.TxIn, inputValues []btcutil.Amount, scripts [][]byte, err error) {
 		total += btcutil.Amount(utxos[0].Value)
 		in := wire.NewTxIn(&utxos[0].Op, []byte{}, [][]byte{})
 		in.Sequence = 0 // Opt-in RBF so we can bump fees
 		inputs = append(inputs, in)
-		return total, inputs, scripts, nil
+		return total, inputs, inputValues, scripts, nil
 	}
 
 	// Regular transaction
@@ -317,13 +317,9 @@ func buildTxData(w *ZCashWallet) ([]wallet.TransactionInput, []wallet.Transactio
 		return nil, nil, nil, err
 	}
 
-	script, err := zaddr.PayToAddrScript(addr)
-	if err != nil {
-		return nil, nil, nil, err
-	}
 	out := wallet.TransactionOutput{
-		Value:        20000,
-		ScriptPubKey: script,
+		Value:   20000,
+		Address: addr,
 	}
 	return []wallet.TransactionInput{in1, in2}, []wallet.TransactionOutput{out}, redeemScriptBytes, nil
 }
@@ -439,11 +435,10 @@ func TestZCashWallet_sweepAddress(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	var u wallet.Utxo
+	var in wallet.TransactionInput
 	var key *hdkeychain.ExtendedKey
 	for _, ut := range utxos {
 		if ut.Value > 0 && !ut.WatchOnly {
-			u = ut
 			addr, err := w.ScriptToAddress(ut.ScriptPubkey)
 			if err != nil {
 				t.Error(err)
@@ -452,10 +447,20 @@ func TestZCashWallet_sweepAddress(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
+			h, err := hex.DecodeString(ut.Op.Hash.String())
+			if err != nil {
+				t.Error(err)
+			}
+			in = wallet.TransactionInput{
+				LinkedAddress: addr,
+				Value:         ut.Value,
+				OutpointIndex: ut.Op.Index,
+				OutpointHash:  h,
+			}
 		}
 	}
 	// P2PKH addr
-	_, err = w.sweepAddress([]wallet.Utxo{u}, nil, key, nil, wallet.NORMAL)
+	_, err = w.sweepAddress([]wallet.TransactionInput{in}, nil, key, nil, wallet.NORMAL)
 	if err != nil {
 		t.Error(err)
 		return
@@ -464,7 +469,20 @@ func TestZCashWallet_sweepAddress(t *testing.T) {
 	// 1 of 2 P2WSH
 	for _, ut := range utxos {
 		if ut.Value > 0 && ut.WatchOnly {
-			u = ut
+			addr, err := w.ScriptToAddress(ut.ScriptPubkey)
+			if err != nil {
+				t.Error(err)
+			}
+			h, err := hex.DecodeString(ut.Op.Hash.String())
+			if err != nil {
+				t.Error(err)
+			}
+			in = wallet.TransactionInput{
+				LinkedAddress: addr,
+				Value:         ut.Value,
+				OutpointIndex: ut.Op.Index,
+				OutpointHash:  h,
+			}
 		}
 	}
 	key1, err := w.km.GetFreshKey(wallet.INTERNAL)
@@ -480,7 +498,7 @@ func TestZCashWallet_sweepAddress(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	_, err = w.sweepAddress([]wallet.Utxo{u}, nil, key1, &redeemScript, wallet.NORMAL)
+	_, err = w.sweepAddress([]wallet.TransactionInput{in}, nil, key1, &redeemScript, wallet.NORMAL)
 	if err != nil {
 		t.Error(err)
 	}

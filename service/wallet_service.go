@@ -346,7 +346,7 @@ func (ws *WalletService) saveTxsToDB(txns []client.Transaction, addrs map[string
 		if !newTxs[cur.Txid] {
 			ch, err := chainhash.NewHashFromStr(cur.Txid)
 			if err != nil {
-				log.Error("Error converting to chainhash for %s: %s", ws.coinType.String(), err.Error())
+				log.Errorf("error converting to chainhash for %s: %s", ws.coinType.String(), err.Error())
 				continue
 			}
 			ws.db.Txns().Delete(ch)
@@ -367,7 +367,7 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 
 	txHash, err := chainhash.NewHashFromStr(u.Txid)
 	if err != nil {
-		log.Error("Error converting to txHash for %s: %s", ws.coinType.String(), err.Error())
+		log.Errorf("error converting to txHash for %s: %s", ws.coinType.String(), err.Error())
 		return
 	}
 	var relevant bool
@@ -375,23 +375,29 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 	for _, in := range u.Inputs {
 		ch, err := chainhash.NewHashFromStr(in.Txid)
 		if err != nil {
-			log.Error("Error converting to chainhash for %s: %s", ws.coinType.String(), err.Error())
+			log.Errorf("error converting to chainhash for %s: %s", ws.coinType.String(), err.Error())
+			continue
+		}
+		script, err := hex.DecodeString(in.ScriptSig.Hex)
+		if err != nil {
+			log.Errorf("error converting to scriptsig for %s: %s", ws.coinType.String(), err.Error())
 			continue
 		}
 		op := wire.NewOutPoint(ch, uint32(in.Vout))
-		addr, err := btcutil.DecodeAddress(in.Addr, ws.params)
-		// script, err := hex.DecodeString(in.ScriptSig.Hex)
-		if err != nil {
-			// log.Error("Error converting to scriptSig for %s: %s", ws.coinType.String(), err.Error())
-			log.Error("error decoding address for %s: %s", ws.coinType.String(), err.Error())
-			continue
-		}
-		txin := wire.NewTxIn(op, []byte{}, [][]byte{})
+		// Skip the error check here as someone may have sent from an exotic script
+		// that we cannot turn into an address.
+		addr, _ := util.DecodeAddress(in.Addr, ws.params)
+
+		txin := wire.NewTxIn(op, script, [][]byte{})
 		txin.Sequence = uint32(in.Sequence)
 		msgTx.TxIn = append(msgTx.TxIn, txin)
-
+		h, err := hex.DecodeString(op.Hash.String())
+		if err != nil {
+			log.Errorf("error converting outpoint hash for %s: %s", ws.coinType.String(), err.Error())
+			return
+		}
 		cbin := wallet.TransactionInput{
-			OutpointHash:  op.Hash.CloneBytes(),
+			OutpointHash:  h,
 			OutpointIndex: op.Index,
 			LinkedAddress: addr,
 			Value:         in.Satoshis,
@@ -411,15 +417,13 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 	for i, out := range u.Outputs {
 		script, err := hex.DecodeString(out.ScriptPubKey.Hex)
 		if err != nil {
-			log.Error("error converting to scriptPubkey for %s: %s", ws.coinType.String(), err.Error())
+			log.Errorf("error converting to scriptPubkey for %s: %s", ws.coinType.String(), err.Error())
 			continue
 		}
-		addr, err := btcutil.DecodeAddress(out.ScriptPubKey.Addresses[0], ws.params)
-		if err != nil {
-			// log.Error("Error converting to scriptPubkey for %s: %s", ws.coinType.String(), err.Error())
-			log.Error("error decoding address for %s: %s", ws.coinType.String(), err.Error())
-			continue
-		}
+		// Skip the error check here as someone may have sent from an exotic script
+		// that we cannot turn into an address.
+		addr, _ := util.DecodeAddress(out.ScriptPubKey.Addresses[0], ws.params)
+
 		if len(out.ScriptPubKey.Addresses) == 0 {
 			continue
 		}

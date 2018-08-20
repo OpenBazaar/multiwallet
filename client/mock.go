@@ -151,12 +151,12 @@ var MockTransactions = []Transaction{
 		Confirmations: 10,
 	},
 	{
-		Txid:     "7fe0f12c1f77b33128c1b4a79fcc1f723c5be90dd1216b0664a8307060d4345e",
+		Txid:     "1d4288fa682fa376fbae73dbd74ea04b9ea33011d63315ca9d2d50d081e671d5",
 		Version:  2,
 		Locktime: 0,
 		Inputs: []Input{
 			{
-				Txid:       "e940d490e7e13985d7382676b5a6699215e4e9e5bb521ec61e81ac3ab12e34ff",
+				Txid:       "bffb894c27dac82525c1f00a085150be94c70834e8d05ea5e7bb3bd1278d3138",
 				Vout:       1,
 				Sequence:   1,
 				ValueIface: "0.3",
@@ -271,7 +271,7 @@ var MockUtxos = []Utxo{
 		Vout:          1,
 		Satoshis:      10000000,
 		Confirmations: 2,
-		Txid:          "7fe0f12c1f77b33128c1b4a79fcc1f723c5be90dd1216b0664a8307060d4345e",
+		Txid:          "1d4288fa682fa376fbae73dbd74ea04b9ea33011d63315ca9d2d50d081e671d5",
 		AmountIface:   "0.1",
 		Amount:        0.1,
 	},

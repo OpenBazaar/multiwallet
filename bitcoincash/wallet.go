@@ -203,7 +203,8 @@ func (w *BitcoinCashWallet) BumpFee(txid chainhash.Hash) (*chainhash.Hash, error
 func (w *BitcoinCashWallet) EstimateFee(ins []wi.TransactionInput, outs []wi.TransactionOutput, feePerByte uint64) uint64 {
 	tx := new(wire.MsgTx)
 	for _, out := range outs {
-		output := wire.NewTxOut(out.Value, out.Address.ScriptAddress())
+		scriptPubKey, _ := bchutil.PayToAddrScript(out.Address)
+		output := wire.NewTxOut(out.Value, scriptPubKey)
 		tx.TxOut = append(tx.TxOut, output)
 	}
 	estimatedSize := EstimateSerializeSize(len(ins), tx.TxOut, false, P2PKH)
@@ -232,6 +233,14 @@ func (w *BitcoinCashWallet) GenerateMultisigScript(keys []hd.ExtendedKey, thresh
 }
 
 func (w *BitcoinCashWallet) AddWatchedAddress(addr btcutil.Address) error {
+	script, err := w.AddressToScript(addr)
+	if err != nil {
+		return err
+	}
+	err = w.db.WatchedScripts().Put(script)
+	if err != nil {
+		return err
+	}
 	w.client.ListenAddress(addr)
 	return nil
 }

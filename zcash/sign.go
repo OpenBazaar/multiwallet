@@ -213,10 +213,14 @@ func (w *ZCashWallet) bumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 			if err != nil {
 				return nil, err
 			}
+			h, err := hex.DecodeString(u.Op.Hash.String())
+			if err != nil {
+				return nil, err
+			}
 			in := wi.TransactionInput{
 				LinkedAddress: addr,
 				OutpointIndex: u.Op.Index,
-				OutpointHash:  u.Op.Hash.CloneBytes(),
+				OutpointHash:  h,
 				Value:         int64(u.Value),
 			}
 			transactionID, err := w.sweepAddress([]wi.TransactionInput{in}, nil, key, nil, wi.FEE_BUMP)
@@ -229,8 +233,7 @@ func (w *ZCashWallet) bumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 	return nil, spvwallet.BumpFeeNotFoundError
 }
 
-/*
-func (w *ZCashWallet) sweepAddress(utxos []wi.Utxo, address *btc.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
 	var internalAddr btc.Address
 	if address != nil {
 		internalAddr = *address
@@ -245,19 +248,32 @@ func (w *ZCashWallet) sweepAddress(utxos []wi.Utxo, address *btc.Address, key *h
 	var val int64
 	var inputs []*wire.TxIn
 	additionalPrevScripts := make(map[wire.OutPoint][]byte)
-	for _, u := range utxos {
-		val += u.Value
-		in := wire.NewTxIn(&u.Op, []byte{}, [][]byte{})
-		inputs = append(inputs, in)
-		additionalPrevScripts[u.Op] = u.ScriptPubkey
+	for _, in := range ins {
+		val += in.Value
+		ch, err := chainhash.NewHashFromStr(hex.EncodeToString(in.OutpointHash))
+		if err != nil {
+			return nil, err
+		}
+		script, err := zaddr.PayToAddrScript(in.LinkedAddress)
+		if err != nil {
+			return nil, err
+		}
+		outpoint := wire.NewOutPoint(ch, in.OutpointIndex)
+		input := wire.NewTxIn(outpoint, []byte{}, [][]byte{})
+		inputs = append(inputs, input)
+		additionalPrevScripts[*outpoint] = script
 	}
 	out := wire.NewTxOut(val, script)
 
 	txType := P2PKH
 	if redeemScript != nil {
 		txType = P2SH_1of2_Multisig
+		_, err := spvwallet.LockTimeFromRedeemScript(*redeemScript)
+		if err == nil {
+			txType = P2SH_Multisig_Timelock_1Sig
+		}
 	}
-	estimatedSize := EstimateSerializeSize(len(utxos), []*wire.TxOut{out}, false, txType)
+	estimatedSize := EstimateSerializeSize(len(ins), []*wire.TxOut{out}, false, txType)
 
 	// Calculate the fee
 	feePerByte := int(w.GetFeePerByte(feeLevel))
@@ -284,14 +300,11 @@ func (w *ZCashWallet) sweepAddress(utxos []wi.Utxo, address *btc.Address, key *h
 	if err != nil {
 		return nil, err
 	}
-
-	keyAddr, err := key.Address(w.params)
-	if err != nil {
-		return nil, err
-	}
+	pk := privKey.PubKey().SerializeCompressed()
+	addressPub, err := btc.NewAddressPubKey(pk, w.params)
 
 	getKey := txscript.KeyClosure(func(addr btc.Address) (*btcec.PrivateKey, bool, error) {
-		if keyAddr.String() == addr.String() {
+		if addressPub.EncodeAddress() == addr.EncodeAddress() {
 			wif, err := btc.NewWIF(privKey, w.params, true)
 			if err != nil {
 				return nil, false, err
@@ -299,135 +312,6 @@ func (w *ZCashWallet) sweepAddress(utxos []wi.Utxo, address *btc.Address, key *h
 			return wif.PrivKey, wif.CompressPubKey, nil
 		}
 		return nil, false, errors.New("Not found")
-	})
-	getScript := txscript.ScriptClosure(func(addr btc.Address) ([]byte, error) {
-		if redeemScript == nil {
-			return []byte{}, nil
-		}
-		return *redeemScript, nil
-	})
-
-	for i, txIn := range tx.TxIn {
-		if redeemScript == nil {
-			prevOutScript := additionalPrevScripts[txIn.PreviousOutPoint]
-			script, err := txscript.SignTxOutput(w.params,
-				tx, i, prevOutScript, txscript.SigHashAll, getKey,
-				getScript, txIn.SignatureScript)
-			if err != nil {
-				return nil, errors.New("Failed to sign transaction")
-			}
-			txIn.SignatureScript = script
-		} else {
-			sig, err := txscript.RawTxInSignature(tx, i, *redeemScript, txscript.SigHashAll, privKey)
-			if err != nil {
-				return nil, err
-			}
-			builder := txscript.NewScriptBuilder().
-				AddData(sig).
-				AddOp(txscript.OP_0).
-				AddData(*redeemScript)
-			scriptSig, _ := builder.Script()
-			txIn.SignatureScript = scriptSig
-		}
-	}
-
-	// broadcast
-	var buf bytes.Buffer
-	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.BaseEncoding)
-	_, err = w.client.Broadcast(buf.Bytes())
-	if err != nil {
-		return nil, err
-	}
-
-	txid := tx.TxHash()
-	return &txid, nil
-}
-*/
-
-func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
-	var internalAddr btc.Address
-	if address != nil {
-		internalAddr = *address
-	} else {
-		internalAddr = w.CurrentAddress(wi.INTERNAL)
-	}
-	script, err := txscript.PayToAddrScript(internalAddr)
-	if err != nil {
-		return nil, err
-	}
-
-	var val int64
-	var inputs []*wire.TxIn
-	additionalPrevScripts := make(map[wire.OutPoint][]byte)
-	for _, in := range ins {
-		val += in.Value
-		ch, err := chainhash.NewHashFromStr(hex.EncodeToString(in.OutpointHash))
-		if err != nil {
-			return nil, err
-		}
-		script, err := txscript.PayToAddrScript(in.LinkedAddress)
-		if err != nil {
-			return nil, err
-		}
-		outpoint := wire.NewOutPoint(ch, in.OutpointIndex)
-		input := wire.NewTxIn(outpoint, []byte{}, [][]byte{})
-		inputs = append(inputs, input)
-		additionalPrevScripts[*outpoint] = script
-	}
-	out := wire.NewTxOut(val, script)
-
-	txType := spvwallet.P2PKH
-	if redeemScript != nil {
-		txType = spvwallet.P2SH_1of2_Multisig
-	}
-
-	estimatedSize := spvwallet.EstimateSerializeSize(len(ins), []*wire.TxOut{out}, false, txType)
-
-	// Calculate the fee
-	feePerByte := int(w.GetFeePerByte(feeLevel))
-	fee := estimatedSize * feePerByte
-	/*
-		b := json.RawMessage([]byte(`1`))
-		resp, err := w.rpcClient.RawRequest("estimatefee", []json.RawMessage{b})
-		if err != nil {
-			return nil, err
-		}
-		feePerKb, err := strconv.Atoi(string(resp))
-		if err != nil {
-			return nil, err
-		}
-		if feePerKb <= 0 {
-			feePerKb = 50000
-		}
-		fee := estimatedSize * (feePerKb / 1000)
-	*/
-	outVal := val - int64(fee)
-	if outVal < 0 {
-		outVal = 0
-	}
-	out.Value = outVal
-
-	tx := &wire.MsgTx{
-		Version:  wire.TxVersion,
-		TxIn:     inputs,
-		TxOut:    []*wire.TxOut{out},
-		LockTime: 0,
-	}
-
-	// BIP 69 sorting
-	txsort.InPlaceSort(tx)
-
-	// Sign tx
-	getKey := txscript.KeyClosure(func(addr btc.Address) (*btcec.PrivateKey, bool, error) {
-		privKey, err := key.ECPrivKey()
-		if err != nil {
-			return nil, false, err
-		}
-		wif, err := btc.NewWIF(privKey, w.params, true)
-		if err != nil {
-			return nil, false, err
-		}
-		return wif.PrivKey, wif.CompressPubKey, nil
 	})
 	getScript := txscript.ScriptClosure(func(addr btc.Address) ([]byte, error) {
 		if redeemScript == nil {
@@ -447,20 +331,13 @@ func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Addre
 		txIn.SignatureScript = script
 	}
 
-	// Broadcast
-
-	/*_, err = w.rpcClient.SendRawTransaction(tx, false)
-	if err != nil {
-		return nil, err
-	}*/
-
+	// broadcast
 	var buf bytes.Buffer
 	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
 	_, err = w.client.Broadcast(buf.Bytes())
 	if err != nil {
 		return nil, err
 	}
-
 	txid := tx.TxHash()
 	return &txid, nil
 }
@@ -478,7 +355,11 @@ func (w *ZCashWallet) createMultisigSignature(ins []wi.TransactionInput, outs []
 		tx.TxIn = append(tx.TxIn, input)
 	}
 	for _, out := range outs {
-		output := wire.NewTxOut(out.Value, out.Address.ScriptAddress())
+		scriptPubkey, err := zaddr.PayToAddrScript(out.Address)
+		if err != nil {
+			return sigs, err
+		}
+		output := wire.NewTxOut(out.Value, scriptPubkey)
 		tx.TxOut = append(tx.TxOut, output)
 	}
 
@@ -523,7 +404,11 @@ func (w *ZCashWallet) multisign(ins []wi.TransactionInput, outs []wi.Transaction
 		tx.TxIn = append(tx.TxIn, input)
 	}
 	for _, out := range outs {
-		output := wire.NewTxOut(out.Value, out.Address.ScriptAddress())
+		scriptPubkey, err := zaddr.PayToAddrScript(out.Address)
+		if err != nil {
+			return nil, err
+		}
+		output := wire.NewTxOut(out.Value, scriptPubkey)
 		tx.TxOut = append(tx.TxOut, output)
 	}
 
