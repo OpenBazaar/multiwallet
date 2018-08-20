@@ -4,24 +4,26 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/OpenBazaar/multiwallet/client"
-	"github.com/OpenBazaar/multiwallet/config"
-	"github.com/OpenBazaar/multiwallet/keys"
-	"github.com/OpenBazaar/multiwallet/service"
-	"github.com/OpenBazaar/multiwallet/util"
+	"io"
+	"time"
+
 	"github.com/OpenBazaar/spvwallet"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
+	btc "github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/btcsuite/btcwallet/wallet/txrules"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
-	"io"
-	"time"
+
+	"github.com/OpenBazaar/multiwallet/client"
+	"github.com/OpenBazaar/multiwallet/config"
+	"github.com/OpenBazaar/multiwallet/keys"
+	"github.com/OpenBazaar/multiwallet/service"
+	"github.com/OpenBazaar/multiwallet/util"
 )
 
 type BitcoinWallet struct {
@@ -64,7 +66,7 @@ func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.P
 	return &BitcoinWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey}, nil
 }
 
-func keyToAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
+func keyToAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btc.Address, error) {
 	return key.Address(params)
 }
 
@@ -85,7 +87,7 @@ func (w *BitcoinWallet) CurrencyCode() string {
 }
 
 func (w *BitcoinWallet) IsDust(amount int64) bool {
-	return txrules.IsDustAmount(btcutil.Amount(amount), 25, txrules.DefaultRelayFeePerKb)
+	return txrules.IsDustAmount(btc.Amount(amount), 25, txrules.DefaultRelayFeePerKb)
 }
 
 func (w *BitcoinWallet) MasterPrivateKey() *hd.ExtendedKey {
@@ -96,25 +98,44 @@ func (w *BitcoinWallet) MasterPublicKey() *hd.ExtendedKey {
 	return w.mPubKey
 }
 
-func (w *BitcoinWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
-	key, _ := w.km.GetCurrentKey(purpose)
-	addr, _ := key.Address(w.params)
-	return btcutil.Address(addr)
+func (w *BitcoinWallet) ChildKey(keyBytes []byte, chaincode []byte, isPrivateKey bool) (*hd.ExtendedKey, error) {
+	parentFP := []byte{0x00, 0x00, 0x00, 0x00}
+	var id []byte
+	if isPrivateKey {
+		id = w.params.HDPrivateKeyID[:]
+	} else {
+		id = w.params.HDPublicKeyID[:]
+	}
+	hdKey := hd.NewExtendedKey(
+		id,
+		keyBytes,
+		chaincode,
+		parentFP,
+		0,
+		0,
+		isPrivateKey)
+	return hdKey.Child(0)
 }
 
-func (w *BitcoinWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
+func (w *BitcoinWallet) CurrentAddress(purpose wi.KeyPurpose) btc.Address {
+	key, _ := w.km.GetCurrentKey(purpose)
+	addr, _ := key.Address(w.params)
+	return btc.Address(addr)
+}
+
+func (w *BitcoinWallet) NewAddress(purpose wi.KeyPurpose) btc.Address {
 	i, _ := w.db.Keys().GetUnused(purpose)
 	key, _ := w.km.GenerateChildKey(purpose, uint32(i[1]))
 	addr, _ := key.Address(w.params)
 	w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress())
-	return btcutil.Address(addr)
+	return btc.Address(addr)
 }
 
-func (w *BitcoinWallet) DecodeAddress(addr string) (btcutil.Address, error) {
-	return btcutil.DecodeAddress(addr, w.params)
+func (w *BitcoinWallet) DecodeAddress(addr string) (btc.Address, error) {
+	return btc.DecodeAddress(addr, w.params)
 }
 
-func (w *BitcoinWallet) ScriptToAddress(script []byte) (btcutil.Address, error) {
+func (w *BitcoinWallet) ScriptToAddress(script []byte) (btc.Address, error) {
 	_, addrs, _, err := txscript.ExtractPkScriptAddrs(script, w.params)
 	if err != nil {
 		return nil, err
@@ -125,11 +146,11 @@ func (w *BitcoinWallet) ScriptToAddress(script []byte) (btcutil.Address, error) 
 	return addrs[0], nil
 }
 
-func (w *BitcoinWallet) AddressToScript(addr btcutil.Address) ([]byte, error) {
+func (w *BitcoinWallet) AddressToScript(addr btc.Address) ([]byte, error) {
 	return txscript.PayToAddrScript(addr)
 }
 
-func (w *BitcoinWallet) HasKey(addr btcutil.Address) bool {
+func (w *BitcoinWallet) HasKey(addr btc.Address) bool {
 	_, err := w.km.GetKeyForScript(addr.ScriptAddress())
 	if err != nil {
 		return false
@@ -160,7 +181,7 @@ func (w *BitcoinWallet) GetFeePerByte(feeLevel wi.FeeLevel) uint64 {
 	return w.fp.GetFeePerByte(feeLevel)
 }
 
-func (w *BitcoinWallet) Spend(amount int64, addr btcutil.Address, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+func (w *BitcoinWallet) Spend(amount int64, addr btc.Address, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
 	tx, err := w.buildTx(amount, addr, feeLevel, nil)
 	if err != nil {
 		return nil, err
@@ -185,7 +206,7 @@ func (w *BitcoinWallet) BumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 func (w *BitcoinWallet) EstimateFee(ins []wi.TransactionInput, outs []wi.TransactionOutput, feePerByte uint64) uint64 {
 	tx := new(wire.MsgTx)
 	for _, out := range outs {
-		output := wire.NewTxOut(out.Value, out.ScriptPubKey)
+		output := wire.NewTxOut(out.Value, out.Address.ScriptAddress())
 		tx.TxOut = append(tx.TxOut, output)
 	}
 	estimatedSize := EstimateSerializeSize(len(ins), tx.TxOut, false, P2PKH)
@@ -197,8 +218,155 @@ func (w *BitcoinWallet) EstimateSpendFee(amount int64, feeLevel wi.FeeLevel) (ui
 	return w.estimateSpendFee(amount, feeLevel)
 }
 
-func (w *BitcoinWallet) SweepAddress(utxos []wi.Utxo, address *btcutil.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
-	return w.sweepAddress(utxos, address, key, redeemScript, feeLevel)
+/*
+func (w *BitcoinWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+	var internalAddr btc.Address
+	if address != nil {
+		internalAddr = *address
+	} else {
+		internalAddr = w.CurrentAddress(wi.INTERNAL)
+	}
+	script, err := txscript.PayToAddrScript(internalAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	var val int64
+	var inputs []*wire.TxIn
+	additionalPrevScripts := make(map[wire.OutPoint][]byte)
+	for _, in := range ins {
+		val += in.Value
+		ch, err := chainhash.NewHashFromStr(hex.EncodeToString(in.OutpointHash))
+		if err != nil {
+			return nil, err
+		}
+		script, err := txscript.PayToAddrScript(in.LinkedAddress)
+		if err != nil {
+			return nil, err
+		}
+		outpoint := wire.NewOutPoint(ch, in.OutpointIndex)
+		input := wire.NewTxIn(outpoint, []byte{}, [][]byte{})
+		inputs = append(inputs, input)
+		additionalPrevScripts[*outpoint] = script
+	}
+	out := wire.NewTxOut(val, script)
+
+	txType := spvwallet.P2PKH
+	if redeemScript != nil {
+		txType = spvwallet.P2SH_1of2_Multisig
+		_, err := spvwallet.LockTimeFromRedeemScript(*redeemScript)
+		if err == nil {
+			txType = spvwallet.P2SH_Multisig_Timelock_1Sig
+		}
+	}
+	estimatedSize := spvwallet.EstimateSerializeSize(len(ins), []*wire.TxOut{out}, false, txType)
+
+	// Calculate the fee
+	feePerByte := int(w.GetFeePerByte(feeLevel))
+	fee := estimatedSize * feePerByte
+
+	outVal := val - int64(fee)
+	if outVal < 0 {
+		outVal = 0
+	}
+	out.Value = outVal
+
+	tx := &wire.MsgTx{
+		Version:  wire.TxVersion,
+		TxIn:     inputs,
+		TxOut:    []*wire.TxOut{out},
+		LockTime: 0,
+	}
+
+	// BIP 69 sorting
+	txsort.InPlaceSort(tx)
+
+	// Sign tx
+	privKey, err := key.ECPrivKey()
+	if err != nil {
+		return nil, err
+	}
+	pk := privKey.PubKey().SerializeCompressed()
+	addressPub, err := btc.NewAddressPubKey(pk, w.params)
+
+	getKey := txscript.KeyClosure(func(addr btc.Address) (*btcec.PrivateKey, bool, error) {
+		if addressPub.EncodeAddress() == addr.EncodeAddress() {
+			wif, err := btc.NewWIF(privKey, w.params, true)
+			if err != nil {
+				return nil, false, err
+			}
+			return wif.PrivKey, wif.CompressPubKey, nil
+		}
+		return nil, false, errors.New("Not found")
+	})
+	getScript := txscript.ScriptClosure(func(addr btc.Address) ([]byte, error) {
+		if redeemScript == nil {
+			return []byte{}, nil
+		}
+		return *redeemScript, nil
+	})
+
+	// Check if time locked
+	var timeLocked bool
+	if redeemScript != nil {
+		rs := *redeemScript
+		if rs[0] == txscript.OP_IF {
+			timeLocked = true
+			tx.Version = 2
+		}
+		for _, txIn := range tx.TxIn {
+			locktime, err := spvwallet.LockTimeFromRedeemScript(*redeemScript)
+			if err != nil {
+				return nil, err
+			}
+			txIn.Sequence = locktime
+		}
+	}
+
+	hashes := txscript.NewTxSigHashes(tx)
+	for i, txIn := range tx.TxIn {
+		if redeemScript == nil {
+			prevOutScript := additionalPrevScripts[txIn.PreviousOutPoint]
+			script, err := txscript.SignTxOutput(w.params,
+				tx, i, prevOutScript, txscript.SigHashAll, getKey,
+				getScript, txIn.SignatureScript)
+			if err != nil {
+				return nil, errors.New("Failed to sign transaction")
+			}
+			txIn.SignatureScript = script
+		} else {
+			sig, err := txscript.RawTxInWitnessSignature(tx, hashes, i, ins[i].Value, *redeemScript, txscript.SigHashAll, privKey)
+			if err != nil {
+				return nil, err
+			}
+			var witness wire.TxWitness
+			if timeLocked {
+				witness = wire.TxWitness{sig, []byte{}}
+			} else {
+				witness = wire.TxWitness{[]byte{}, sig}
+			}
+			witness = append(witness, *redeemScript)
+			txIn.Witness = witness
+		}
+	}
+
+	// broadcast
+	// Broadcast
+	var buf bytes.Buffer
+	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
+
+	_, err = w.client.Broadcast(buf.Bytes())
+	if err != nil {
+		return nil, err
+	}
+
+	txid := tx.TxHash()
+	return &txid, nil
+}
+*/
+
+func (w *BitcoinWallet) SweepAddress(ins []wi.TransactionInput, address *btc.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+	return w.sweepAddress(ins, address, key, redeemScript, feeLevel)
 }
 
 func (w *BitcoinWallet) CreateMultisigSignature(ins []wi.TransactionInput, outs []wi.TransactionOutput, key *hd.ExtendedKey, redeemScript []byte, feePerByte uint64) ([]wi.Signature, error) {
@@ -209,8 +377,13 @@ func (w *BitcoinWallet) Multisign(ins []wi.TransactionInput, outs []wi.Transacti
 	return w.multisign(ins, outs, sigs1, sigs2, redeemScript, feePerByte, broadcast)
 }
 
-func (w *BitcoinWallet) GenerateMultisigScript(keys []hd.ExtendedKey, threshold int, timeout time.Duration, timeoutKey *hd.ExtendedKey) (addr btcutil.Address, redeemScript []byte, err error) {
+func (w *BitcoinWallet) GenerateMultisigScript(keys []hd.ExtendedKey, threshold int, timeout time.Duration, timeoutKey *hd.ExtendedKey) (addr btc.Address, redeemScript []byte, err error) {
 	return w.generateMultisigScript(keys, threshold, timeout, timeoutKey)
+}
+
+func (w *BitcoinWallet) AddWatchedAddress(addr btc.Address) error {
+	w.client.ListenAddress(addr)
+	return nil
 }
 
 func (w *BitcoinWallet) AddWatchedScript(script []byte) error {

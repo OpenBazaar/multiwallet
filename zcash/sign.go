@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/OpenBazaar/multiwallet/util"
-	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
+	"time"
+
 	"github.com/OpenBazaar/spvwallet"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/btcec"
@@ -19,7 +19,9 @@ import (
 	"github.com/btcsuite/btcutil/txsort"
 	"github.com/btcsuite/btcwallet/wallet/txauthor"
 	"github.com/btcsuite/btcwallet/wallet/txrules"
-	"time"
+
+	"github.com/OpenBazaar/multiwallet/util"
+	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
 )
 
 func (w *ZCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLevel, optionalOutput *wire.TxOut) (*wire.MsgTx, error) {
@@ -51,7 +53,7 @@ func (w *ZCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLev
 		coinSelector := coinset.MaxValueAgeCoinSelector{MaxInputs: 10000, MinChangeAmount: btc.Amount(0)}
 		coins, err := coinSelector.CoinSelect(target, coins)
 		if err != nil {
-			return total, inputs, []btc.Amount{}, scripts, wi.ErrorInsuffientFunds
+			return total, inputs, inputValues, scripts, wi.ErrorInsuffientFunds
 		}
 		additionalPrevScripts = make(map[wire.OutPoint][]byte)
 		additionalKeysByAddress = make(map[string]*btc.WIF)
@@ -74,7 +76,7 @@ func (w *ZCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLev
 			wif, _ := btc.NewWIF(privKey, w.params, true)
 			additionalKeysByAddress[addr.EncodeAddress()] = wif
 		}
-		return total, inputs, []btc.Amount{}, scripts, nil
+		return total, inputs, inputValues, scripts, nil
 	}
 
 	// Get the fee per kilobyte
@@ -211,7 +213,13 @@ func (w *ZCashWallet) bumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 			if err != nil {
 				return nil, err
 			}
-			transactionID, err := w.sweepAddress([]wi.Utxo{u}, nil, key, nil, wi.FEE_BUMP)
+			in := wi.TransactionInput{
+				LinkedAddress: addr,
+				OutpointIndex: u.Op.Index,
+				OutpointHash:  u.Op.Hash.CloneBytes(),
+				Value:         int64(u.Value),
+			}
+			transactionID, err := w.sweepAddress([]wi.TransactionInput{in}, nil, key, nil, wi.FEE_BUMP)
 			if err != nil {
 				return nil, err
 			}
@@ -221,6 +229,7 @@ func (w *ZCashWallet) bumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 	return nil, spvwallet.BumpFeeNotFoundError
 }
 
+/*
 func (w *ZCashWallet) sweepAddress(utxos []wi.Utxo, address *btc.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
 	var internalAddr btc.Address
 	if address != nil {
@@ -333,6 +342,128 @@ func (w *ZCashWallet) sweepAddress(utxos []wi.Utxo, address *btc.Address, key *h
 	txid := tx.TxHash()
 	return &txid, nil
 }
+*/
+
+func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+	var internalAddr btc.Address
+	if address != nil {
+		internalAddr = *address
+	} else {
+		internalAddr = w.CurrentAddress(wi.INTERNAL)
+	}
+	script, err := txscript.PayToAddrScript(internalAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	var val int64
+	var inputs []*wire.TxIn
+	additionalPrevScripts := make(map[wire.OutPoint][]byte)
+	for _, in := range ins {
+		val += in.Value
+		ch, err := chainhash.NewHashFromStr(hex.EncodeToString(in.OutpointHash))
+		if err != nil {
+			return nil, err
+		}
+		script, err := txscript.PayToAddrScript(in.LinkedAddress)
+		if err != nil {
+			return nil, err
+		}
+		outpoint := wire.NewOutPoint(ch, in.OutpointIndex)
+		input := wire.NewTxIn(outpoint, []byte{}, [][]byte{})
+		inputs = append(inputs, input)
+		additionalPrevScripts[*outpoint] = script
+	}
+	out := wire.NewTxOut(val, script)
+
+	txType := spvwallet.P2PKH
+	if redeemScript != nil {
+		txType = spvwallet.P2SH_1of2_Multisig
+	}
+
+	estimatedSize := spvwallet.EstimateSerializeSize(len(ins), []*wire.TxOut{out}, false, txType)
+
+	// Calculate the fee
+	feePerByte := int(w.GetFeePerByte(feeLevel))
+	fee := estimatedSize * feePerByte
+	/*
+		b := json.RawMessage([]byte(`1`))
+		resp, err := w.rpcClient.RawRequest("estimatefee", []json.RawMessage{b})
+		if err != nil {
+			return nil, err
+		}
+		feePerKb, err := strconv.Atoi(string(resp))
+		if err != nil {
+			return nil, err
+		}
+		if feePerKb <= 0 {
+			feePerKb = 50000
+		}
+		fee := estimatedSize * (feePerKb / 1000)
+	*/
+	outVal := val - int64(fee)
+	if outVal < 0 {
+		outVal = 0
+	}
+	out.Value = outVal
+
+	tx := &wire.MsgTx{
+		Version:  wire.TxVersion,
+		TxIn:     inputs,
+		TxOut:    []*wire.TxOut{out},
+		LockTime: 0,
+	}
+
+	// BIP 69 sorting
+	txsort.InPlaceSort(tx)
+
+	// Sign tx
+	getKey := txscript.KeyClosure(func(addr btc.Address) (*btcec.PrivateKey, bool, error) {
+		privKey, err := key.ECPrivKey()
+		if err != nil {
+			return nil, false, err
+		}
+		wif, err := btc.NewWIF(privKey, w.params, true)
+		if err != nil {
+			return nil, false, err
+		}
+		return wif.PrivKey, wif.CompressPubKey, nil
+	})
+	getScript := txscript.ScriptClosure(func(addr btc.Address) ([]byte, error) {
+		if redeemScript == nil {
+			return []byte{}, nil
+		}
+		return *redeemScript, nil
+	})
+
+	for i, txIn := range tx.TxIn {
+		prevOutScript := additionalPrevScripts[txIn.PreviousOutPoint]
+		script, err := txscript.SignTxOutput(w.params,
+			tx, i, prevOutScript, txscript.SigHashAll, getKey,
+			getScript, txIn.SignatureScript)
+		if err != nil {
+			return nil, errors.New("Failed to sign transaction")
+		}
+		txIn.SignatureScript = script
+	}
+
+	// Broadcast
+
+	/*_, err = w.rpcClient.SendRawTransaction(tx, false)
+	if err != nil {
+		return nil, err
+	}*/
+
+	var buf bytes.Buffer
+	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
+	_, err = w.client.Broadcast(buf.Bytes())
+	if err != nil {
+		return nil, err
+	}
+
+	txid := tx.TxHash()
+	return &txid, nil
+}
 
 func (w *ZCashWallet) createMultisigSignature(ins []wi.TransactionInput, outs []wi.TransactionOutput, key *hd.ExtendedKey, redeemScript []byte, feePerByte uint64) ([]wi.Signature, error) {
 	var sigs []wi.Signature
@@ -347,7 +478,7 @@ func (w *ZCashWallet) createMultisigSignature(ins []wi.TransactionInput, outs []
 		tx.TxIn = append(tx.TxIn, input)
 	}
 	for _, out := range outs {
-		output := wire.NewTxOut(out.Value, out.ScriptPubKey)
+		output := wire.NewTxOut(out.Value, out.Address.ScriptAddress())
 		tx.TxOut = append(tx.TxOut, output)
 	}
 
@@ -392,7 +523,7 @@ func (w *ZCashWallet) multisign(ins []wi.TransactionInput, outs []wi.Transaction
 		tx.TxIn = append(tx.TxIn, input)
 	}
 	for _, out := range outs {
-		output := wire.NewTxOut(out.Value, out.ScriptPubKey)
+		output := wire.NewTxOut(out.Value, out.Address.ScriptAddress())
 		tx.TxOut = append(tx.TxOut, output)
 	}
 
