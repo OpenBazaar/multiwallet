@@ -59,10 +59,10 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	tch := make(chan Transaction)
 	tbTransport := &http.Transport{Dial: dial}
 	ic := &InsightClient{
-		httpClient: http.Client{Timeout: time.Second * 30, Transport: tbTransport},
-		apiUrl: *u,
+		httpClient:      http.Client{Timeout: time.Second * 30, Transport: tbTransport},
+		apiUrl:          *u,
 		blockNotifyChan: bch,
-		txNotifyChan: tch,
+		txNotifyChan:    tch,
 	}
 	go ic.setupListeners(*u, port, secure, proxyDialer)
 	return ic, nil
