@@ -16,12 +16,7 @@ import (
 
 func TestNewCoin(t *testing.T) {
 	txid := "7eae21cc2709a58a8795f9b0239b6b8ed974a3c4ce10f8919deae527995dd744"
-	txBytes, err := hex.DecodeString(txid)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	ch, err := chainhash.NewHash(txBytes)
+	ch, err := chainhash.NewHashFromStr(txid)
 	if err != nil {
 		t.Error(err)
 		return
@@ -32,7 +27,7 @@ func TestNewCoin(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	c, err := NewCoin(txBytes, 0, btcutil.Amount(100000), 10, scriptBytes)
+	c, err := NewCoin(*ch, 0, btcutil.Amount(100000), 10, scriptBytes)
 	if err != nil {
 		t.Error(err)
 		return
@@ -118,6 +113,11 @@ func TestGatherCoins(t *testing.T) {
 		},
 	}
 
+	utxoMap := make(map[string]wallet.Utxo)
+	utxoMap[utxos[0].Op.Hash.String()] = utxos[0]
+	utxoMap[utxos[1].Op.Hash.String()] = utxos[1]
+	utxoMap[utxos[2].Op.Hash.String()] = utxos[2]
+
 	master, err := hd.NewMaster([]byte("8cf466484a741850b63482133b6f7d506297c624290db2bb74214e4f9932f93e"), &chaincfg.MainNetParams)
 	if err != nil {
 		t.Error(err)
@@ -165,26 +165,27 @@ func TestGatherCoins(t *testing.T) {
 	if len(coins) != 2 {
 		t.Error("Returned incorrect number of coins")
 	}
-	i := 0
 	for coin, key := range coins {
-		if coin.Value() != btcutil.Amount(utxos[i].Value) {
+		u := utxoMap[coin.Hash().String()]
+		addr, err := scriptToAddress(coin.PkScript())
+		if err != nil {
+			t.Error(err)
+		}
+		k := keyMap[hex.EncodeToString(addr.ScriptAddress())]
+		if coin.Value() != btcutil.Amount(u.Value) {
 			t.Error("Returned incorrect value")
 		}
-		if coin.Hash().String() != utxos[i].Op.Hash.String() {
+		if coin.Hash().String() != u.Op.Hash.String() {
 			t.Error("Returned incorrect outpoint hash")
 		}
-		if coin.Index() != utxos[i].Op.Index {
+		if coin.Index() != u.Op.Index {
 			t.Error("Returned incorrect outpoint index")
 		}
-		if !bytes.Equal(coin.PkScript(), utxos[i].ScriptPubkey) {
+		if !bytes.Equal(coin.PkScript(), u.ScriptPubkey) {
 			t.Error("Returned incorrect script pubkey")
 		}
-		if i == 0 && key.String() != key0.String() {
+		if key.String() != k.String() {
 			t.Error("Returned incorrect key")
 		}
-		if i == 1 && key.String() != key1.String() {
-			t.Error("Returned incorrect key")
-		}
-		i++
 	}
 }
