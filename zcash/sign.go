@@ -87,7 +87,7 @@ func (w *ZCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLev
 
 	// Create change source
 	changeSource := func() ([]byte, error) {
-		addr := w.CurrentAddress(wi.INTERNAL)
+		addr, _ := btc.DecodeAddress((w.CurrentAddress(wi.INTERNAL)).String(), w.params)
 		script, err := zaddr.PayToAddrScript(addr)
 		if err != nil {
 			return []byte{}, err
@@ -238,7 +238,7 @@ func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Addre
 	if address != nil {
 		internalAddr = *address
 	} else {
-		internalAddr = w.CurrentAddress(wi.INTERNAL)
+		internalAddr, _ = btc.DecodeAddress((w.CurrentAddress(wi.INTERNAL)).String(), w.params)
 	}
 	script, err := zaddr.PayToAddrScript(internalAddr)
 	if err != nil {
@@ -254,7 +254,8 @@ func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Addre
 		if err != nil {
 			return nil, err
 		}
-		script, err := zaddr.PayToAddrScript(in.LinkedAddress)
+		btcAddr, _ := btc.DecodeAddress(in.LinkedAddress.String(), w.params)
+		script, err := zaddr.PayToAddrScript(btcAddr)
 		if err != nil {
 			return nil, err
 		}
@@ -355,7 +356,8 @@ func (w *ZCashWallet) createMultisigSignature(ins []wi.TransactionInput, outs []
 		tx.TxIn = append(tx.TxIn, input)
 	}
 	for _, out := range outs {
-		scriptPubkey, err := zaddr.PayToAddrScript(out.Address)
+		btcAddr, _ := btc.DecodeAddress(out.Address.String(), w.params)
+		scriptPubkey, err := zaddr.PayToAddrScript(btcAddr)
 		if err != nil {
 			return sigs, err
 		}
@@ -404,7 +406,8 @@ func (w *ZCashWallet) multisign(ins []wi.TransactionInput, outs []wi.Transaction
 		tx.TxIn = append(tx.TxIn, input)
 	}
 	for _, out := range outs {
-		scriptPubkey, err := zaddr.PayToAddrScript(out.Address)
+		btcAddr, _ := btc.DecodeAddress(out.Address.String(), w.params)
+		scriptPubkey, err := zaddr.PayToAddrScript(btcAddr)
 		if err != nil {
 			return nil, err
 		}

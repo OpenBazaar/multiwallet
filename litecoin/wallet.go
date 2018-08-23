@@ -118,13 +118,13 @@ func (w *LitecoinWallet) ChildKey(keyBytes []byte, chaincode []byte, isPrivateKe
 	return hdKey.Child(0)
 }
 
-func (w *LitecoinWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
+func (w *LitecoinWallet) CurrentAddress(purpose wi.KeyPurpose) wi.WalletAddress {
 	key, _ := w.km.GetCurrentKey(purpose)
 	addr, _ := litecoinAddress(key, w.params)
 	return btcutil.Address(addr)
 }
 
-func (w *LitecoinWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
+func (w *LitecoinWallet) NewAddress(purpose wi.KeyPurpose) wi.WalletAddress {
 	i, _ := w.db.Keys().GetUnused(purpose)
 	key, _ := w.km.GenerateChildKey(purpose, uint32(i[1]))
 	addr, _ := litecoinAddress(key, w.params)
@@ -132,7 +132,7 @@ func (w *LitecoinWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
 	return btcutil.Address(addr)
 }
 
-func (w *LitecoinWallet) DecodeAddress(addr string) (btcutil.Address, error) {
+func (w *LitecoinWallet) DecodeAddress(addr string) (wi.WalletAddress, error) {
 	return laddr.DecodeAddress(addr, w.params)
 }
 
@@ -140,11 +140,13 @@ func (w *LitecoinWallet) ScriptToAddress(script []byte) (btcutil.Address, error)
 	return laddr.ExtractPkScriptAddrs(script, w.params)
 }
 
-func (w *LitecoinWallet) AddressToScript(addr btcutil.Address) ([]byte, error) {
+func (w *LitecoinWallet) AddressToScript(waddr wi.WalletAddress) ([]byte, error) {
+	addr, _ := btcutil.DecodeAddress(waddr.String(), w.params)
 	return laddr.PayToAddrScript(addr)
 }
 
-func (w *LitecoinWallet) HasKey(addr btcutil.Address) bool {
+func (w *LitecoinWallet) HasKey(waddr wi.WalletAddress) bool {
+	addr, _ := btcutil.DecodeAddress(waddr.String(), w.params)
 	_, err := w.km.GetKeyForScript(addr.ScriptAddress())
 	if err != nil {
 		return false
@@ -205,7 +207,8 @@ func (w *LitecoinWallet) GetFeePerByte(feeLevel wi.FeeLevel) uint64 {
 	return w.fp.GetFeePerByte(feeLevel)
 }
 
-func (w *LitecoinWallet) Spend(amount int64, addr btcutil.Address, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+func (w *LitecoinWallet) Spend(amount int64, waddr wi.WalletAddress, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+	addr, _ := btcutil.DecodeAddress(waddr.String(), w.params)
 	tx, err := w.buildTx(amount, addr, feeLevel, nil)
 	if err != nil {
 		return nil, err
@@ -230,7 +233,8 @@ func (w *LitecoinWallet) BumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 func (w *LitecoinWallet) EstimateFee(ins []wi.TransactionInput, outs []wi.TransactionOutput, feePerByte uint64) uint64 {
 	tx := new(wire.MsgTx)
 	for _, out := range outs {
-		scriptPubKey, _ := laddr.PayToAddrScript(out.Address)
+		btcAddr, _ := btcutil.DecodeAddress(out.Address.String(), w.params)
+		scriptPubKey, _ := laddr.PayToAddrScript(btcAddr)
 		output := wire.NewTxOut(out.Value, scriptPubKey)
 		tx.TxOut = append(tx.TxOut, output)
 	}
@@ -243,8 +247,9 @@ func (w *LitecoinWallet) EstimateSpendFee(amount int64, feeLevel wi.FeeLevel) (u
 	return w.estimateSpendFee(amount, feeLevel)
 }
 
-func (w *LitecoinWallet) SweepAddress(ins []wi.TransactionInput, address *btcutil.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
-	return w.sweepAddress(ins, address, key, redeemScript, feeLevel)
+func (w *LitecoinWallet) SweepAddress(ins []wi.TransactionInput, waddress *wi.WalletAddress, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+	address, _ := btcutil.DecodeAddress((*waddress).String(), w.params)
+	return w.sweepAddress(ins, &address, key, redeemScript, feeLevel)
 }
 
 func (w *LitecoinWallet) CreateMultisigSignature(ins []wi.TransactionInput, outs []wi.TransactionOutput, key *hd.ExtendedKey, redeemScript []byte, feePerByte uint64) ([]wi.Signature, error) {
@@ -259,7 +264,8 @@ func (w *LitecoinWallet) GenerateMultisigScript(keys []hd.ExtendedKey, threshold
 	return w.generateMultisigScript(keys, threshold, timeout, timeoutKey)
 }
 
-func (w *LitecoinWallet) AddWatchedAddress(addr btcutil.Address) error {
+func (w *LitecoinWallet) AddWatchedAddress(waddr wi.WalletAddress) error {
+	addr, _ := btcutil.DecodeAddress(waddr.String(), w.params)
 	script, err := w.AddressToScript(addr)
 	if err != nil {
 		return err

@@ -2,16 +2,16 @@ package api
 
 import (
 	"errors"
+	"net"
+
 	"github.com/OpenBazaar/multiwallet"
 	"github.com/OpenBazaar/multiwallet/api/pb"
 	"github.com/OpenBazaar/multiwallet/bitcoin"
 	"github.com/OpenBazaar/multiwallet/bitcoincash"
 	"github.com/OpenBazaar/wallet-interface"
-	"github.com/btcsuite/btcutil"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"net"
 )
 
 const Addr = "127.0.0.1:8234"
@@ -129,7 +129,7 @@ func (s *server) GetFeePerByte(ctx context.Context, in *pb.FeeLevelSelection) (*
 }
 
 func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) {
-	var addr btcutil.Address
+	var addr wallet.WalletAddress
 	var err error
 	switch in.Coin {
 	case pb.CoinType_BITCOIN:
