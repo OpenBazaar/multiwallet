@@ -22,6 +22,7 @@ import (
 	"github.com/btcsuite/btcutil"
 	"github.com/op/go-logging"
 	"golang.org/x/net/proxy"
+	"sync"
 )
 
 var Log = logging.MustGetLogger("client")
@@ -32,6 +33,9 @@ type InsightClient struct {
 	blockNotifyChan chan Block
 	txNotifyChan    chan Transaction
 	socketClient    SocketClient
+
+	listenQueue []string
+	listenLock  sync.Mutex
 }
 
 func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, error) {
@@ -63,6 +67,7 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 		apiUrl:          *u,
 		blockNotifyChan: bch,
 		txNotifyChan:    tch,
+		listenLock:      sync.Mutex{},
 	}
 	go ic.setupListeners(*u, port, secure, proxyDialer)
 	return ic, nil
@@ -291,16 +296,24 @@ func (i *InsightClient) TransactionNotify() <-chan Transaction {
 }
 
 func (i *InsightClient) ListenAddress(addr btcutil.Address) {
+	i.listenLock.Lock()
+	defer i.listenLock.Unlock()
 	var args []interface{}
 	args = append(args, "bitcoind/addresstxid")
 	args = append(args, []string{addr.String()})
 	if i.socketClient != nil {
 		i.socketClient.Emit("subscribe", args)
+	} else {
+		i.listenQueue = append(i.listenQueue, addr.String())
 	}
 }
 
 func (i *InsightClient) setupListeners(u url.URL, port int, secure bool, proxyDialer proxy.Dialer) {
 	for {
+		if i.socketClient != nil {
+			i.listenLock.Lock()
+			break
+		}
 		socketClient, err := gosocketio.Dial(
 			gosocketio.GetUrl(u.Host, port, secure),
 			transport.GetDefaultWebsocketTransport(proxyDialer),
@@ -312,13 +325,13 @@ func (i *InsightClient) setupListeners(u url.URL, port int, secure bool, proxyDi
 			})
 			select {
 			case <-time.After(10 * time.Second):
-				Log.Warningf("Failed to connect to websocket endpoint %s", u.Host)
+				Log.Warningf("Timeout connecting to websocket endpoint %s", u.Host)
 				continue
 			case <-socketReady:
 				break
 			}
 			i.socketClient = socketClient
-			break
+			continue
 		}
 		Log.Warningf("Failed to connect to websocket endpoint %s", u.Host)
 		time.Sleep(time.Second * 2)
@@ -357,6 +370,15 @@ func (i *InsightClient) setupListeners(u url.URL, port int, secure bool, proxyDi
 			}
 		}
 	})
+	for _, addr := range i.listenQueue {
+		var args []interface{}
+		args = append(args, "bitcoind/addresstxid")
+		args = append(args, []string{addr})
+		i.socketClient.Emit("subscribe", args)
+	}
+	i.listenQueue = []string{}
+	i.listenLock.Unlock()
+	Log.Infof("Connected to websocket endpoint %s", u.Host)
 }
 
 func (i *InsightClient) Broadcast(tx []byte) (string, error) {

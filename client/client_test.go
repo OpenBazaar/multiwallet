@@ -12,6 +12,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil"
 	"gopkg.in/jarcoal/httpmock.v1"
+	"sync"
 )
 
 func NewTestClient() *InsightClient {
@@ -22,6 +23,7 @@ func NewTestClient() *InsightClient {
 		blockNotifyChan: make(chan Block),
 		txNotifyChan:    make(chan Transaction),
 		socketClient:    &gosocketio.Client{},
+		listenLock:      sync.Mutex{},
 	}
 }
 
@@ -619,7 +621,8 @@ func TestInsightClient_setupListeners(t *testing.T) {
 	)
 
 	c.socketClient = mockSocket
-	c.setupListeners()
+	go c.setupListeners(c.apiUrl, 8334, false, nil)
+	time.Sleep(time.Second)
 
 	go func() {
 		m := make(map[string]interface{})

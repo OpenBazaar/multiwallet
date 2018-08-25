@@ -8,7 +8,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/keys"
 	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
 	"github.com/OpenBazaar/multiwallet/service"
-	"github.com/OpenBazaar/spvwallet"
+	"github.com/OpenBazaar/multiwallet/util"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -49,7 +49,7 @@ func newMockWallet() (*LitecoinWallet, error) {
 		return nil, err
 	}
 
-	fp := spvwallet.NewFeeProvider(2000, 300, 200, 100, "", nil)
+	fp := util.NewFeeDefaultProvider(2000, 300, 200, 100)
 
 	bw := &LitecoinWallet{
 		params: params,

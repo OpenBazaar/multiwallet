@@ -7,6 +7,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/multiwallet/service"
+	"github.com/OpenBazaar/multiwallet/util"
 	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -15,7 +16,6 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
-	bcw "github.com/cpacia/BitcoinCash-Wallet"
 	"os"
 	"testing"
 	"time"
@@ -49,7 +49,7 @@ func newMockWallet() (*ZCashWallet, error) {
 		return nil, err
 	}
 
-	fp := bcw.NewFeeProvider(2000, 300, 200, 100, nil)
+	fp := util.NewFeeDefaultProvider(2000, 300, 200, 100)
 
 	bw := &ZCashWallet{
 		params: params,
