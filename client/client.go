@@ -310,34 +310,13 @@ func (i *InsightClient) ListenAddress(addr btcutil.Address) {
 }
 
 func (i *InsightClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
-	var (
-		port   int
-		secure = u.Scheme == "https"
-	)
-
-	if parsedPort, err := strconv.ParseInt(u.Port(), 10, 32); err != nil {
-		if err != strconv.ErrSyntax {
-			Log.Errorf("parsing port: %s", err.Error())
-		}
-	} else {
-		port = int(parsedPort)
-	}
-
-	if port == 0 {
-		if secure {
-			port = 443
-		} else {
-			port = 80
-		}
-	}
-
 	for {
 		if i.socketClient != nil {
 			i.listenLock.Lock()
 			break
 		}
 		socketClient, err := gosocketio.Dial(
-			gosocketio.GetUrl(u.Hostname(), port, secure),
+			gosocketio.GetUrl(u.Hostname(), defaultPort(u), hasImpliedURLSecurity(u)),
 			transport.GetDefaultWebsocketTransport(proxyDialer),
 		)
 		if err == nil {
@@ -402,6 +381,29 @@ func (i *InsightClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 	i.listenLock.Unlock()
 	Log.Infof("Connected to websocket endpoint %s", u.Host)
 }
+
+func defaultPort(u url.URL) int {
+	var port int
+	if parsedPort, err := strconv.ParseInt(u.Port(), 10, 32); err != nil {
+		if err != strconv.ErrSyntax {
+			Log.Errorf("error parsing port (%d): %s", u.Port(), err.Error())
+		}
+	} else {
+		port = int(parsedPort)
+	}
+
+	if port == 0 {
+		if hasImpliedURLSecurity(u) {
+			port = 443
+		} else {
+			port = 80
+		}
+	}
+
+	return port
+}
+
+func hasImpliedURLSecurity(u url.URL) bool { return u.Scheme == "https" }
 
 func (i *InsightClient) Broadcast(tx []byte) (string, error) {
 	txHex := hex.EncodeToString(tx)
