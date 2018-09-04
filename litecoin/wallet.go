@@ -73,6 +73,7 @@ func litecoinAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Addr
 	return laddr.NewAddressPubKeyHash(addr.ScriptAddress(), params)
 }
 func (w *LitecoinWallet) Start() {
+	w.client.Start()
 	w.ws.Start()
 }
 

@@ -76,6 +76,7 @@ func bitcoinCashAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.A
 }
 
 func (w *BitcoinCashWallet) Start() {
+	w.client.Start()
 	w.ws.Start()
 }
 

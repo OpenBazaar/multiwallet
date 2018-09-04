@@ -74,6 +74,7 @@ func zcashCashAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Add
 }
 
 func (w *ZCashWallet) Start() {
+	w.client.Start()
 	w.ws.Start()
 }
 

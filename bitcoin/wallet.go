@@ -72,6 +72,7 @@ func keyToAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btc.Address, er
 }
 
 func (w *BitcoinWallet) Start() {
+	w.client.Start()
 	w.ws.Start()
 }
 
