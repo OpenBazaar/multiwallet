@@ -404,7 +404,7 @@ func TestBitcoinWallet_Multisign(t *testing.T) {
 	if len(sigs2) != 2 {
 		t.Error(err)
 	}
-	txBytes, err := w.Multisign(ins, outs, sigs1, sigs2, redeemScript, 50, true)
+	txBytes, err := w.Multisign(ins, outs, sigs1, sigs2, redeemScript, 50, false)
 	if err != nil {
 		t.Error(err)
 	}

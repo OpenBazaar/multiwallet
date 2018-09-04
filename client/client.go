@@ -32,6 +32,7 @@ type InsightClient struct {
 	blockNotifyChan chan Block
 	txNotifyChan    chan Transaction
 	socketClient    SocketClient
+	proxyDialer     proxy.Dialer
 
 	listenQueue []string
 	listenLock  sync.Mutex
@@ -58,12 +59,16 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	ic := &InsightClient{
 		httpClient:      http.Client{Timeout: time.Second * 30, Transport: tbTransport},
 		apiUrl:          *u,
+		proxyDialer:     proxyDialer,
 		blockNotifyChan: bch,
 		txNotifyChan:    tch,
 		listenLock:      sync.Mutex{},
 	}
-	go ic.setupListeners(*u, proxyDialer)
 	return ic, nil
+}
+
+func (i *InsightClient) Start() {
+	go i.setupListeners(i.apiUrl, i.proxyDialer)
 }
 
 func (i *InsightClient) Close() {
