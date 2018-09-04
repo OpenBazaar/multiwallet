@@ -621,7 +621,7 @@ func TestInsightClient_setupListeners(t *testing.T) {
 	)
 
 	c.socketClient = mockSocket
-	go c.setupListeners(c.apiUrl, 8334, false, nil)
+	go c.setupListeners(c.apiUrl, nil)
 	time.Sleep(time.Second)
 
 	go func() {

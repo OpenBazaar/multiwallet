@@ -1,9 +1,9 @@
 package util
 
 import (
-	"testing"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
+	"testing"
 )
 
 func TestOutPointsEqual(t *testing.T) {

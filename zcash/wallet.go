@@ -16,13 +16,13 @@ import (
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
 
+	"encoding/hex"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/config"
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
 	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
-	"encoding/hex"
 )
 
 type ZCashWallet struct {
@@ -358,8 +358,8 @@ func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) error {
 				Hex: hex.EncodeToString(in.SignatureScript),
 			},
 			Sequence: uint32(in.Sequence),
-			N: n,
-			Addr: addr.String(),
+			N:        n,
+			Addr:     addr.String(),
 			Satoshis: u.Value,
 		}
 		cTxn.Inputs = append(cTxn.Inputs, input)
