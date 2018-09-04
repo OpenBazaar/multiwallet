@@ -6,13 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/OpenBazaar/golang-socketio"
@@ -22,7 +22,6 @@ import (
 	"github.com/btcsuite/btcutil"
 	"github.com/op/go-logging"
 	"golang.org/x/net/proxy"
-	"sync"
 )
 
 var Log = logging.MustGetLogger("client")
@@ -30,8 +29,6 @@ var Log = logging.MustGetLogger("client")
 type InsightClient struct {
 	httpClient      http.Client
 	apiUrl          url.URL
-	port            int
-	secureSocket    bool
 	blockNotifyChan chan Block
 	txNotifyChan    chan Transaction
 	socketClient    SocketClient
@@ -46,17 +43,11 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	if err != nil {
 		return nil, err
 	}
-	var port int
-	var secure bool
-	if u.Scheme == "https" {
-		port = 443
-		secure = true
-	} else if u.Scheme == "http" {
-		port = 80
-		secure = false
-	} else {
-		return nil, errors.New("Unknown url scheme")
+
+	if err := validateScheme(u); err != nil {
+		return nil, err
 	}
+
 	dial := net.Dial
 	if proxyDialer != nil {
 		dial = proxyDialer.Dial
@@ -68,8 +59,6 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	ic := &InsightClient{
 		httpClient:      http.Client{Timeout: time.Second * 30, Transport: tbTransport},
 		apiUrl:          *u,
-		port:            port,
-		secureSocket:    secure,
 		proxyDialer:     proxyDialer,
 		blockNotifyChan: bch,
 		txNotifyChan:    tch,
@@ -79,13 +68,21 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 }
 
 func (i *InsightClient) Start() {
-	go i.setupListeners(i.apiUrl, i.port, i.secureSocket, i.proxyDialer)
+	go i.setupListeners(i.apiUrl, i.proxyDialer)
 }
 
 func (i *InsightClient) Close() {
 	if i.socketClient != nil {
 		i.socketClient.Close()
 	}
+}
+
+func validateScheme(target *url.URL) error {
+	switch target.Scheme {
+	case "https", "http":
+		return nil
+	}
+	return fmt.Errorf("unsupported scheme: %s", target.Scheme)
 }
 
 func (i *InsightClient) doRequest(endpoint, method string, body []byte, query url.Values) (*http.Response, error) {
@@ -317,14 +314,14 @@ func (i *InsightClient) ListenAddress(addr btcutil.Address) {
 	}
 }
 
-func (i *InsightClient) setupListeners(u url.URL, port int, secure bool, proxyDialer proxy.Dialer) {
+func (i *InsightClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 	for {
 		if i.socketClient != nil {
 			i.listenLock.Lock()
 			break
 		}
 		socketClient, err := gosocketio.Dial(
-			gosocketio.GetUrl(u.Host, port, secure),
+			gosocketio.GetUrl(u.Hostname(), defaultPort(u), hasImpliedURLSecurity(u)),
 			transport.GetDefaultWebsocketTransport(proxyDialer),
 		)
 		if err == nil {
@@ -389,6 +386,29 @@ func (i *InsightClient) setupListeners(u url.URL, port int, secure bool, proxyDi
 	i.listenLock.Unlock()
 	Log.Infof("Connected to websocket endpoint %s", u.Host)
 }
+
+func defaultPort(u url.URL) int {
+	var port int
+	if parsedPort, err := strconv.ParseInt(u.Port(), 10, 32); err != nil {
+		if err != strconv.ErrSyntax {
+			Log.Errorf("error parsing port (%d): %s", u.Port(), err.Error())
+		}
+	} else {
+		port = int(parsedPort)
+	}
+
+	if port == 0 {
+		if hasImpliedURLSecurity(u) {
+			port = 443
+		} else {
+			port = 80
+		}
+	}
+
+	return port
+}
+
+func hasImpliedURLSecurity(u url.URL) bool { return u.Scheme == "https" }
 
 func (i *InsightClient) Broadcast(tx []byte) (string, error) {
 	txHex := hex.EncodeToString(tx)
