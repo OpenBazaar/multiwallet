@@ -30,9 +30,12 @@ var Log = logging.MustGetLogger("client")
 type InsightClient struct {
 	httpClient      http.Client
 	apiUrl          url.URL
+	port            int
+	secureSocket    bool
 	blockNotifyChan chan Block
 	txNotifyChan    chan Transaction
 	socketClient    SocketClient
+	proxyDialer     proxy.Dialer
 
 	listenQueue []string
 	listenLock  sync.Mutex
@@ -65,12 +68,18 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	ic := &InsightClient{
 		httpClient:      http.Client{Timeout: time.Second * 30, Transport: tbTransport},
 		apiUrl:          *u,
+		port:            port,
+		secureSocket:    secure,
+		proxyDialer:     proxyDialer,
 		blockNotifyChan: bch,
 		txNotifyChan:    tch,
 		listenLock:      sync.Mutex{},
 	}
-	go ic.setupListeners(*u, port, secure, proxyDialer)
 	return ic, nil
+}
+
+func (i *InsightClient) Start() {
+	go i.setupListeners(i.apiUrl, i.port, i.secureSocket, i.proxyDialer)
 }
 
 func (i *InsightClient) Close() {
