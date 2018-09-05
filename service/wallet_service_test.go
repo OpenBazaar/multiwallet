@@ -193,7 +193,7 @@ func TestWalletService_TestSyncWatchOnly(t *testing.T) {
 	}
 }
 
-func TestWalletService_processIncomingTransaction(t *testing.T) {
+func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 	ws, err := mockWalletService()
 	if err != nil {
 		t.Error(err)
@@ -201,7 +201,7 @@ func TestWalletService_processIncomingTransaction(t *testing.T) {
 	}
 
 	// Process an incoming transaction
-	ws.processIncomingTransaction(client.MockTransactions[0])
+	ws.ProcessIncomingTransaction(client.MockTransactions[0])
 	txns, err := ws.db.Txns().GetAll(true)
 	if err != nil {
 		t.Error(err)
@@ -240,7 +240,7 @@ func TestWalletService_processIncomingTransaction(t *testing.T) {
 	}
 
 	// Process an outgoing transaction. Make sure it deletes the utxo
-	ws.processIncomingTransaction(client.MockTransactions[1])
+	ws.ProcessIncomingTransaction(client.MockTransactions[1])
 	txns, err = ws.db.Txns().GetAll(true)
 	if err != nil {
 		t.Error(err)
@@ -286,7 +286,7 @@ func TestWalletService_processIncomingBlock(t *testing.T) {
 	// Check update height of unconfirmed txs and utxos
 	tx := client.MockTransactions[0]
 	tx.Confirmations = 0
-	ws.processIncomingTransaction(tx)
+	ws.ProcessIncomingTransaction(tx)
 
 	ws.processIncomingBlock(client.MockBlocks[2])
 	time.Sleep(time.Second / 2)
