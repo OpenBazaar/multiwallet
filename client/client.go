@@ -389,11 +389,8 @@ func (i *InsightClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 
 func defaultPort(u url.URL) int {
 	var port int
-	if parsedPort, err := strconv.ParseInt(u.Port(), 10, 32); err != nil {
-		if err != strconv.ErrSyntax {
-			Log.Errorf("error parsing port (%d): %s", u.Port(), err.Error())
-		}
-	} else {
+	parsedPort, err := strconv.ParseInt(u.Port(), 10, 32)
+	if err == nil {
 		port = int(parsedPort)
 	}
 
