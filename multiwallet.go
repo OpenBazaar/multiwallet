@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	eth "github.com/OpenBazaar/go-ethwallet/wallet"
 	"github.com/OpenBazaar/multiwallet/bitcoin"
 	"github.com/OpenBazaar/multiwallet/bitcoincash"
 	"github.com/OpenBazaar/multiwallet/client"
@@ -87,16 +86,6 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 				multiwallet[wallet.Litecoin] = w
 			} else {
 				multiwallet[wallet.TestnetLitecoin] = w
-			}
-		case wallet.Ethereum:
-			w, err = eth.NewEthereumWallet(coin, cfg.Mnemonic)
-			if err != nil {
-				return nil, err
-			}
-			if cfg.Params.Name == chaincfg.MainNetParams.Name {
-				multiwallet[wallet.Ethereum] = w
-			} else {
-				multiwallet[wallet.TestnetEthereum] = w
 			}
 		}
 	}
