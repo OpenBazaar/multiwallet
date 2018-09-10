@@ -422,17 +422,14 @@ func (i *InsightClient) Broadcast(tx []byte) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	type Txid struct {
-		Result string `json:"result"`
-	}
 	type Response struct {
-		Txid Txid `json:"txid"`
+		Txid string `json:"txid"`
 	}
 	rs := new(Response)
 	if err = json.NewDecoder(resp.Body).Decode(rs); err != nil {
 		return "", fmt.Errorf("error decoding txid: %s", err)
 	}
-	return rs.Txid.Result, nil
+	return rs.Txid, nil
 }
 
 func (i *InsightClient) GetBestBlock() (*Block, error) {

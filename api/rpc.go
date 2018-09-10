@@ -91,7 +91,12 @@ func (s *server) ChainTip(ctx context.Context, in *pb.CoinSelection) (*pb.Height
 }
 
 func (s *server) Balance(ctx context.Context, in *pb.CoinSelection) (*pb.Balances, error) {
-	c, u := s.w[coinType(in.Coin)].Balance()
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
+	if err != nil {
+		return nil, err
+	}
+	c, u := wal.Balance()
 	return &pb.Balances{uint64(c), uint64(u)}, nil
 }
 
@@ -135,13 +140,17 @@ func (s *server) GetFeePerByte(ctx context.Context, in *pb.FeeLevelSelection) (*
 func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) {
 	var addr btcutil.Address
 	var err error
-	switch in.Coin {
-	case pb.CoinType_BITCOIN:
-		addr, err = s.w[wallet.Bitcoin].DecodeAddress(in.Address)
-	}
+
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
 	if err != nil {
 		return nil, err
 	}
+	addr, err = wal.DecodeAddress(in.Address)
+	if err != nil {
+		return nil, err
+	}
+
 	var feeLevel wallet.FeeLevel
 	switch in.FeeLevel {
 	case pb.FeeLevel_PRIORITY:
@@ -153,7 +162,7 @@ func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) 
 	default:
 		feeLevel = wallet.NORMAL
 	}
-	txid, err := s.w[coinType(in.Coin)].Spend(int64(in.Amount), addr, feeLevel)
+	txid, err := wal.Spend(int64(in.Amount), addr, feeLevel)
 	if err != nil {
 		return nil, err
 	}
