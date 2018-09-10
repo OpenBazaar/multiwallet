@@ -463,9 +463,15 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 		if u.Confirmations > 0 {
 			ts = time.Unix(u.BlockTime, 0)
 		}
-		var buf bytes.Buffer
-		msgTx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
-		ws.db.Txns().Put(buf.Bytes(), txHash.String(), int(value), int(height), ts, hits == 0)
+		var txBytes []byte
+		if len(u.RawBytes) > 0 {
+			txBytes = u.RawBytes
+		} else {
+			var buf bytes.Buffer
+			msgTx.BtcEncode(&buf, wire.ProtocolVersion, wire.BaseEncoding)
+			txBytes = buf.Bytes()
+		}
+		ws.db.Txns().Put(txBytes, txHash.String(), int(value), int(height), ts, hits == 0)
 		cb.Timestamp = ts
 		ws.callbackListeners(cb)
 	} else {
