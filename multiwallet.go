@@ -48,7 +48,7 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 		var w wallet.Wallet
 		switch coin.CoinType {
 		case wallet.Bitcoin:
-			w, err = bitcoin.NewBitcoinWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy)
+			w, err = bitcoin.NewBitcoinWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.RepoPath)
 			if err != nil {
 				return nil, err
 			}
@@ -58,7 +58,7 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 				multiwallet[wallet.TestnetBitcoin] = w
 			}
 		case wallet.BitcoinCash:
-			w, err = bitcoincash.NewBitcoinCashWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy)
+			w, err = bitcoincash.NewBitcoinCashWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.RepoPath)
 			if err != nil {
 				return nil, err
 			}
@@ -68,7 +68,7 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 				multiwallet[wallet.TestnetBitcoinCash] = w
 			}
 		case wallet.Zcash:
-			w, err = zcash.NewZCashWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy)
+			w, err = zcash.NewZCashWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.RepoPath)
 			if err != nil {
 				return nil, err
 			}
@@ -78,7 +78,7 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 				multiwallet[wallet.TestnetZcash] = w
 			}
 		case wallet.Litecoin:
-			w, err = litecoin.NewLitecoinWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy)
+			w, err = litecoin.NewLitecoinWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.RepoPath)
 			if err != nil {
 				return nil, err
 			}

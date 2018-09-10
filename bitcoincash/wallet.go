@@ -39,7 +39,7 @@ type BitcoinCashWallet struct {
 	mPubKey  *hd.ExtendedKey
 }
 
-func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer) (*BitcoinCashWallet, error) {
+func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, repoPath string) (*BitcoinCashWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -60,7 +60,10 @@ func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chainc
 		return nil, err
 	}
 
-	wm := service.NewWalletService(cfg.DB, km, c, params, wi.BitcoinCash)
+	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.BitcoinCash, repoPath)
+	if err != nil {
+		return nil, err
+	}
 
 	fp := bcw.NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, er.NewBitcoinCashPriceFetcher(proxy))
 

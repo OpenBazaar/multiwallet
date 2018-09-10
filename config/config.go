@@ -28,6 +28,9 @@ type Config struct {
 	// A logger. You can write the logs to file or stdout or however else you want.
 	Logger logging.Backend
 
+	// A directory where wallet metadata (such as last known height) should be stored
+	RepoPath string
+
 	// A list of coin configs. One config should be included for each coin to be used.
 	Coins []CoinConfig
 }
@@ -62,8 +65,9 @@ type CoinConfig struct {
 
 func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Params) *Config {
 	cfg := &Config{
-		Params: params,
-		Logger: logging.NewLogBackend(os.Stdout, "", 0),
+		RepoPath: "~/.multiwallet",
+		Params:   params,
+		Logger:   logging.NewLogBackend(os.Stdout, "", 0),
 	}
 	var testnet bool
 	if params.Name == chaincfg.TestNet3Params.Name {

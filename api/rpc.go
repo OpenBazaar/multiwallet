@@ -63,8 +63,12 @@ func (s *server) CurrentAddress(ctx context.Context, in *pb.KeySelection) (*pb.A
 	} else {
 		return nil, errors.New("Unknown key purpose")
 	}
-
-	addr := s.w[coinType(in.Coin)].CurrentAddress(purpose)
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
+	if err != nil {
+		return nil, err
+	}
+	addr := wal.CurrentAddress(purpose)
 	return &pb.Address{in.Coin, addr.String()}, nil
 }
 

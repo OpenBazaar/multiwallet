@@ -37,7 +37,7 @@ type ZCashWallet struct {
 	mPubKey  *hd.ExtendedKey
 }
 
-func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer) (*ZCashWallet, error) {
+func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, repoPath string) (*ZCashWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -58,7 +58,10 @@ func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Par
 		return nil, err
 	}
 
-	wm := service.NewWalletService(cfg.DB, km, c, params, wi.Zcash)
+	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.Zcash, repoPath)
+	if err != nil {
+		return nil, err
+	}
 
 	fp := util.NewFeeDefaultProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee)
 

@@ -722,3 +722,24 @@ func TestInsightClient_EstimateFee(t *testing.T) {
 		t.Errorf("returned unexpected fee: %v", fee)
 	}
 }
+
+func TestDefaultPort(t *testing.T) {
+	urls := []struct {
+		url  string
+		port int
+	}{
+		{"https://btc.bloqapi.net/insight-api", 443},
+		{"http://test-insight.bitpay.com/api", 80},
+		{"http://test-bch-insight.bitpay.com:3333/api", 3333},
+	}
+	for _, s := range urls {
+		u, err := url.Parse(s.url)
+		if err != nil {
+			t.Error(err)
+		}
+		port := defaultPort(*u)
+		if port != s.port {
+			t.Error("Returned incorrect port")
+		}
+	}
+}

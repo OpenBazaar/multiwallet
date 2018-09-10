@@ -16,11 +16,15 @@ import (
 	"github.com/cpacia/bchutil"
 	"github.com/op/go-logging"
 
+	"encoding/json"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/keys"
 	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
 	"github.com/OpenBazaar/multiwallet/util"
 	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
+	"io/ioutil"
+	"os"
+	"path"
 )
 
 var Log = logging.MustGetLogger("WalletService")
@@ -34,6 +38,7 @@ type WalletService struct {
 
 	chainHeight uint32
 	bestBlock   string
+	repoPath    string
 
 	listeners []func(wallet.TransactionCallback)
 
@@ -42,10 +47,28 @@ type WalletService struct {
 	doneChan chan struct{}
 }
 
+type HashAndHeight struct {
+	Height    uint32    `json:"height"`
+	Hash      string    `json:"string"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
 const nullHash = "0000000000000000000000000000000000000000000000000000000000000000"
 
-func NewWalletService(db wallet.Datastore, km *keys.KeyManager, client client.APIClient, params *chaincfg.Params, coinType wallet.CoinType) *WalletService {
-	return &WalletService{db, km, client, params, coinType, 0, nullHash, []func(wallet.TransactionCallback){}, sync.RWMutex{}, make(chan struct{})}
+func NewWalletService(db wallet.Datastore, km *keys.KeyManager, client client.APIClient, params *chaincfg.Params, coinType wallet.CoinType, repoPath string) (*WalletService, error) {
+	f, err := ioutil.ReadFile(path.Join(repoPath, coinType.String()+".json"))
+	best := nullHash
+	height := uint32(0)
+	if err == nil {
+		var hh HashAndHeight
+		err := json.Unmarshal(f, &hh)
+		if err != nil {
+			return nil, err
+		}
+		best = hh.Hash
+		height = hh.Height
+	}
+	return &WalletService{db, km, client, params, coinType, height, best, repoPath, []func(wallet.TransactionCallback){}, sync.RWMutex{}, make(chan struct{})}, nil
 }
 
 func (ws *WalletService) Start() {
@@ -138,8 +161,7 @@ func (ws *WalletService) processIncomingBlock(block client.Block) {
 	ws.lock.RUnlock()
 
 	ws.lock.Lock()
-	ws.chainHeight = uint32(block.Height)
-	ws.bestBlock = block.Hash
+	ws.saveHashAndHeight(block.Hash, uint32(block.Height))
 	ws.lock.Unlock()
 
 	// REORG! Rescan all transactions and utxos to see if anything changed
@@ -196,8 +218,7 @@ func (ws *WalletService) UpdateState() {
 	if err == nil {
 		Log.Debugf("%s chain height: %d", ws.coinType.String(), best.Height)
 		ws.lock.Lock()
-		ws.chainHeight = uint32(best.Height)
-		ws.bestBlock = best.Hash
+		ws.saveHashAndHeight(best.Hash, uint32(best.Height))
 		ws.lock.Unlock()
 	} else {
 		Log.Errorf("Error querying API for %s chain height: %s", ws.coinType.String(), err.Error())
@@ -521,4 +542,19 @@ func (ws *WalletService) getStoredAddresses() map[string]storedAddress {
 		}
 	}
 	return addrs
+}
+
+func (ws *WalletService) saveHashAndHeight(hash string, height uint32) error {
+	hh := HashAndHeight{
+		Height:    height,
+		Hash:      hash,
+		Timestamp: time.Now(),
+	}
+	b, err := json.MarshalIndent(&hh, "", "    ")
+	if err != nil {
+		return err
+	}
+	ws.chainHeight = height
+	ws.bestBlock = hash
+	return ioutil.WriteFile(path.Join(ws.repoPath, ws.coinType.String()+".json"), b, os.ModePerm)
 }

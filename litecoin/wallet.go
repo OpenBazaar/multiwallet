@@ -12,7 +12,7 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/btcsuite/btcwallet/wallet/txrules"
+	"github.com/ltcsuite/ltcwallet/wallet/txrules"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
 
@@ -23,6 +23,7 @@ import (
 	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
+	rb "github.com/roasbeef/btcutil"
 )
 
 type LitecoinWallet struct {
@@ -37,7 +38,7 @@ type LitecoinWallet struct {
 	mPubKey  *hd.ExtendedKey
 }
 
-func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer) (*LitecoinWallet, error) {
+func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, repoPath string) (*LitecoinWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -58,7 +59,10 @@ func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.
 		return nil, err
 	}
 
-	wm := service.NewWalletService(cfg.DB, km, c, params, wi.Litecoin)
+	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.Litecoin, repoPath)
+	if err != nil {
+		return nil, err
+	}
 
 	fp := util.NewFeeDefaultProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee)
 
@@ -90,7 +94,7 @@ func (w *LitecoinWallet) CurrencyCode() string {
 }
 
 func (w *LitecoinWallet) IsDust(amount int64) bool {
-	return txrules.IsDustAmount(btcutil.Amount(amount), 25, txrules.DefaultRelayFeePerKb)
+	return txrules.IsDustAmount(rb.Amount(amount), 25, txrules.DefaultRelayFeePerKb)
 }
 
 func (w *LitecoinWallet) MasterPrivateKey() *hd.ExtendedKey {

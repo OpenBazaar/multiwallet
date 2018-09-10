@@ -39,7 +39,7 @@ type BitcoinWallet struct {
 	mPubKey  *hd.ExtendedKey
 }
 
-func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer) (*BitcoinWallet, error) {
+func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, repoPath string) (*BitcoinWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -60,7 +60,10 @@ func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.P
 		return nil, err
 	}
 
-	wm := service.NewWalletService(cfg.DB, km, c, params, wi.Bitcoin)
+	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.Bitcoin, repoPath)
+	if err != nil {
+		return nil, err
+	}
 
 	fp := spvwallet.NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, cfg.FeeAPI.String(), proxy)
 
