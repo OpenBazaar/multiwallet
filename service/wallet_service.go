@@ -446,7 +446,7 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 		if !sa.WatchOnly {
 			hits++
 			// Mark the key we received coins to as used
-			ws.db.Keys().MarkKeyAsUsed(sa.Addr.ScriptAddress())
+			ws.km.MarkKeyAsUsed(sa.Addr.ScriptAddress())
 		}
 		relevant = true
 	}

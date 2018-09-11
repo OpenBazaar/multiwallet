@@ -12,6 +12,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"net"
+	"github.com/OpenBazaar/multiwallet/litecoin"
+	"github.com/OpenBazaar/multiwallet/zcash"
 )
 
 const Addr = "127.0.0.1:8234"
@@ -239,14 +241,29 @@ func (h *HeaderWriter) Write(p []byte) (n int, err error) {
 
 func (s *server) DumpTables(in *pb.CoinSelection, stream pb.API_DumpTablesServer) error {
 	writer := HeaderWriter{stream}
-	bitcoinWallet, ok := s.w[coinType(in.Coin)].(*bitcoin.BitcoinWallet)
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
+	if err != nil {
+		return err
+	}
+	bitcoinWallet, ok := wal.(*bitcoin.BitcoinWallet)
 	if ok {
 		bitcoinWallet.DumpTables(&writer)
 		return nil
 	}
-	bitcoincashWallet, ok := s.w[coinType(in.Coin)].(*bitcoincash.BitcoinCashWallet)
+	bitcoincashWallet, ok := wal.(*bitcoincash.BitcoinCashWallet)
 	if ok {
 		bitcoincashWallet.DumpTables(&writer)
+		return nil
+	}
+	litecoinWallet, ok := wal.(*litecoin.LitecoinWallet)
+	if ok {
+		litecoinWallet.DumpTables(&writer)
+		return nil
+	}
+	zcashWallet, ok := wal.(*zcash.ZCashWallet)
+	if ok {
+		zcashWallet.DumpTables(&writer)
 		return nil
 	}
 	return nil

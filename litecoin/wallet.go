@@ -323,6 +323,28 @@ func (w *LitecoinWallet) DumpTables(wr io.Writer) {
 	for _, u := range utxos {
 		fmt.Fprintf(wr, "Hash: %s, Index: %d, Height: %d, Value: %d, WatchOnly: %t\n", u.Op.Hash.String(), int(u.Op.Index), int(u.AtHeight), int(u.Value), u.WatchOnly)
 	}
+	fmt.Fprintln(wr, "\nKeys-----")
+	keys, _ := w.db.Keys().GetAll()
+	unusedInternal, _ := w.db.Keys().GetUnused(wi.INTERNAL)
+	unusedExternal, _ := w.db.Keys().GetUnused(wi.EXTERNAL)
+	internalMap := make(map[int]bool)
+	externalMap := make(map[int]bool)
+	for _, k := range unusedInternal {
+		internalMap[k] = true
+	}
+	for _, k := range unusedExternal {
+		externalMap[k] = true
+	}
+
+	for _, k := range keys {
+		var used bool
+		if k.Purpose == wi.INTERNAL {
+			used = internalMap[k.Index]
+		} else {
+			used = externalMap[k.Index]
+		}
+		fmt.Fprintf(wr, "KeyIndex: %d, Purpose: %d, Used: %t\n", k.Index, k.Purpose, used)
+	}
 }
 
 // Build a client.Transaction so we can ingest it into the wallet service then broadcast
