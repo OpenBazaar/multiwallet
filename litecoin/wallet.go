@@ -17,6 +17,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"encoding/hex"
+	"github.com/OpenBazaar/multiwallet/cache"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/config"
 	"github.com/OpenBazaar/multiwallet/keys"
@@ -38,7 +39,7 @@ type LitecoinWallet struct {
 	mPubKey  *hd.ExtendedKey
 }
 
-func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, repoPath string) (*LitecoinWallet, error) {
+func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher) (*LitecoinWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -59,7 +60,7 @@ func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.
 		return nil, err
 	}
 
-	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.Litecoin, repoPath)
+	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.Litecoin, cache)
 	if err != nil {
 		return nil, err
 	}
