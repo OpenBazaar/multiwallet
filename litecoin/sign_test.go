@@ -3,6 +3,10 @@ package litecoin
 import (
 	"bytes"
 	"encoding/hex"
+	"testing"
+	"time"
+
+	"github.com/OpenBazaar/multiwallet/cache"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/multiwallet/keys"
@@ -16,8 +20,6 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
-	"testing"
-	"time"
 )
 
 type FeeResponse struct {
@@ -58,7 +60,10 @@ func newMockWallet() (*LitecoinWallet, error) {
 		fp:     fp,
 	}
 	cli := client.NewMockApiClient(bw.AddressToScript)
-	ws := service.NewWalletService(db, km, cli, params, wallet.Litecoin)
+	ws, err := service.NewWalletService(db, km, cli, params, wallet.Litecoin, cache.NewMockCacher())
+	if err != nil {
+		return nil, err
+	}
 	bw.client = cli
 	bw.ws = ws
 	return bw, nil

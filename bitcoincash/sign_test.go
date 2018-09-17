@@ -3,6 +3,11 @@ package bitcoincash
 import (
 	"bytes"
 	"encoding/hex"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/OpenBazaar/multiwallet/cache"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/multiwallet/keys"
@@ -15,9 +20,6 @@ import (
 	"github.com/btcsuite/btcutil/hdkeychain"
 	bcw "github.com/cpacia/BitcoinCash-Wallet"
 	"github.com/cpacia/bchutil"
-	"os"
-	"testing"
-	"time"
 )
 
 type FeeResponse struct {
@@ -57,7 +59,10 @@ func newMockWallet() (*BitcoinCashWallet, error) {
 		fp:     fp,
 	}
 	cli := client.NewMockApiClient(bw.AddressToScript)
-	ws := service.NewWalletService(db, km, cli, params, wallet.BitcoinCash)
+	ws, err := service.NewWalletService(db, km, cli, params, wallet.BitcoinCash, cache.NewMockCacher())
+	if err != nil {
+		return nil, err
+	}
 	bw.client = cli
 	bw.ws = ws
 	return bw, nil
