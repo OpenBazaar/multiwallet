@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/OpenBazaar/multiwallet/cache"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/multiwallet/keys"
@@ -41,7 +42,7 @@ func mockWalletService() (*WalletService, error) {
 	cli := client.NewMockApiClient(func(addr btcutil.Address) ([]byte, error) {
 		return txscript.PayToAddrScript(addr)
 	})
-	return NewWalletService(db, km, cli, params, wallet.Bitcoin), nil
+	return NewWalletService(db, km, cli, params, wallet.Bitcoin, cache.NewMockCacher())
 }
 
 func bitcoinAddress(key *hdkeychain.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {

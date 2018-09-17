@@ -6,6 +6,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/OpenBazaar/multiwallet/cache"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -39,7 +40,7 @@ type BitcoinCashWallet struct {
 	mPubKey  *hd.ExtendedKey
 }
 
-func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, repoPath string) (*BitcoinCashWallet, error) {
+func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher) (*BitcoinCashWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -60,7 +61,7 @@ func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chainc
 		return nil, err
 	}
 
-	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.BitcoinCash, repoPath)
+	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.BitcoinCash, cache)
 	if err != nil {
 		return nil, err
 	}
@@ -329,12 +330,15 @@ func (w *BitcoinCashWallet) DumpTables(wr io.Writer) {
 
 // Build a client.Transaction so we can ingest it into the wallet service then broadcast
 func (w *BitcoinCashWallet) Broadcast(tx *wire.MsgTx) error {
+	var buf bytes.Buffer
+	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.BaseEncoding)
 	cTxn := client.Transaction{
 		Txid:          tx.TxHash().String(),
 		Locktime:      int(tx.LockTime),
 		Version:       int(tx.Version),
 		Confirmations: 0,
 		Time:          time.Now().Unix(),
+		RawBytes:      buf.Bytes(),
 	}
 	utxos, err := w.db.Utxos().GetAll()
 	if err != nil {
@@ -383,8 +387,6 @@ func (w *BitcoinCashWallet) Broadcast(tx *wire.MsgTx) error {
 		cTxn.Outputs = append(cTxn.Outputs, output)
 	}
 	w.ws.ProcessIncomingTransaction(cTxn)
-	var buf bytes.Buffer
-	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
 	_, err = w.client.Broadcast(buf.Bytes())
 	return err
 }

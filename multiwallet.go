@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	eth "github.com/OpenBazaar/go-ethwallet/wallet"
 	"github.com/OpenBazaar/multiwallet/bitcoin"
 	"github.com/OpenBazaar/multiwallet/bitcoincash"
 	"github.com/OpenBazaar/multiwallet/client"
@@ -16,7 +17,6 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/op/go-logging"
 	"github.com/tyler-smith/go-bip39"
-	eth "github.com/OpenBazaar/go-ethwallet/wallet"
 )
 
 var log = logging.MustGetLogger("multiwallet")
@@ -49,7 +49,7 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 		var w wallet.Wallet
 		switch coin.CoinType {
 		case wallet.Bitcoin:
-			w, err = bitcoin.NewBitcoinWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.RepoPath)
+			w, err = bitcoin.NewBitcoinWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.Cache)
 			if err != nil {
 				return nil, err
 			}
@@ -59,7 +59,7 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 				multiwallet[wallet.TestnetBitcoin] = w
 			}
 		case wallet.BitcoinCash:
-			w, err = bitcoincash.NewBitcoinCashWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.RepoPath)
+			w, err = bitcoincash.NewBitcoinCashWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.Cache)
 			if err != nil {
 				return nil, err
 			}
@@ -69,7 +69,7 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 				multiwallet[wallet.TestnetBitcoinCash] = w
 			}
 		case wallet.Zcash:
-			w, err = zcash.NewZCashWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.RepoPath)
+			w, err = zcash.NewZCashWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.Cache)
 			if err != nil {
 				return nil, err
 			}
@@ -79,7 +79,7 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 				multiwallet[wallet.TestnetZcash] = w
 			}
 		case wallet.Litecoin:
-			w, err = litecoin.NewLitecoinWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.RepoPath)
+			w, err = litecoin.NewLitecoinWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.Cache)
 			if err != nil {
 				return nil, err
 			}

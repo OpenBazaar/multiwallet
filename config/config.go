@@ -5,12 +5,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/OpenBazaar/multiwallet/cache"
+	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/op/go-logging"
 	"golang.org/x/net/proxy"
-
-	"github.com/OpenBazaar/multiwallet/datastore"
 )
 
 type Config struct {
@@ -30,8 +30,9 @@ type Config struct {
 	// A logger. You can write the logs to file or stdout or however else you want.
 	Logger logging.Backend
 
-	// A directory where wallet metadata (such as last known height) should be stored
-	RepoPath string
+	// Cache is a persistable storage provided by the consumer where the wallet can
+	// keep state between runtime executions
+	Cache cache.Cacher
 
 	// A list of coin configs. One config should be included for each coin to be used.
 	Coins []CoinConfig
@@ -67,9 +68,9 @@ type CoinConfig struct {
 
 func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Params) *Config {
 	cfg := &Config{
-		RepoPath: "~/.multiwallet",
-		Params:   params,
-		Logger:   logging.NewLogBackend(os.Stdout, "", 0),
+		Cache:  cache.NewMockCacher(),
+		Params: params,
+		Logger: logging.NewLogBackend(os.Stdout, "", 0),
 	}
 	var testnet bool
 	if params.Name == chaincfg.TestNet3Params.Name {

@@ -17,6 +17,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"encoding/hex"
+	"github.com/OpenBazaar/multiwallet/cache"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/config"
 	"github.com/OpenBazaar/multiwallet/keys"
@@ -37,7 +38,7 @@ type ZCashWallet struct {
 	mPubKey  *hd.ExtendedKey
 }
 
-func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, repoPath string) (*ZCashWallet, error) {
+func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher) (*ZCashWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -58,7 +59,7 @@ func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Par
 		return nil, err
 	}
 
-	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.Zcash, repoPath)
+	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.Zcash, cache)
 	if err != nil {
 		return nil, err
 	}
@@ -331,12 +332,15 @@ func (w *ZCashWallet) DumpTables(wr io.Writer) {
 
 // Build a client.Transaction so we can ingest it into the wallet service then broadcast
 func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) error {
+	var buf bytes.Buffer
+	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.BaseEncoding)
 	cTxn := client.Transaction{
 		Txid:          tx.TxHash().String(),
 		Locktime:      int(tx.LockTime),
 		Version:       int(tx.Version),
 		Confirmations: 0,
 		Time:          time.Now().Unix(),
+		RawBytes:      buf.Bytes(),
 	}
 	utxos, err := w.db.Utxos().GetAll()
 	if err != nil {
@@ -385,8 +389,6 @@ func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) error {
 		cTxn.Outputs = append(cTxn.Outputs, output)
 	}
 	w.ws.ProcessIncomingTransaction(cTxn)
-	var buf bytes.Buffer
-	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
 	_, err = w.client.Broadcast(buf.Bytes())
 	return err
 }

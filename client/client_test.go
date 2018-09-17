@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"sync"
+
 	"github.com/OpenBazaar/golang-socketio"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil"
 	"gopkg.in/jarcoal/httpmock.v1"
-	"sync"
 )
 
 func NewTestClient() *InsightClient {
@@ -413,17 +414,14 @@ func TestInsightClient_Broadcast(t *testing.T) {
 	setup()
 	defer teardown()
 
-	type Txid struct {
-		Result string `json:"result"`
-	}
 	type Response struct {
-		Txid Txid `json:"txid"`
+		Txid string `json:"txid"`
 	}
 
 	var (
 		c        = NewTestClient()
 		testPath = fmt.Sprintf("http://%s/tx/send", c.apiUrl.Host)
-		expected = Response{Txid{"1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"}}
+		expected = Response{"1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"}
 	)
 
 	response, err := httpmock.NewJsonResponse(http.StatusOK, expected)
@@ -441,7 +439,7 @@ func TestInsightClient_Broadcast(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if id != expected.Txid.Result {
+	if id != expected.Txid {
 		t.Error("Returned incorrect txid")
 	}
 }

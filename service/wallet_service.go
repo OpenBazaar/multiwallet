@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -17,14 +18,12 @@ import (
 	"github.com/op/go-logging"
 
 	"encoding/json"
+	"github.com/OpenBazaar/multiwallet/cache"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/keys"
 	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
 	"github.com/OpenBazaar/multiwallet/util"
 	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
-	"io/ioutil"
-	"os"
-	"path"
 )
 
 var Log = logging.MustGetLogger("WalletService")
@@ -38,7 +37,7 @@ type WalletService struct {
 
 	chainHeight uint32
 	bestBlock   string
-	repoPath    string
+	cache       cache.Cacher
 
 	listeners []func(wallet.TransactionCallback)
 
@@ -55,20 +54,37 @@ type HashAndHeight struct {
 
 const nullHash = "0000000000000000000000000000000000000000000000000000000000000000"
 
-func NewWalletService(db wallet.Datastore, km *keys.KeyManager, client client.APIClient, params *chaincfg.Params, coinType wallet.CoinType, repoPath string) (*WalletService, error) {
-	f, err := ioutil.ReadFile(path.Join(repoPath, coinType.String()+".json"))
-	best := nullHash
-	height := uint32(0)
-	if err == nil {
-		var hh HashAndHeight
-		err := json.Unmarshal(f, &hh)
-		if err != nil {
-			return nil, err
+func NewWalletService(db wallet.Datastore, km *keys.KeyManager, client client.APIClient, params *chaincfg.Params, coinType wallet.CoinType, cache cache.Cacher) (*WalletService, error) {
+	var (
+		ws = &WalletService{
+			db:          db,
+			km:          km,
+			client:      client,
+			params:      params,
+			coinType:    coinType,
+			chainHeight: 0,
+			bestBlock:   nullHash,
+
+			cache:     cache,
+			listeners: []func(wallet.TransactionCallback){},
+			lock:      sync.RWMutex{},
+			doneChan:  make(chan struct{}),
 		}
-		best = hh.Hash
-		height = hh.Height
+		marshaledHeight, err = cache.Get(ws.bestHeightKey())
+	)
+
+	if err != nil {
+		Log.Info("cached block height missing: using default")
+	} else {
+		var hh HashAndHeight
+		if err := json.Unmarshal(marshaledHeight, &hh); err != nil {
+			Log.Error("failed unmarshaling cached block height")
+			return ws, nil
+		}
+		ws.bestBlock = hh.Hash
+		ws.chainHeight = hh.Height
 	}
-	return &WalletService{db, km, client, params, coinType, height, best, repoPath, []func(wallet.TransactionCallback){}, sync.RWMutex{}, make(chan struct{})}, nil
+	return ws, nil
 }
 
 func (ws *WalletService) Start() {
@@ -446,7 +462,7 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 		if !sa.WatchOnly {
 			hits++
 			// Mark the key we received coins to as used
-			ws.db.Keys().MarkKeyAsUsed(sa.Addr.ScriptAddress())
+			ws.km.MarkKeyAsUsed(sa.Addr.ScriptAddress())
 		}
 		relevant = true
 	}
@@ -463,9 +479,15 @@ func (ws *WalletService) saveSingleTxToDB(u client.Transaction, chainHeight int3
 		if u.Confirmations > 0 {
 			ts = time.Unix(u.BlockTime, 0)
 		}
-		var buf bytes.Buffer
-		msgTx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
-		ws.db.Txns().Put(buf.Bytes(), msgTx.TxHash().String(), int(value), int(height), ts, hits == 0)
+		var txBytes []byte
+		if len(u.RawBytes) > 0 {
+			txBytes = u.RawBytes
+		} else {
+			var buf bytes.Buffer
+			msgTx.BtcEncode(&buf, wire.ProtocolVersion, wire.BaseEncoding)
+			txBytes = buf.Bytes()
+		}
+		ws.db.Txns().Put(txBytes, txHash.String(), int(value), int(height), ts, hits == 0)
 		cb.Timestamp = ts
 		ws.callbackListeners(cb)
 	} else {
@@ -556,5 +578,9 @@ func (ws *WalletService) saveHashAndHeight(hash string, height uint32) error {
 	}
 	ws.chainHeight = height
 	ws.bestBlock = hash
-	return ioutil.WriteFile(path.Join(ws.repoPath, ws.coinType.String()+".json"), b, os.ModePerm)
+	return ws.cache.Set(ws.bestHeightKey(), b)
+}
+
+func (ws *WalletService) bestHeightKey() string {
+	return fmt.Sprintf("best-height-%s", ws.coinType.String())
 }

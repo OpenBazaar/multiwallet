@@ -6,6 +6,8 @@ import (
 	"github.com/OpenBazaar/multiwallet/api/pb"
 	"github.com/OpenBazaar/multiwallet/bitcoin"
 	"github.com/OpenBazaar/multiwallet/bitcoincash"
+	"github.com/OpenBazaar/multiwallet/litecoin"
+	"github.com/OpenBazaar/multiwallet/zcash"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcutil"
 	"golang.org/x/net/context"
@@ -91,7 +93,12 @@ func (s *server) ChainTip(ctx context.Context, in *pb.CoinSelection) (*pb.Height
 }
 
 func (s *server) Balance(ctx context.Context, in *pb.CoinSelection) (*pb.Balances, error) {
-	c, u := s.w[coinType(in.Coin)].Balance()
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
+	if err != nil {
+		return nil, err
+	}
+	c, u := wal.Balance()
 	return &pb.Balances{uint64(c), uint64(u)}, nil
 }
 
@@ -135,13 +142,17 @@ func (s *server) GetFeePerByte(ctx context.Context, in *pb.FeeLevelSelection) (*
 func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) {
 	var addr btcutil.Address
 	var err error
-	switch in.Coin {
-	case pb.CoinType_BITCOIN:
-		addr, err = s.w[wallet.Bitcoin].DecodeAddress(in.Address)
-	}
+
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
 	if err != nil {
 		return nil, err
 	}
+	addr, err = wal.DecodeAddress(in.Address)
+	if err != nil {
+		return nil, err
+	}
+
 	var feeLevel wallet.FeeLevel
 	switch in.FeeLevel {
 	case pb.FeeLevel_PRIORITY:
@@ -153,7 +164,7 @@ func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) 
 	default:
 		feeLevel = wallet.NORMAL
 	}
-	txid, err := s.w[coinType(in.Coin)].Spend(int64(in.Amount), addr, feeLevel)
+	txid, err := wal.Spend(int64(in.Amount), addr, feeLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -230,14 +241,29 @@ func (h *HeaderWriter) Write(p []byte) (n int, err error) {
 
 func (s *server) DumpTables(in *pb.CoinSelection, stream pb.API_DumpTablesServer) error {
 	writer := HeaderWriter{stream}
-	bitcoinWallet, ok := s.w[coinType(in.Coin)].(*bitcoin.BitcoinWallet)
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
+	if err != nil {
+		return err
+	}
+	bitcoinWallet, ok := wal.(*bitcoin.BitcoinWallet)
 	if ok {
 		bitcoinWallet.DumpTables(&writer)
 		return nil
 	}
-	bitcoincashWallet, ok := s.w[coinType(in.Coin)].(*bitcoincash.BitcoinCashWallet)
+	bitcoincashWallet, ok := wal.(*bitcoincash.BitcoinCashWallet)
 	if ok {
 		bitcoincashWallet.DumpTables(&writer)
+		return nil
+	}
+	litecoinWallet, ok := wal.(*litecoin.LitecoinWallet)
+	if ok {
+		litecoinWallet.DumpTables(&writer)
+		return nil
+	}
+	zcashWallet, ok := wal.(*zcash.ZCashWallet)
+	if ok {
+		zcashWallet.DumpTables(&writer)
 		return nil
 	}
 	return nil

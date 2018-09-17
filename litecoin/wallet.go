@@ -17,6 +17,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"encoding/hex"
+	"github.com/OpenBazaar/multiwallet/cache"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/config"
 	"github.com/OpenBazaar/multiwallet/keys"
@@ -38,7 +39,7 @@ type LitecoinWallet struct {
 	mPubKey  *hd.ExtendedKey
 }
 
-func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, repoPath string) (*LitecoinWallet, error) {
+func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher) (*LitecoinWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -59,7 +60,7 @@ func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.
 		return nil, err
 	}
 
-	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.Litecoin, repoPath)
+	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.Litecoin, cache)
 	if err != nil {
 		return nil, err
 	}
@@ -323,16 +324,41 @@ func (w *LitecoinWallet) DumpTables(wr io.Writer) {
 	for _, u := range utxos {
 		fmt.Fprintf(wr, "Hash: %s, Index: %d, Height: %d, Value: %d, WatchOnly: %t\n", u.Op.Hash.String(), int(u.Op.Index), int(u.AtHeight), int(u.Value), u.WatchOnly)
 	}
+	fmt.Fprintln(wr, "\nKeys-----")
+	keys, _ := w.db.Keys().GetAll()
+	unusedInternal, _ := w.db.Keys().GetUnused(wi.INTERNAL)
+	unusedExternal, _ := w.db.Keys().GetUnused(wi.EXTERNAL)
+	internalMap := make(map[int]bool)
+	externalMap := make(map[int]bool)
+	for _, k := range unusedInternal {
+		internalMap[k] = true
+	}
+	for _, k := range unusedExternal {
+		externalMap[k] = true
+	}
+
+	for _, k := range keys {
+		var used bool
+		if k.Purpose == wi.INTERNAL {
+			used = internalMap[k.Index]
+		} else {
+			used = externalMap[k.Index]
+		}
+		fmt.Fprintf(wr, "KeyIndex: %d, Purpose: %d, Used: %t\n", k.Index, k.Purpose, used)
+	}
 }
 
 // Build a client.Transaction so we can ingest it into the wallet service then broadcast
 func (w *LitecoinWallet) Broadcast(tx *wire.MsgTx) error {
+	var buf bytes.Buffer
+	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
 	cTxn := client.Transaction{
 		Txid:          tx.TxHash().String(),
 		Locktime:      int(tx.LockTime),
 		Version:       int(tx.Version),
 		Confirmations: 0,
 		Time:          time.Now().Unix(),
+		RawBytes:      buf.Bytes(),
 	}
 	utxos, err := w.db.Utxos().GetAll()
 	if err != nil {
@@ -381,8 +407,6 @@ func (w *LitecoinWallet) Broadcast(tx *wire.MsgTx) error {
 		cTxn.Outputs = append(cTxn.Outputs, output)
 	}
 	w.ws.ProcessIncomingTransaction(cTxn)
-	var buf bytes.Buffer
-	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
 	_, err = w.client.Broadcast(buf.Bytes())
 	return err
 }
