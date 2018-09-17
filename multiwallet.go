@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	eth "github.com/OpenBazaar/go-ethwallet/wallet"
 	"github.com/OpenBazaar/multiwallet/bitcoin"
 	"github.com/OpenBazaar/multiwallet/bitcoincash"
 	"github.com/OpenBazaar/multiwallet/client"
@@ -87,6 +88,12 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 			} else {
 				multiwallet[wallet.TestnetLitecoin] = w
 			}
+		case wallet.Ethereum:
+			w, err = eth.NewEthereumWallet(coin, cfg.Mnemonic)
+			if err != nil {
+				return nil, err
+			}
+			multiwallet[coin.CoinType] = w
 		}
 	}
 	return multiwallet, nil
