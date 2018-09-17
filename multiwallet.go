@@ -16,6 +16,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/op/go-logging"
 	"github.com/tyler-smith/go-bip39"
+	eth "github.com/OpenBazaar/go-ethwallet/wallet"
 )
 
 var log = logging.MustGetLogger("multiwallet")
@@ -87,6 +88,12 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 			} else {
 				multiwallet[wallet.TestnetLitecoin] = w
 			}
+		case wallet.Ethereum:
+			w, err = eth.NewEthereumWallet(coin, cfg.Mnemonic)
+			if err != nil {
+				return nil, err
+			}
+			multiwallet[coin.CoinType] = w
 		}
 	}
 	return multiwallet, nil
