@@ -24,6 +24,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
 	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
+	"github.com/OpenBazaar/zcashd-wallet"
 )
 
 type ZCashWallet struct {
@@ -36,6 +37,8 @@ type ZCashWallet struct {
 
 	mPrivKey *hd.ExtendedKey
 	mPubKey  *hd.ExtendedKey
+
+	exchangeRates wi.ExchangeRates
 }
 
 func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher) (*ZCashWallet, error) {
@@ -64,9 +67,11 @@ func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Par
 		return nil, err
 	}
 
+	er := zcashd.NewZcashPriceFetcher(proxy)
+
 	fp := util.NewFeeDefaultProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee)
 
-	return &ZCashWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey}, nil
+	return &ZCashWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey, er}, nil
 }
 
 func zcashCashAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
@@ -315,6 +320,10 @@ func (w *ZCashWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, err
 func (w *ZCashWallet) Close() {
 	w.ws.Stop()
 	w.client.Close()
+}
+
+func (w *ZCashWallet) ExchangeRates() wi.ExchangeRates {
+	return w.exchangeRates
 }
 
 func (w *ZCashWallet) DumpTables(wr io.Writer) {
