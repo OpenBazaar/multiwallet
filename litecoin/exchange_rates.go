@@ -96,7 +96,11 @@ func (z *LitecoinPriceFetcher) GetAllRates(cacheOK bool) (map[string]float64, er
 	}
 	z.Lock()
 	defer z.Unlock()
-	return z.cache, nil
+	copy := make(map[string]float64, len(z.cache))
+	for k, v := range z.cache {
+		copy[k] = v
+	}
+	return copy, nil
 }
 
 func (z *LitecoinPriceFetcher) UnitsPerCoin() int {
