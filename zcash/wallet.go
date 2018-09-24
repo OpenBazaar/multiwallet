@@ -25,6 +25,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/util"
 	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
 	"github.com/OpenBazaar/zcashd-wallet"
+	"github.com/aristanetworks/goarista/key"
 )
 
 type ZCashWallet struct {
@@ -41,7 +42,7 @@ type ZCashWallet struct {
 	exchangeRates wi.ExchangeRates
 }
 
-func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher) (*ZCashWallet, error) {
+func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher, disableExchangeRates bool) (*ZCashWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -67,7 +68,10 @@ func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Par
 		return nil, err
 	}
 
-	er := zcashd.NewZcashPriceFetcher(proxy)
+	var er wi.ExchangeRates
+	if !disableExchangeRates {
+		er = zcashd.NewZcashPriceFetcher(proxy)
+	}
 
 	fp := util.NewFeeDefaultProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee)
 
