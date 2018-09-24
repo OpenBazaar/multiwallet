@@ -26,7 +26,6 @@ import (
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
-	"github.com/aristanetworks/goarista/key"
 )
 
 type BitcoinCashWallet struct {

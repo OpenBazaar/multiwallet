@@ -25,7 +25,6 @@ import (
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
 	rb "github.com/roasbeef/btcutil"
-	"github.com/aristanetworks/goarista/key"
 )
 
 type LitecoinWallet struct {

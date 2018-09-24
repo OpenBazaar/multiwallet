@@ -88,7 +88,7 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 			} else {
 				multiwallet[wallet.TestnetLitecoin] = w
 			}
-		/*case wallet.Ethereum:
+			/*case wallet.Ethereum:
 			w, err = eth.NewEthereumWallet(coin, cfg.Mnemonic)
 			if err != nil {
 				return nil, err

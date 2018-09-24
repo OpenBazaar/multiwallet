@@ -26,7 +26,6 @@ import (
 	"github.com/btcsuite/btcwallet/wallet/txrules"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
-	"github.com/aristanetworks/goarista/key"
 )
 
 type BitcoinWallet struct {
