@@ -37,9 +37,11 @@ type LitecoinWallet struct {
 
 	mPrivKey *hd.ExtendedKey
 	mPubKey  *hd.ExtendedKey
+
+	exchangeRates wi.ExchangeRates
 }
 
-func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher) (*LitecoinWallet, error) {
+func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher, disableExchangeRates bool) (*LitecoinWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -64,10 +66,14 @@ func NewLitecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.
 	if err != nil {
 		return nil, err
 	}
+	var er wi.ExchangeRates
+	if !disableExchangeRates {
+		er = NewLitecoinPriceFetcher(proxy)
+	}
 
 	fp := util.NewFeeDefaultProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee)
 
-	return &LitecoinWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey}, nil
+	return &LitecoinWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey, er}, nil
 }
 
 func litecoinAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
@@ -311,6 +317,10 @@ func (w *LitecoinWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, 
 func (w *LitecoinWallet) Close() {
 	w.ws.Stop()
 	w.client.Close()
+}
+
+func (w *LitecoinWallet) ExchangeRates() wi.ExchangeRates {
+	return w.exchangeRates
 }
 
 func (w *LitecoinWallet) DumpTables(wr io.Writer) {

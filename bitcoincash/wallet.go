@@ -38,9 +38,11 @@ type BitcoinCashWallet struct {
 
 	mPrivKey *hd.ExtendedKey
 	mPubKey  *hd.ExtendedKey
+
+	exchangeRates wi.ExchangeRates
 }
 
-func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher) (*BitcoinCashWallet, error) {
+func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher, disableExchangeRates bool) (*BitcoinCashWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -65,10 +67,14 @@ func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chainc
 	if err != nil {
 		return nil, err
 	}
+	var exchangeRates wi.ExchangeRates
+	if !disableExchangeRates {
+		exchangeRates = er.NewBitcoinCashPriceFetcher(proxy)
+	}
 
-	fp := bcw.NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, er.NewBitcoinCashPriceFetcher(proxy))
+	fp := bcw.NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, exchangeRates)
 
-	return &BitcoinCashWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey}, nil
+	return &BitcoinCashWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey, exchangeRates}, nil
 }
 
 func bitcoinCashAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
@@ -313,6 +319,10 @@ func (w *BitcoinCashWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint3
 func (w *BitcoinCashWallet) Close() {
 	w.ws.Stop()
 	w.client.Close()
+}
+
+func (w *BitcoinCashWallet) ExchangeRates() wi.ExchangeRates {
+	return w.exchangeRates
 }
 
 func (w *BitcoinCashWallet) DumpTables(wr io.Writer) {

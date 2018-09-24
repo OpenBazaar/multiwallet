@@ -15,6 +15,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
 	"github.com/OpenBazaar/spvwallet"
+	"github.com/OpenBazaar/spvwallet/exchangerates"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -37,9 +38,11 @@ type BitcoinWallet struct {
 
 	mPrivKey *hd.ExtendedKey
 	mPubKey  *hd.ExtendedKey
+
+	exchangeRates wi.ExchangeRates
 }
 
-func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher) (*BitcoinWallet, error) {
+func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher, disableExchangeRates bool) (*BitcoinWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -59,6 +62,10 @@ func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.P
 	if err != nil {
 		return nil, err
 	}
+	var er wi.ExchangeRates
+	if !disableExchangeRates {
+		er = exchangerates.NewBitcoinPriceFetcher(proxy)
+	}
 
 	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.Bitcoin, cache)
 	if err != nil {
@@ -67,7 +74,7 @@ func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.P
 
 	fp := spvwallet.NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, cfg.FeeAPI.String(), proxy)
 
-	return &BitcoinWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey}, nil
+	return &BitcoinWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey, er}, nil
 }
 
 func keyToAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btc.Address, error) {
@@ -300,6 +307,10 @@ func (w *BitcoinWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, e
 func (w *BitcoinWallet) Close() {
 	w.ws.Stop()
 	w.client.Close()
+}
+
+func (w *BitcoinWallet) ExchangeRates() wi.ExchangeRates {
+	return w.exchangeRates
 }
 
 func (w *BitcoinWallet) DumpTables(wr io.Writer) {
