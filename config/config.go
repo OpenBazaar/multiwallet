@@ -1,7 +1,6 @@
 package config
 
 import (
-	"net/url"
 	"os"
 	"time"
 
@@ -57,10 +56,10 @@ type CoinConfig struct {
 	// If the API is unreachable then the default fees will likewise be used. If the API returns a fee
 	// greater than MaxFee then the MaxFee will be used in place. The API response must be formatted as
 	// { "fastestFee": 40, "halfHourFee": 20, "hourFee": 10 }
-	FeeAPI url.URL
+	FeeAPI string
 
-	// The trusted API to use for querying for balances and listening to blockchain events.
-	ClientAPI url.URL
+	// The trusted APIs to use for querying for balances and listening to blockchain events.
+	ClientAPIs []string
 
 	// An implementation of the Datastore interface for each desired coin
 	DB wallet.Datastore
@@ -87,17 +86,16 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		} else {
 			apiEndpoint = "https://test-insight.bitpay.com/api"
 		}
-		feeApi, _ := url.Parse("https://btc.fees.openbazaar.org")
-		clientApi, _ := url.Parse(apiEndpoint)
+		feeApi := "https://btc.fees.openbazaar.org"
 		db, _ := mockDB.GetDatastoreForWallet(wallet.Bitcoin)
 		btcCfg := CoinConfig{
 			CoinType:  wallet.Bitcoin,
-			FeeAPI:    *feeApi,
+			FeeAPI:    feeApi,
 			LowFee:    140,
 			MediumFee: 160,
 			HighFee:   180,
 			MaxFee:    2000,
-			ClientAPI: *clientApi,
+			ClientAPIs: []string{apiEndpoint},
 			DB:        db,
 		}
 		cfg.Coins = append(cfg.Coins, btcCfg)
@@ -109,16 +107,15 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		} else {
 			apiEndpoint = "https://test-bch-insight.bitpay.com/api"
 		}
-		clientApi, _ := url.Parse(apiEndpoint)
 		db, _ := mockDB.GetDatastoreForWallet(wallet.BitcoinCash)
 		bchCfg := CoinConfig{
 			CoinType:  wallet.BitcoinCash,
-			FeeAPI:    url.URL{},
+			FeeAPI:    "",
 			LowFee:    140,
 			MediumFee: 160,
 			HighFee:   180,
 			MaxFee:    2000,
-			ClientAPI: *clientApi,
+			ClientAPIs: []string{apiEndpoint},
 			DB:        db,
 		}
 		cfg.Coins = append(cfg.Coins, bchCfg)
@@ -130,16 +127,15 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		} else {
 			apiEndpoint = "https://explorer.testnet.z.cash/api"
 		}
-		clientApi, _ := url.Parse(apiEndpoint)
 		db, _ := mockDB.GetDatastoreForWallet(wallet.Zcash)
 		zecCfg := CoinConfig{
 			CoinType:  wallet.Zcash,
-			FeeAPI:    url.URL{},
+			FeeAPI:    "",
 			LowFee:    140,
 			MediumFee: 160,
 			HighFee:   180,
 			MaxFee:    2000,
-			ClientAPI: *clientApi,
+			ClientAPIs: []string{apiEndpoint},
 			DB:        db,
 		}
 		cfg.Coins = append(cfg.Coins, zecCfg)
@@ -151,16 +147,15 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		} else {
 			apiEndpoint = "https://testnet.litecore.io/api"
 		}
-		clientApi, _ := url.Parse(apiEndpoint)
 		db, _ := mockDB.GetDatastoreForWallet(wallet.Litecoin)
 		ltcCfg := CoinConfig{
 			CoinType:  wallet.Litecoin,
-			FeeAPI:    url.URL{},
+			FeeAPI:    "",
 			LowFee:    140,
 			MediumFee: 160,
 			HighFee:   180,
 			MaxFee:    2000,
-			ClientAPI: *clientApi,
+			ClientAPIs: []string{apiEndpoint},
 			DB:        db,
 		}
 		cfg.Coins = append(cfg.Coins, ltcCfg)
@@ -172,16 +167,15 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		} else {
 			apiEndpoint = "https://rinkeby.infura.io"
 		}
-		clientApi, _ := url.Parse(apiEndpoint)
 		db, _ := mockDB.GetDatastoreForWallet(wallet.Ethereum)
 		ethCfg := CoinConfig{
 			CoinType:  wallet.Ethereum,
-			FeeAPI:    url.URL{},
+			FeeAPI:    "",
 			LowFee:    140,
 			MediumFee: 160,
 			HighFee:   180,
 			MaxFee:    2000,
-			ClientAPI: *clientApi,
+			ClientAPIs: []string{apiEndpoint},
 			DB:        db,
 			Options: map[string]interface{}{
 				"RegistryAddress":        "0xab8dd0e05b73529b440d9c9df00b5f490c8596ff",
