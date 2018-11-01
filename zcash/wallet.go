@@ -3,7 +3,6 @@ package zcash
 import (
 	"bytes"
 	"fmt"
-	"github.com/OpenBazaar/multiwallet/client/blockbook"
 	"io"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"encoding/hex"
+
 	"github.com/OpenBazaar/multiwallet/cache"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/config"
@@ -57,7 +57,7 @@ func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Par
 		return nil, err
 	}
 
-	c, err := blockbook.NewBlockBookClient(cfg.ClientAPI.String(), proxy)
+	c, err := client.NewClientPool(cfg.ClientAPIs, proxy)
 	if err != nil {
 		return nil, err
 	}
