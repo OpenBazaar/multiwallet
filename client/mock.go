@@ -309,7 +309,10 @@ func NewMockApiClient(addrToScript func(btcutil.Address) ([]byte, error)) APICli
 	}
 }
 
-func (m *MockAPIClient) Start() {}
+func (m *MockAPIClient) Start() error {
+	return nil
+}
+
 func (m *MockAPIClient) GetInfo() (*Info, error) {
 	return m.info, nil
 }
