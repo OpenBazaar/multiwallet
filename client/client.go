@@ -36,6 +36,8 @@ type InsightClient struct {
 
 	listenQueue []string
 	listenLock  sync.Mutex
+
+	requestFunc func (endpoint, method string, body []byte, query url.Values) (*http.Response, error)
 }
 
 func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, error) {
@@ -64,11 +66,12 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 		txNotifyChan:    tch,
 		listenLock:      sync.Mutex{},
 	}
+	ic.requestFunc = ic.doRequest
 	return ic, nil
 }
 
-func (i *InsightClient) Start() {
-	go i.setupListeners(i.apiUrl, i.proxyDialer)
+func (i *InsightClient) Start() error {
+	return i.setupListeners(i.apiUrl, i.proxyDialer)
 }
 
 func (i *InsightClient) Close() {
@@ -121,7 +124,7 @@ func (i *InsightClient) GetInfo() (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := i.doRequest("status", http.MethodGet, nil, q)
+	resp, err := i.requestFunc("status", http.MethodGet, nil, q)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +149,7 @@ func (i *InsightClient) GetInfo() (*Info, error) {
 }
 
 func (i *InsightClient) GetTransaction(txid string) (*Transaction, error) {
-	resp, err := i.doRequest("tx/"+txid, http.MethodGet, nil, nil)
+	resp, err := i.requestFunc("tx/"+txid, http.MethodGet, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +177,7 @@ func (i *InsightClient) GetTransaction(txid string) (*Transaction, error) {
 }
 
 func (i *InsightClient) GetRawTransaction(txid string) ([]byte, error) {
-	resp, err := i.doRequest("rawtx/"+txid, http.MethodGet, nil, nil)
+	resp, err := i.requestFunc("rawtx/"+txid, http.MethodGet, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +228,7 @@ func (i *InsightClient) getTransactions(addrs []btcutil.Address, from, to int) (
 	if err != nil {
 		return nil, err
 	}
-	resp, err := i.doRequest("addrs/txs", http.MethodPost, b, nil)
+	resp, err := i.requestFunc("addrs/txs", http.MethodPost, b, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +275,7 @@ func (i *InsightClient) GetUtxos(addrs []btcutil.Address) ([]Utxo, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := i.doRequest("addrs/utxo", http.MethodPost, b, nil)
+	resp, err := i.requestFunc("addrs/utxo", http.MethodPost, b, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -313,35 +316,28 @@ func (i *InsightClient) ListenAddress(addr btcutil.Address) {
 	}
 }
 
-func (i *InsightClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
-	for {
-		if i.socketClient != nil {
-			i.listenLock.Lock()
+func (i *InsightClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) error {
+	i.listenLock.Lock()
+	defer i.listenLock.Unlock()
+	socketClient, err := gosocketio.Dial(
+		gosocketio.GetUrl(u.Hostname(), defaultPort(u), hasImpliedURLSecurity(u)),
+		transport.GetDefaultWebsocketTransport(proxyDialer),
+	)
+	if err == nil {
+		socketReady := make(chan struct{})
+		socketClient.On(gosocketio.OnConnection, func(h *gosocketio.Channel, args interface{}) {
+			close(socketReady)
+		})
+		select {
+		case <-time.After(10 * time.Second):
+			Log.Warningf("Timeout connecting to websocket endpoint %s", u.Host)
+			return errors.New("websocket timed out")
+		case <-socketReady:
 			break
 		}
-		socketClient, err := gosocketio.Dial(
-			gosocketio.GetUrl(u.Hostname(), defaultPort(u), hasImpliedURLSecurity(u)),
-			transport.GetDefaultWebsocketTransport(proxyDialer),
-		)
-		if err == nil {
-			socketReady := make(chan struct{})
-			socketClient.On(gosocketio.OnConnection, func(h *gosocketio.Channel, args interface{}) {
-				close(socketReady)
-			})
-			select {
-			case <-time.After(10 * time.Second):
-				Log.Warningf("Timeout connecting to websocket endpoint %s", u.Host)
-				continue
-			case <-socketReady:
-				break
-			}
-			i.socketClient = socketClient
-			continue
-		}
-		if time.Now().Unix()%60 == 0 {
-			Log.Warningf("Failed to connect to websocket endpoint %s", u.Host)
-		}
-		time.Sleep(time.Second * 2)
+		i.socketClient = socketClient
+	} else {
+		return err
 	}
 	Log.Infof("Connected to websocket endpoint %s", u.Host)
 
@@ -385,8 +381,8 @@ func (i *InsightClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 		i.socketClient.Emit("subscribe", args)
 	}
 	i.listenQueue = []string{}
-	i.listenLock.Unlock()
 	Log.Infof("Connected to websocket endpoint %s", u.Host)
+	return nil
 }
 
 func defaultPort(u url.URL) int {
@@ -416,7 +412,7 @@ func (i *InsightClient) Broadcast(tx []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error encoding tx: %s", err)
 	}
-	resp, err := i.doRequest("tx/send", http.MethodPost, txJson, nil)
+	resp, err := i.requestFunc("tx/send", http.MethodPost, txJson, nil)
 	if err != nil {
 		return "", fmt.Errorf("error broadcasting tx: %s", err)
 	}
@@ -437,7 +433,7 @@ func (i *InsightClient) GetBestBlock() (*Block, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := i.doRequest("blocks", http.MethodGet, nil, q)
+	resp, err := i.requestFunc("blocks", http.MethodGet, nil, q)
 	if err != nil {
 		return nil, err
 	}
@@ -456,7 +452,7 @@ func (i *InsightClient) GetBestBlock() (*Block, error) {
 }
 
 func (i *InsightClient) GetBlocksBefore(to time.Time, limit int) (*BlockList, error) {
-	resp, err := i.doRequest("blocks", http.MethodGet, nil, url.Values{
+	resp, err := i.requestFunc("blocks", http.MethodGet, nil, url.Values{
 		"blockDate":      {to.Format("2006-01-02")},
 		"startTimestamp": {fmt.Sprint(to.Unix())},
 		"limit":          {fmt.Sprint(limit)},
@@ -492,7 +488,7 @@ func toFloat(i interface{}) (float64, error) {
 }
 
 func (i *InsightClient) EstimateFee(nbBlocks int) (int, error) {
-	resp, err := i.doRequest("utils/estimatefee", http.MethodGet, nil, url.Values{"nbBlocks": {fmt.Sprint(nbBlocks)}})
+	resp, err := i.requestFunc("utils/estimatefee", http.MethodGet, nil, url.Values{"nbBlocks": {fmt.Sprint(nbBlocks)}})
 	if err != nil {
 		return 0, err
 	}
