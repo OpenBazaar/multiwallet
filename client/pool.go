@@ -15,14 +15,14 @@ import (
 // server failure, rotate servers, and retry API requests.
 type ClientPool struct {
 	*InsightClient
-	urls []string
+	urls         []string
 	activeServer int
 	proxyDialer  proxy.Dialer
-	blockChan chan Block
-	txChan chan Transaction
-	httpClient http.Client
-	cancelFunc context.CancelFunc
-	client *http.Client
+	blockChan    chan Block
+	txChan       chan Transaction
+	httpClient   http.Client
+	cancelFunc   context.CancelFunc
+	client       *http.Client
 }
 
 // NewClientPool instantiates a new ClientPool object with the given server APIs
@@ -38,9 +38,9 @@ func NewClientPool(urls []string, proxyDialer proxy.Dialer) (*ClientPool, error)
 		}
 	}
 	return &ClientPool{
-		urls: urls,
-		blockChan: make(chan Block),
-		txChan: make(chan Transaction),
+		urls:        urls,
+		blockChan:   make(chan Block),
+		txChan:      make(chan Transaction),
 		proxyDialer: proxyDialer,
 	}, nil
 }
@@ -109,7 +109,7 @@ func (p *ClientPool) rotateServer() {
 // doRequest handles making the HTTP request with server rotation and retires. Only if all servers return an
 // error will this method return an error.
 func (p *ClientPool) doRequest(endpoint, method string, body []byte, query url.Values) (*http.Response, error) {
-	for i:=0; i<len(p.urls); i++ {
+	for i := 0; i < len(p.urls); i++ {
 		requestUrl := p.apiUrl
 		requestUrl.Path = path.Join(p.apiUrl.Path, endpoint)
 		req, err := http.NewRequest(method, requestUrl.String(), bytes.NewReader(body))
@@ -151,9 +151,9 @@ func (p *ClientPool) listenChans(ctx context.Context) {
 out:
 	for {
 		select {
-		case block := <- p.blockNotifyChan:
+		case block := <-p.blockNotifyChan:
 			p.blockChan <- block
-		case tx := <- p.txNotifyChan:
+		case tx := <-p.txNotifyChan:
 			p.txChan <- tx
 		case <-ctx.Done():
 			break out
