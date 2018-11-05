@@ -37,7 +37,7 @@ type InsightClient struct {
 	listenQueue []string
 	listenLock  sync.Mutex
 
-	requestFunc func (endpoint, method string, body []byte, query url.Values) (*http.Response, error)
+	requestFunc func(endpoint, method string, body []byte, query url.Values) (*http.Response, error)
 }
 
 func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, error) {

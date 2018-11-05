@@ -15,7 +15,6 @@ func NewTestPool() *ClientPool {
 	return p
 }
 
-
 func TestServerRotation(t *testing.T) {
 	setup()
 	defer teardown()
