@@ -18,7 +18,7 @@ import (
 
 func NewTestClient() *InsightClient {
 	u, _ := url.Parse("http://localhost:8334/")
-	return &InsightClient{
+	ic := &InsightClient{
 		httpClient:      http.Client{},
 		apiUrl:          *u,
 		blockNotifyChan: make(chan Block),
@@ -26,6 +26,8 @@ func NewTestClient() *InsightClient {
 		socketClient:    &gosocketio.Client{},
 		listenLock:      sync.Mutex{},
 	}
+	ic.requestFunc = ic.doRequest
+	return ic
 }
 
 func setup() {
@@ -619,7 +621,7 @@ func TestInsightClient_setupListeners(t *testing.T) {
 	)
 
 	c.socketClient = mockSocket
-	go c.setupListeners(c.apiUrl, nil)
+	go c.Start()
 	time.Sleep(time.Second)
 
 	go func() {

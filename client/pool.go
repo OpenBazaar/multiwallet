@@ -3,7 +3,7 @@ package client
 import (
 	"bytes"
 	"context"
-	"github.com/go-errors/errors"
+	"errors"
 	"golang.org/x/net/proxy"
 	"io/ioutil"
 	"net/http"
