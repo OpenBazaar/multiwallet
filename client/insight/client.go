@@ -320,25 +320,27 @@ func (i *InsightClient) ListenAddress(addr btcutil.Address) {
 func (i *InsightClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) error {
 	i.listenLock.Lock()
 	defer i.listenLock.Unlock()
-	socketClient, err := gosocketio.Dial(
-		gosocketio.GetUrl(u.Hostname(), defaultPort(u), hasImpliedURLSecurity(u)),
-		transport.GetDefaultWebsocketTransport(proxyDialer),
-	)
-	if err == nil {
-		socketReady := make(chan struct{})
-		socketClient.On(gosocketio.OnConnection, func(h *gosocketio.Channel, args interface{}) {
-			close(socketReady)
-		})
-		select {
-		case <-time.After(10 * time.Second):
-			Log.Warningf("Timeout connecting to websocket endpoint %s", u.Host)
-			return errors.New("websocket timed out")
-		case <-socketReady:
-			break
+	if i.socketClient == nil {
+		socketClient, err := gosocketio.Dial(
+			gosocketio.GetUrl(u.Hostname(), defaultPort(u), hasImpliedURLSecurity(u)),
+			transport.GetDefaultWebsocketTransport(proxyDialer),
+		)
+		if err == nil {
+			socketReady := make(chan struct{})
+			socketClient.On(gosocketio.OnConnection, func(h *gosocketio.Channel, args interface{}) {
+				close(socketReady)
+			})
+			select {
+			case <-time.After(10 * time.Second):
+				Log.Warningf("Timeout connecting to websocket endpoint %s", u.Host)
+				return errors.New("websocket timed out")
+			case <-socketReady:
+				break
+			}
+			i.socketClient = socketClient
+		} else {
+			return err
 		}
-		i.socketClient = socketClient
-	} else {
-		return err
 	}
 
 	i.socketClient.On("bitcoind/hashblock", func(h *gosocketio.Channel, arg interface{}) {
