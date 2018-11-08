@@ -18,11 +18,13 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	"github.com/cpacia/bchutil"
+	"github.com/go-errors/errors"
 	"log"
 	"math"
 	"net/http"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -31,7 +33,7 @@ const SatoshisPerCoin = 100000000
 
 type utxoRecord struct {
 	value uint64
-	addr string
+	addr  string
 }
 
 // MockInsightServer is a dummy server which implements the insight API. It could be
@@ -70,7 +72,7 @@ func NewMockInsightServer(coinType wi.CoinType) *MockInsightServer {
 		utxoSet:   make(map[string]utxoRecord),
 		addrIndex: make(map[string][]client.Transaction),
 		utxoIndex: make(map[string][]client.Utxo),
-		txIndex: make(map[string]client.Transaction),
+		txIndex:   make(map[string]client.Transaction),
 		lastBlock: client.Block{
 			Hash:              chaincfg.RegressionNetParams.GenesisBlock.BlockHash().String(),
 			Height:            1,
@@ -114,23 +116,100 @@ func (m *MockInsightServer) handleGetBestBlock(w http.ResponseWriter, r *http.Re
 	fmt.Fprint(w, string(ret))
 }
 
-// handleGetTransaction returns a transaction given a txid
-func (m *MockInsightServer) handleGetTransaction(w http.ResponseWriter, r *http.Request) {
+// handleGetTransactions returns a list of transactions for the requested addresses
+func (m *MockInsightServer) handleGetTransactions(w http.ResponseWriter, r *http.Request) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
+
+	type request struct {
+		Addrs string `json:"addrs"`
+		From  int    `json:"from"`
+		To    int    `json:"to"`
+	}
+	req := request{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&req)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	// Load all transactions into a slice
+	addrs := strings.Split(req.Addrs, ",")
+	var allTxs []client.Transaction
+	for _, addr := range addrs {
+		txs := m.addrIndex[addr]
+		allTxs = append(allTxs, txs...)
+	}
+
+	var returnTxs []client.Transaction
+
+	// Clip the `to` field if it's larger than our slice of txs
+	to := req.To
+	if to > len(allTxs)-1 {
+		to = len(allTxs) - 1
+	}
+	// Append txs starting at `from` to `to`
+	for i := req.From; i <= to; i++ {
+		returnTxs = append(returnTxs, allTxs[i])
+	}
+
+	tl := client.TransactionList{
+		From:       req.From,
+		To:         req.To,
+		TotalItems: len(returnTxs),
+		Items:      returnTxs,
+	}
+	out, err := json.MarshalIndent(tl, "", "    ")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprint(w, string(out))
+}
+
+// handleGetUtxos returns a list of utxos for the requested addresses
+func (m *MockInsightServer) handleGetUtxos(w http.ResponseWriter, r *http.Request) {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	type request struct {
+		Addrs string `json:"addrs"`
+	}
+	req := request{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&req)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	// Load all utxos into a slice
+	addrs := strings.Split(req.Addrs, ",")
+	var utxos []client.Utxo
+	for _, addr := range addrs {
+		u := m.utxoIndex[addr]
+		utxos = append(utxos, u...)
+	}
+
+	out, err := json.MarshalIndent(utxos, "", "    ")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprint(w, string(out))
+}
+
+// handleGetTransaction returns a transaction given a txid
+func (m *MockInsightServer) handleGetTransaction(w http.ResponseWriter, r *http.Request) {
 	_, txid := path.Split(r.URL.Path)
+
 	tx, ok := m.txIndex[txid]
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	if tx.BlockHeight > 0 {
-		tx.Confirmations = m.lastBlock.Height - tx.BlockHeight + 1
-	}
-	out, err := json.MarshalIndent(tx, "", "    ")
+	out, err := json.MarshalIndent(&tx, "", "    ")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		return
 	}
 	fmt.Fprint(w, string(out))
 }
@@ -215,7 +294,7 @@ func (m *MockInsightServer) handleGenerateToAddress(w http.ResponseWriter, r *ht
 	m.utxoIndex[addr] = utxos
 
 	m.utxoSet[hex.EncodeToString(txid)+":0"] = utxoRecord{
-		addr: "",
+		addr:  "",
 		value: uint64(amt),
 	}
 
@@ -301,7 +380,7 @@ func (m *MockInsightServer) handleBroadcast(w http.ResponseWriter, r *http.Reque
 
 	// Bitcoin and Litecoin use witness encoding
 	if m.cointype == wi.Bitcoin || m.cointype == wi.Litecoin {
-		encoding = wire. WitnessEncoding
+		encoding = wire.WitnessEncoding
 	}
 	err = msgTx.BtcDecode(rbuf, wire.ProtocolVersion, encoding)
 	if err != nil {
@@ -327,22 +406,22 @@ func (m *MockInsightServer) handleBroadcast(w http.ResponseWriter, r *http.Reque
 		}
 		// Append the input to our transaction
 		input := client.Input{
-			N: i,
+			N:          i,
 			ValueIface: math.Round(float64(record.value / SatoshisPerCoin)),
-			Satoshis: int64(record.value),
-			Vout: int(in.PreviousOutPoint.Index),
-			Addr: record.addr,
-			Txid: in.PreviousOutPoint.Hash.String(),
-			Sequence: in.Sequence,
-			Value: math.Round(float64(record.value / SatoshisPerCoin)),
+			Satoshis:   int64(record.value),
+			Vout:       int(in.PreviousOutPoint.Index),
+			Addr:       record.addr,
+			Txid:       in.PreviousOutPoint.Hash.String(),
+			Sequence:   in.Sequence,
+			Value:      math.Round(float64(record.value / SatoshisPerCoin)),
 		}
 		tx.Inputs = append(tx.Inputs, input)
 	}
 	// Append each output to our transaction
 	for i, out := range msgTx.TxOut {
 		output := client.Output{
-			N: i,
-			Value: math.Round(float64(out.Value / SatoshisPerCoin)),
+			N:          i,
+			Value:      math.Round(float64(out.Value / SatoshisPerCoin)),
 			ValueIface: math.Round(float64(out.Value / SatoshisPerCoin)),
 			ScriptPubKey: client.OutScript{
 				Script: client.Script{
@@ -352,7 +431,7 @@ func (m *MockInsightServer) handleBroadcast(w http.ResponseWriter, r *http.Reque
 		}
 		addr, err := m.scriptToAddress(out.PkScript)
 		if err == nil { // Only set address if script conversion didn't error
-			output.ScriptPubKey.Addresses[0] = addr.String()
+			output.ScriptPubKey.Addresses = append(output.ScriptPubKey.Addresses, addr.String())
 		}
 		tx.Outputs = append(tx.Outputs, output)
 	}
@@ -369,7 +448,7 @@ func (m *MockInsightServer) handleBroadcast(w http.ResponseWriter, r *http.Reque
 		utxos := m.utxoIndex[in.Addr]
 		var newU []client.Utxo
 		for _, u := range utxos {
-			if !(u.Txid == tx.Txid && u.Vout == i){
+			if !(u.Txid == tx.Txid && u.Vout == i) {
 				newU = append(newU, u)
 			}
 		}
@@ -377,9 +456,16 @@ func (m *MockInsightServer) handleBroadcast(w http.ResponseWriter, r *http.Reque
 	}
 	for i, out := range tx.Outputs {
 		// Add the output to the utxo set
-		m.utxoSet[tx.Txid + ":" + strconv.Itoa(out.N)] = utxoRecord{
+		outAddr := ""
+		if len(out.ScriptPubKey.Addresses) > 0 {
+			outAddr = out.ScriptPubKey.Addresses[0]
+		}
+		m.utxoSet[tx.Txid+":"+strconv.Itoa(out.N)] = utxoRecord{
 			value: uint64(msgTx.TxOut[i].Value),
-			addr: out.ScriptPubKey.Addresses[0],
+			addr:  outAddr,
+		}
+		if outAddr == "" {
+			continue
 		}
 
 		// Add the transaction to the addr-tx index
@@ -390,14 +476,14 @@ func (m *MockInsightServer) handleBroadcast(w http.ResponseWriter, r *http.Reque
 		// Add the output to the addr-utxo index
 		utxos := m.utxoIndex[out.ScriptPubKey.Addresses[0]]
 		utxos = append(utxos, client.Utxo{
-			ScriptPubKey: out.ScriptPubKey.Hex,
-			Txid: tx.Txid,
-			Vout: i,
-			Address: out.ScriptPubKey.Addresses[0],
-			Satoshis: msgTx.TxOut[i].Value,
+			ScriptPubKey:  out.ScriptPubKey.Hex,
+			Txid:          tx.Txid,
+			Vout:          i,
+			Address:       out.ScriptPubKey.Addresses[0],
+			Satoshis:      msgTx.TxOut[i].Value,
 			Confirmations: 0,
-			AmountIface: out.ValueIface,
-			Amount: out.Value,
+			AmountIface:   out.ValueIface,
+			Amount:        out.Value,
 		})
 		m.utxoIndex[out.ScriptPubKey.Addresses[0]] = utxos
 	}
@@ -444,8 +530,8 @@ func (m *MockInsightServer) scriptToAddress(script []byte) (btcutil.Address, err
 	switch m.cointype {
 	case wi.Bitcoin:
 		_, addrs, _, err := txscript.ExtractPkScriptAddrs(script, &chaincfg.RegressionNetParams)
-		if err != nil {
-			return addr, err
+		if err != nil || len(addrs) == 0 {
+			return addr, errors.New("invalid address")
 		}
 		addr = addrs[0]
 	case wi.BitcoinCash:

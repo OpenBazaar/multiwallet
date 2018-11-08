@@ -741,27 +741,3 @@ func TestDefaultPort(t *testing.T) {
 		}
 	}
 }
-
-func TestInsightClient_Close(t *testing.T) {
-	client, err := NewInsightClient("http://localhost:8080", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	client.Start()
-	block, err := client.GetBestBlock()
-	if err != nil {
-		t.Error(err)
-	}
-	fmt.Println(block)
-	go func() {
-		for {
-			select {
-			case block := <-client.BlockNotify():
-				fmt.Println("New block", block.Hash)
-			}
-		}
-	}()
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	wg.Wait()
-}
