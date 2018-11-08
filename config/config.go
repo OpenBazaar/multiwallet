@@ -83,7 +83,7 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 	if coinTypes[wallet.Bitcoin] {
 		var apiEndpoint string
 		if !testnet {
-			apiEndpoint = "https://btc.bloqapi.net/insight-api"
+			apiEndpoint = "https://btc.insight.openbazaar.org/insight-api"
 		} else {
 			apiEndpoint = "https://test-insight.bitpay.com/api"
 		}
@@ -147,7 +147,7 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 	if coinTypes[wallet.Litecoin] {
 		var apiEndpoint string
 		if !testnet {
-			apiEndpoint = "https://ltc.coin.space/api"
+			apiEndpoint = "https://ltc.insight.openbazaar.org/insight-lite-api"
 		} else {
 			apiEndpoint = "https://testnet.litecore.io/api"
 		}
