@@ -12,6 +12,8 @@ func main() {
 	serveMux.Handle("/socket.io/", insight.socketServer)
 	serveMux.HandleFunc("/blocks", insight.handleGetBestBlock)
 	serveMux.HandleFunc("/generate", insight.handleGenerate)
+	serveMux.HandleFunc("/tx/send", insight.handleGetTransaction)
+	serveMux.HandleFunc("/tx/", insight.handleGetTransaction)
 	serveMux.HandleFunc("/generatetoaddress", insight.handleGenerateToAddress)
 	log.Fatal(http.ListenAndServe(":8080", serveMux))
 }

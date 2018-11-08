@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -14,10 +15,13 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	"github.com/cpacia/bchutil"
 	"log"
+	"math"
 	"net/http"
+	"path"
 	"strconv"
 	"sync"
 	"time"
@@ -25,18 +29,26 @@ import (
 
 const SatoshisPerCoin = 100000000
 
+type utxoRecord struct {
+	value uint64
+	addr string
+}
+
 // MockInsightServer is a dummy server which implements the insight API. It could be
 // thought of as operating in regtest mode as you are able to tell it to generate blocks.
 // It will validate utxo existence and value but will not validate the signature on transactions.
 type MockInsightServer struct {
 	// utxoSet is a map a serialized outpoint <hash:index> to the value of the utxo
-	utxoSet map[string]uint64
+	utxoSet map[string]utxoRecord
 
 	// addrIndex maps addresses to a list of transactions
 	addrIndex map[string][]client.Transaction
 
 	// utxoIndex maps addresses to a list of utxos
 	utxoIndex map[string][]client.Utxo
+
+	// txIndex is an list of transactions indexed by txid
+	txIndex map[string]client.Transaction
 
 	// cointype is the coin this server is purpoting to serve
 	cointype wi.CoinType
@@ -55,9 +67,10 @@ type MockInsightServer struct {
 func NewMockInsightServer(coinType wi.CoinType) *MockInsightServer {
 
 	m := &MockInsightServer{
-		utxoSet:   make(map[string]uint64),
+		utxoSet:   make(map[string]utxoRecord),
 		addrIndex: make(map[string][]client.Transaction),
 		utxoIndex: make(map[string][]client.Utxo),
+		txIndex: make(map[string]client.Transaction),
 		lastBlock: client.Block{
 			Hash:              chaincfg.RegressionNetParams.GenesisBlock.BlockHash().String(),
 			Height:            1,
@@ -101,6 +114,27 @@ func (m *MockInsightServer) handleGetBestBlock(w http.ResponseWriter, r *http.Re
 	fmt.Fprint(w, string(ret))
 }
 
+// handleGetTransaction returns a transaction given a txid
+func (m *MockInsightServer) handleGetTransaction(w http.ResponseWriter, r *http.Request) {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+	_, txid := path.Split(r.URL.Path)
+	tx, ok := m.txIndex[txid]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	if tx.BlockHeight > 0 {
+		tx.Confirmations = m.lastBlock.Height - tx.BlockHeight + 1
+	}
+	out, err := json.MarshalIndent(tx, "", "    ")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprint(w, string(out))
+}
+
 // handleGenerate is a handler for an API call that will programatically generate
 // the given number of blocks.
 func (m *MockInsightServer) handleGenerate(w http.ResponseWriter, r *http.Request) {
@@ -117,6 +151,17 @@ func (m *MockInsightServer) handleGenerate(w http.ResponseWriter, r *http.Reques
 			Height:            m.lastBlock.Height + 1,
 			PreviousBlockhash: m.lastBlock.Hash,
 			Hash:              hex.EncodeToString(nextHash),
+		}
+		// Loop through all transactions and update the unconfirmed txs
+		// to confirmed
+		for _, tx := range m.txIndex {
+			if tx.Confirmations == 0 {
+				tx.Confirmations = 1
+				tx.BlockHeight = block.Height
+				tx.BlockTime = time.Now().Unix()
+				tx.BlockHash = block.Hash
+				m.txIndex[tx.Txid] = tx
+			}
 		}
 		m.lastBlock = block
 		m.socketServer.BroadcastTo("subscribe", "bitcoind/hashblock", nil)
@@ -169,7 +214,10 @@ func (m *MockInsightServer) handleGenerateToAddress(w http.ResponseWriter, r *ht
 	utxos = append(utxos, utxo)
 	m.utxoIndex[addr] = utxos
 
-	m.utxoSet[hex.EncodeToString(txid)+":0"] = uint64(amt)
+	m.utxoSet[hex.EncodeToString(txid)+":0"] = utxoRecord{
+		addr: "",
+		value: uint64(amt),
+	}
 
 	tx := client.Transaction{
 		Txid:          hex.EncodeToString(txid),
@@ -198,9 +246,26 @@ func (m *MockInsightServer) handleGenerateToAddress(w http.ResponseWriter, r *ht
 			},
 		},
 	}
+
+	// Add tx to addrIndex
 	txs := m.addrIndex[addr]
 	txs = append(txs, tx)
 	m.addrIndex[addr] = txs
+
+	// Add to tx index
+	m.txIndex[tx.Txid] = tx
+
+	// Loop through all transactions and update the unconfirmed txs
+	// to confirmed
+	for _, tx := range m.txIndex {
+		if tx.Confirmations == 0 {
+			tx.Confirmations = 1
+			tx.BlockHeight = block.Height
+			tx.BlockTime = time.Now().Unix()
+			tx.BlockHash = block.Hash
+			m.txIndex[tx.Txid] = tx
+		}
+	}
 
 	out, err := json.MarshalIndent(&tx, "", "    ")
 	if err != nil {
@@ -208,6 +273,137 @@ func (m *MockInsightServer) handleGenerateToAddress(w http.ResponseWriter, r *ht
 		return
 	}
 	m.socketServer.BroadcastTo("subscribe", addr, string(out))
+}
+
+// handleBroadcast implements the broadcast endpoint which receives new transactions
+func (m *MockInsightServer) handleBroadcast(w http.ResponseWriter, r *http.Request) {
+	type RawTx struct {
+		Raw string `json:"rawtx"`
+	}
+	rtx := RawTx{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&rtx)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	txBytes, err := hex.DecodeString(rtx.Raw)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Decode raw bytes in a wire.MsgTx. All coins implement the same
+	// transaction format so this works.
+	msgTx := wire.NewMsgTx(1)
+	rbuf := bytes.NewReader(txBytes)
+	encoding := wire.BaseEncoding
+
+	// Bitcoin and Litecoin use witness encoding
+	if m.cointype == wi.Bitcoin || m.cointype == wi.Litecoin {
+		encoding = wire. WitnessEncoding
+	}
+	err = msgTx.BtcDecode(rbuf, wire.ProtocolVersion, encoding)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	// Build a client.Transaction from the tx data
+	tx := client.Transaction{
+		Txid:          msgTx.TxHash().String(),
+		Confirmations: 0,
+		Time:          time.Now().Unix(),
+		Version:       int(msgTx.Version),
+		BlockTime:     time.Now().Unix(),
+	}
+	for i, in := range msgTx.TxIn {
+		// Look up and make sure the utxo exists in the utxo set
+		// return an error otherwise
+		record, ok := m.utxoSet[in.PreviousOutPoint.String()]
+		if !ok {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		// Append the input to our transaction
+		input := client.Input{
+			N: i,
+			ValueIface: math.Round(float64(record.value / SatoshisPerCoin)),
+			Satoshis: int64(record.value),
+			Vout: int(in.PreviousOutPoint.Index),
+			Addr: record.addr,
+			Txid: in.PreviousOutPoint.Hash.String(),
+			Sequence: in.Sequence,
+			Value: math.Round(float64(record.value / SatoshisPerCoin)),
+		}
+		tx.Inputs = append(tx.Inputs, input)
+	}
+	// Append each output to our transaction
+	for i, out := range msgTx.TxOut {
+		output := client.Output{
+			N: i,
+			Value: math.Round(float64(out.Value / SatoshisPerCoin)),
+			ValueIface: math.Round(float64(out.Value / SatoshisPerCoin)),
+			ScriptPubKey: client.OutScript{
+				Script: client.Script{
+					Hex: hex.EncodeToString(out.PkScript),
+				},
+			},
+		}
+		addr, err := m.scriptToAddress(out.PkScript)
+		if err == nil { // Only set address if script conversion didn't error
+			output.ScriptPubKey.Addresses[0] = addr.String()
+		}
+		tx.Outputs = append(tx.Outputs, output)
+	}
+
+	// Now we update the server state
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	for i, in := range tx.Inputs {
+		// Delete the utxo from the utxo set
+		delete(m.utxoSet, msgTx.TxIn[i].PreviousOutPoint.String())
+
+		// Delete the utxo from the utxo-addr index
+		utxos := m.utxoIndex[in.Addr]
+		var newU []client.Utxo
+		for _, u := range utxos {
+			if !(u.Txid == tx.Txid && u.Vout == i){
+				newU = append(newU, u)
+			}
+		}
+		m.utxoIndex[in.Addr] = newU
+	}
+	for i, out := range tx.Outputs {
+		// Add the output to the utxo set
+		m.utxoSet[tx.Txid + ":" + strconv.Itoa(out.N)] = utxoRecord{
+			value: uint64(msgTx.TxOut[i].Value),
+			addr: out.ScriptPubKey.Addresses[0],
+		}
+
+		// Add the transaction to the addr-tx index
+		txs := m.addrIndex[out.ScriptPubKey.Addresses[0]]
+		txs = append(txs, tx)
+		m.addrIndex[out.ScriptPubKey.Addresses[0]] = txs
+
+		// Add the output to the addr-utxo index
+		utxos := m.utxoIndex[out.ScriptPubKey.Addresses[0]]
+		utxos = append(utxos, client.Utxo{
+			ScriptPubKey: out.ScriptPubKey.Hex,
+			Txid: tx.Txid,
+			Vout: i,
+			Address: out.ScriptPubKey.Addresses[0],
+			Satoshis: msgTx.TxOut[i].Value,
+			Confirmations: 0,
+			AmountIface: out.ValueIface,
+			Amount: out.Value,
+		})
+		m.utxoIndex[out.ScriptPubKey.Addresses[0]] = utxos
+	}
+
+	// Add to tx index
+	m.txIndex[tx.Txid] = tx
 }
 
 func (m *MockInsightServer) payToAddrScript(addrStr string) ([]byte, error) {
@@ -240,4 +436,33 @@ func (m *MockInsightServer) payToAddrScript(addrStr string) ([]byte, error) {
 		script, err = zaddr.PayToAddrScript(addr)
 	}
 	return script, err
+}
+
+func (m *MockInsightServer) scriptToAddress(script []byte) (btcutil.Address, error) {
+	var addr btcutil.Address
+	var err error
+	switch m.cointype {
+	case wi.Bitcoin:
+		_, addrs, _, err := txscript.ExtractPkScriptAddrs(script, &chaincfg.RegressionNetParams)
+		if err != nil {
+			return addr, err
+		}
+		addr = addrs[0]
+	case wi.BitcoinCash:
+		addr, err = bchutil.ExtractPkScriptAddrs(script, &chaincfg.RegressionNetParams)
+		if err != nil {
+			return addr, err
+		}
+	case wi.Litecoin:
+		addr, err = laddr.ExtractPkScriptAddrs(script, &chaincfg.RegressionNetParams)
+		if err != nil {
+			return addr, err
+		}
+	case wi.Zcash:
+		addr, err = laddr.ExtractPkScriptAddrs(script, &chaincfg.RegressionNetParams)
+		if err != nil {
+			return addr, err
+		}
+	}
+	return addr, err
 }
