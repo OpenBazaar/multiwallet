@@ -1,4 +1,4 @@
-package client
+package insight
 
 import (
 	"encoding/hex"
