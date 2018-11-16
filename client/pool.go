@@ -18,24 +18,27 @@ import (
 // ClientPool is an implementation of the APIClient interface which will handle
 // server failure, rotate servers, and retry API requests.
 type ClientPool struct {
-	insightClient     *InsightClient
-	clientEndpoints   []string
-	clientCache       []*InsightClient
-	activeServer      int
-	proxyDialer       proxy.Dialer
-	blockChan         chan Block
-	txChan            chan Transaction
-	httpClient        http.Client
-	cancelListenChan  context.CancelFunc
-	connWaitGroup     sync.WaitGroup
-	rotationWaitGroup sync.WaitGroup
+	insightClient    *InsightClient
+	clientEndpoints  []string
+	clientCache      []*InsightClient
+	activeServer     int
+	proxyDialer      proxy.Dialer
+	blockChan        chan Block
+	txChan           chan Transaction
+	httpClient       http.Client
+	cancelListenChan context.CancelFunc
+	rotationMutex    sync.RWMutex
 }
 
 func (p *ClientPool) currentClient() *InsightClient {
+	p.rotationMutex.RLock()
+	defer p.rotationMutex.RUnlock()
 	return p.clientCache[p.activeServer]
 }
 
 func (p *ClientPool) currentEndpoint() string {
+	p.rotationMutex.RLock()
+	defer p.rotationMutex.RUnlock()
 	return p.clientEndpoints[p.activeServer]
 }
 
@@ -87,31 +90,32 @@ func (p *ClientPool) Start() error {
 // client could not start and rotateAndStartNextClient needs to be retried. The caller of this
 // method should track the retry attempts so as to not repeat indefinitely.
 func (p *ClientPool) rotateAndStartNextClient() error {
-	// Signal rotation and wait for connections to finish
-	p.rotationWaitGroup.Add(1)
-	defer p.rotationWaitGroup.Done()
+	// Signal rotation and wait for connections to drain
+	p.rotationMutex.Lock()
+	defer p.rotationMutex.Unlock()
 
-	p.connWaitGroup.Wait()
 	if p.cancelListenChan != nil {
 		p.cancelListenChan()
+		p.cancelListenChan = nil
 	}
-	p.currentClient().Close()
+	p.clientCache[p.activeServer].Close()
 	p.activeServer = (p.activeServer + 1) % len(p.clientCache)
+	nextClient := p.clientCache[p.activeServer]
 
 	// Should be first connection signal, ensure rotation isn't triggered elsewhere
-	if err := p.currentClient().Start(); err != nil {
+	if err := nextClient.Start(); err != nil {
 		Log.Errorf("failed starting client on %s: %s", p.currentEndpoint(), err)
-		p.currentClient().Close()
+		nextClient.Close()
 		return err
 	}
-	go p.listenChans()
+	var ctx context.Context
+	ctx, p.cancelListenChan = context.WithCancel(context.Background())
+	go p.listenChans(ctx)
 	return nil
 }
 
 // listenChans proxies the block and tx chans from the InsightClient to the ClientPool's channels
-func (p *ClientPool) listenChans() {
-	var ctx context.Context
-	ctx, p.cancelListenChan = context.WithCancel(context.Background())
+func (p *ClientPool) listenChans(ctx context.Context) {
 	for {
 		select {
 		case block := <-p.currentClient().blockNotifyChan:
@@ -128,7 +132,7 @@ func (p *ClientPool) listenChans() {
 // error will this method return an error.
 func (p *ClientPool) doRequest(endpoint, method string, body []byte, query url.Values) (*http.Response, error) {
 	for i := 0; i < len(p.clientEndpoints); i++ {
-		p.rotationWaitGroup.Wait()
+		p.rotationMutex.RLock()
 		requestUrl := p.currentClient().apiUrl
 		requestUrl.Path = path.Join(p.currentClient().apiUrl.Path, endpoint)
 		req, err := http.NewRequest(method, requestUrl.String(), bytes.NewReader(body))
@@ -136,14 +140,14 @@ func (p *ClientPool) doRequest(endpoint, method string, body []byte, query url.V
 			req.URL.RawQuery = query.Encode()
 		}
 		if err != nil {
+			p.rotationMutex.RUnlock()
 			return nil, fmt.Errorf("invalid request: %s", err)
 		}
 		req.Header.Add("Content-Type", "application/json")
 
-		p.connWaitGroup.Add(1)
 		resp, err := p.httpClient.Do(req)
 		if err != nil {
-			p.connWaitGroup.Done()
+			p.rotationMutex.RUnlock()
 			p.rotateAndStartNextClient()
 			continue
 		}
@@ -153,17 +157,17 @@ func (p *ClientPool) doRequest(endpoint, method string, body []byte, query url.V
 			req.Body = ioutil.NopCloser(bytes.NewReader(body))
 			resp, err = p.httpClient.Do(req)
 			if err != nil {
-				p.connWaitGroup.Done()
+				p.rotationMutex.RUnlock()
 				p.rotateAndStartNextClient()
 				continue
 			}
 		}
 		if resp.StatusCode != http.StatusOK {
-			p.connWaitGroup.Done()
+			p.rotationMutex.RUnlock()
 			p.rotateAndStartNextClient()
 			continue
 		}
-		p.connWaitGroup.Done()
+		p.rotationMutex.RUnlock()
 		return resp, nil
 	}
 	return nil, errors.New("all insight servers return invalid response")

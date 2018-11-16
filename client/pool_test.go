@@ -3,10 +3,10 @@ package client
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
-	gosocketio "github.com/OpenBazaar/golang-socketio"
 	httpmock "gopkg.in/jarcoal/httpmock.v1"
 )
 
@@ -23,6 +23,8 @@ func TestServerRotation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	mockWebsocketClientOnClientPool(p)
 
 	// Test valid response from first server
 	response, err := httpmock.NewJsonResponse(http.StatusOK, expectedTx)
@@ -80,6 +82,8 @@ func TestClientPool_BlockNotify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	mockWebsocketClientOnClientPool(p)
 	// Rotate the server to make sure we can still send through the new client connect
 	// to the pool chans
 	p.rotateAndStartNextClient()
@@ -100,13 +104,6 @@ func TestClientPool_BlockNotify(t *testing.T) {
 }
 
 func TestClientPool_TransactionNotify(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
-	httpmock.RegisterNoResponder(func(req *http.Request) (*http.Response, error) {
-		return httpmock.NewJsonResponse(http.StatusOK, "{}")
-	})
-
 	var (
 		p, err = NewClientPool([]string{"http://localhost:8332", "http://localhost:8336"}, nil)
 		txChan = p.TransactionNotify()
@@ -114,16 +111,13 @@ func TestClientPool_TransactionNotify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	for _, c := range p.clientCache {
-		c.socketClient = &MockSocketClient{make(map[string]func(h *gosocketio.Channel, args interface{})), []string{}}
-	}
-
+	mockWebsocketClientOnClientPool(p)
 	if err := p.Start(); err != nil {
 		t.Fatal(err)
 	}
-	//// Rotate the server to make sure we can still send through the new client connect
-	//// to the pool chans
+
+	// Rotate the server to make sure we can still send through the new
+	// client connect to the pool chans
 	p.rotateAndStartNextClient()
 
 	go func() {
@@ -151,4 +145,48 @@ func TestClientPool_TransactionNotify(t *testing.T) {
 		}
 		validateTransaction(b, TestTx, t)
 	}
+}
+
+func TestClientPoolDoesntRaceWaitGroups(t *testing.T) {
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	var p, err = NewClientPool([]string{"http://localhost:1111", "http://localhost:2222"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mockWebsocketClientOnClientPool(p)
+	if err := p.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	httpmock.RegisterNoResponder(func(req *http.Request) (*http.Response, error) {
+		fmt.Printf("request for %s", req.URL)
+		time.Sleep(1000 * time.Millisecond)
+		return httpmock.NewJsonResponse(http.StatusOK, `{}`)
+	})
+
+	var wait sync.WaitGroup
+	wait.Add(4)
+	go func() {
+		defer wait.Done()
+		p.GetBestBlock()
+	}()
+	go func() {
+		defer wait.Done()
+		if err := p.rotateAndStartNextClient(); err != nil {
+			t.Errorf("failed rotating client: %s", err)
+		}
+	}()
+	go func() {
+		defer wait.Done()
+		p.GetBestBlock()
+	}()
+	go func() {
+		defer wait.Done()
+		if err := p.rotateAndStartNextClient(); err != nil {
+			t.Errorf("failed rotating client: %s", err)
+		}
+	}()
+	wait.Wait()
 }
