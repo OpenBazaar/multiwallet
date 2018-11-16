@@ -6,26 +6,23 @@ import (
 	"testing"
 	"time"
 
+	gosocketio "github.com/OpenBazaar/golang-socketio"
 	httpmock "gopkg.in/jarcoal/httpmock.v1"
 )
-
-func NewTestPool() *ClientPool {
-	p, _ := NewClientPool([]string{"http://localhost:8332", "http://localhost:8336"}, nil)
-	p.client = &http.Client{}
-	p.Start()
-	return p
-}
 
 func TestServerRotation(t *testing.T) {
 	httpmock.Activate()
 	defer httpmock.DeactivateAndReset()
 
 	var (
-		p          = NewTestPool()
+		p, err     = NewClientPool([]string{"http://localhost:8332", "http://localhost:8336"}, nil)
 		testPath   = fmt.Sprintf("http://%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", p.currentClient().apiUrl.Host)
 		testPath2  = fmt.Sprintf("http://%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", "localhost:8336")
 		expectedTx = TestTx
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Test valid response from first server
 	response, err := httpmock.NewJsonResponse(http.StatusOK, expectedTx)
@@ -77,12 +74,15 @@ func TestServerRotation(t *testing.T) {
 
 func TestClientPool_BlockNotify(t *testing.T) {
 	var (
-		p        = NewTestPool()
+		p, err   = NewClientPool([]string{"http://localhost:8332", "http://localhost:8336"}, nil)
 		testHash = "0000000000000000003f1fb88ac3dab0e607e87def0e9031f7bea02cb464a04f"
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// Rotate the server to make sure we can still send through the new client connect
 	// to the pool chans
-	p.rotateServer()
+	p.rotateAndStartNextClient()
 
 	go func() {
 		p.currentClient().blockNotifyChan <- Block{Hash: testHash}
@@ -100,20 +100,41 @@ func TestClientPool_BlockNotify(t *testing.T) {
 }
 
 func TestClientPool_TransactionNotify(t *testing.T) {
-	p := NewTestPool()
-	// Rotate the server to make sure we can still send through the new client connect
-	// to the pool chans
-	p.rotateServer()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterNoResponder(func(req *http.Request) (*http.Response, error) {
+		return httpmock.NewJsonResponse(http.StatusOK, "{}")
+	})
+
+	var (
+		p, err = NewClientPool([]string{"http://localhost:8332", "http://localhost:8336"}, nil)
+		txChan = p.TransactionNotify()
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, c := range p.clientCache {
+		c.socketClient = &MockSocketClient{make(map[string]func(h *gosocketio.Channel, args interface{})), []string{}}
+	}
+
+	if err := p.Start(); err != nil {
+		t.Fatal(err)
+	}
+	//// Rotate the server to make sure we can still send through the new client connect
+	//// to the pool chans
+	p.rotateAndStartNextClient()
 
 	go func() {
 		p.currentClient().txNotifyChan <- TestTx
 	}()
 
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 	select {
 	case <-ticker.C:
 		t.Error("Timed out waiting for tx")
-	case b := <-p.TransactionNotify():
+	case b := <-txChan:
 		for n, in := range b.Inputs {
 			f, err := toFloat(in.ValueIface)
 			if err != nil {

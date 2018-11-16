@@ -2,6 +2,10 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
+	"sync"
+
 	"github.com/OpenBazaar/multiwallet"
 	"github.com/OpenBazaar/multiwallet/api"
 	"github.com/OpenBazaar/multiwallet/cli"
@@ -9,9 +13,6 @@ import (
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/jessevdk/go-flags"
-	"os"
-	"os/signal"
-	"sync"
 )
 
 const WALLET_VERSION = "0.1.0"
