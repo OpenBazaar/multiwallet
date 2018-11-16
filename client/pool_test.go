@@ -15,10 +15,12 @@ func TestServerRotation(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	var (
-		p, err     = NewClientPool([]string{"http://localhost:8332", "http://localhost:8336"}, nil)
-		testPath   = fmt.Sprintf("http://%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", p.currentClient().apiUrl.Host)
-		testPath2  = fmt.Sprintf("http://%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", "localhost:8336")
-		expectedTx = TestTx
+		endpointOne = "http://localhost:8332"
+		endpointTwo = "http://localhost:8336"
+		p, err      = NewClientPool([]string{endpointOne, endpointTwo}, nil)
+		txid        = "1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"
+		testPath    = func(host string) string { return fmt.Sprintf("http://%s/tx/%s", host, txid) }
+		expectedTx  = TestTx
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +34,7 @@ func TestServerRotation(t *testing.T) {
 		t.Error(err)
 	}
 
-	httpmock.RegisterResponder(http.MethodGet, testPath,
+	httpmock.RegisterResponder(http.MethodGet, testPath(endpointOne),
 		func(req *http.Request) (*http.Response, error) {
 			return response, nil
 		},
@@ -45,29 +47,19 @@ func TestServerRotation(t *testing.T) {
 	validateTransaction(*tx, expectedTx, t)
 
 	// Test invalid response, server rotation, then valid response from second server
-	response1, err := httpmock.NewJsonResponse(http.StatusInternalServerError, expectedTx)
-	if err != nil {
-		t.Error(err)
-	}
-
-	response2, err := httpmock.NewJsonResponse(http.StatusOK, expectedTx)
-	if err != nil {
-		t.Error(err)
-	}
-
-	httpmock.RegisterResponder(http.MethodGet, testPath,
+	httpmock.RegisterResponder(http.MethodGet, testPath(endpointOne),
 		func(req *http.Request) (*http.Response, error) {
-			return response1, nil
+			return httpmock.NewJsonResponse(http.StatusInternalServerError, "")
 		},
 	)
 
-	httpmock.RegisterResponder(http.MethodGet, testPath2,
+	httpmock.RegisterResponder(http.MethodGet, testPath(endpointTwo),
 		func(req *http.Request) (*http.Response, error) {
-			return response2, nil
+			return httpmock.NewJsonResponse(http.StatusOK, expectedTx)
 		},
 	)
 
-	tx, err = p.currentClient().GetTransaction("1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428")
+	tx, err = p.currentClient().GetTransaction(txid)
 	if err != nil {
 		t.Error(err)
 	}
@@ -162,7 +154,7 @@ func TestClientPoolDoesntRaceWaitGroups(t *testing.T) {
 
 	httpmock.RegisterNoResponder(func(req *http.Request) (*http.Response, error) {
 		fmt.Printf("request for %s", req.URL)
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		return httpmock.NewJsonResponse(http.StatusOK, `{}`)
 	})
 
