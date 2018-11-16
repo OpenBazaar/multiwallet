@@ -48,12 +48,6 @@ func (p *ClientPool) currentClient() *InsightClient {
 	return p.clientCache[p.activeServer]
 }
 
-func (p *ClientPool) currentEndpoint() string {
-	p.rotationMutex.RLock()
-	defer p.rotationMutex.RUnlock()
-	return p.clientEndpoints[p.activeServer]
-}
-
 // NewClientPool instantiates a new ClientPool object with the given server APIs
 func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, error) {
 	if len(endpoints) == 0 {
@@ -112,7 +106,7 @@ func (p *ClientPool) rotateAndStartNextClient() error {
 
 	// Should be first connection signal, ensure rotation isn't triggered elsewhere
 	if err := nextClient.Start(); err != nil {
-		Log.Errorf("failed starting client on %s: %s", p.currentEndpoint(), err)
+		Log.Errorf("failed starting client on %s: %s", p.clientEndpoints[p.activeServer], err)
 		nextClient.Close()
 		return err
 	}
