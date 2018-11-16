@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/OpenBazaar/multiwallet/client"
-
+	gosocketio "github.com/OpenBazaar/golang-socketio"
 	"github.com/OpenBazaar/golang-socketio/protocol"
+	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/client/transport"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcutil"

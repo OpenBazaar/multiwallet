@@ -2,10 +2,11 @@ package client
 
 import (
 	"fmt"
-	"gopkg.in/jarcoal/httpmock.v1"
 	"net/http"
 	"testing"
 	"time"
+
+	httpmock "gopkg.in/jarcoal/httpmock.v1"
 )
 
 func NewTestPool() *ClientPool {
@@ -16,8 +17,8 @@ func NewTestPool() *ClientPool {
 }
 
 func TestServerRotation(t *testing.T) {
-	setup()
-	defer teardown()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	var (
 		p          = NewTestPool()
