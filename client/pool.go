@@ -18,7 +18,6 @@ import (
 // ClientPool is an implementation of the APIClient interface which will handle
 // server failure, rotate servers, and retry API requests.
 type ClientPool struct {
-	insightClient    *InsightClient
 	clientEndpoints  []string
 	clientCache      []*InsightClient
 	activeServer     int
@@ -79,11 +78,12 @@ func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, e
 func (p *ClientPool) Start() error {
 	for e := p.newMaximumTryEnumerator(); e.next(); {
 		if err := p.rotateAndStartNextClient(); err != nil {
-			Log.Errorf("failed server rotation and start: %s", err)
+			Log.Errorf("failed start: %s", err)
 			continue
 		}
 		return nil
 	}
+	Log.Errorf("all servers failed to start")
 	return errors.New("all insight servers failed to start")
 }
 
@@ -104,9 +104,9 @@ func (p *ClientPool) rotateAndStartNextClient() error {
 	p.activeServer = (p.activeServer + 1) % len(p.clientCache)
 	nextClient := p.clientCache[p.activeServer]
 
+	Log.Infof("starting server %s...", p.clientEndpoints[p.activeServer])
 	// Should be first connection signal, ensure rotation isn't triggered elsewhere
 	if err := nextClient.Start(); err != nil {
-		Log.Errorf("failed starting client on %s: %s", p.clientEndpoints[p.activeServer], err)
 		nextClient.Close()
 		return err
 	}
