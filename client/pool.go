@@ -30,6 +30,18 @@ type ClientPool struct {
 	rotationMutex    sync.RWMutex
 }
 
+func (p *ClientPool) newMaximumTryEnumerator() *maxTryEnum {
+	return &maxTryEnum{max: len(p.clientEndpoints), attempts: 0}
+}
+
+type maxTryEnum struct{ max, attempts int }
+
+func (m *maxTryEnum) next() bool {
+	var now = m.attempts
+	m.attempts++
+	return now <= m.max
+}
+
 func (p *ClientPool) currentClient() *InsightClient {
 	p.rotationMutex.RLock()
 	defer p.rotationMutex.RUnlock()
@@ -71,18 +83,14 @@ func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, e
 // Start will attempt to connect to the first insight server. If it fails to
 // connect it will rotate through the servers to try to find one that works.
 func (p *ClientPool) Start() error {
-	var startingClientIndex = p.activeServer
-	for {
+	for e := p.newMaximumTryEnumerator(); e.next(); {
 		if err := p.rotateAndStartNextClient(); err != nil {
 			Log.Errorf("failed server rotation and start: %s", err)
-			if startingClientIndex == p.activeServer {
-				return errors.New("all insight servers failed to start")
-			}
 			continue
 		}
-		break
+		return nil
 	}
-	return nil
+	return errors.New("all insight servers failed to start")
 }
 
 // rotateAndStartNextClient cleans up the active client's connections, and attempts to start the
@@ -131,7 +139,7 @@ func (p *ClientPool) listenChans(ctx context.Context) {
 // doRequest handles making the HTTP request with server rotation and retires. Only if all servers return an
 // error will this method return an error.
 func (p *ClientPool) doRequest(endpoint, method string, body []byte, query url.Values) (*http.Response, error) {
-	for i := 0; i < len(p.clientEndpoints); i++ {
+	for e := p.newMaximumTryEnumerator(); e.next(); {
 		p.rotationMutex.RLock()
 		requestUrl := p.currentClient().apiUrl
 		requestUrl.Path = path.Join(p.currentClient().apiUrl.Path, endpoint)
