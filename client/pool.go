@@ -4,25 +4,30 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"golang.org/x/net/proxy"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
+
+	"golang.org/x/net/proxy"
 )
 
 // ClientPool is an implementation of the APIClient interface which will handle
 // server failure, rotate servers, and retry API requests.
 type ClientPool struct {
-	*InsightClient
-	urls         []string
-	activeServer int
-	proxyDialer  proxy.Dialer
-	blockChan    chan Block
-	txChan       chan Transaction
-	httpClient   http.Client
-	cancelFunc   context.CancelFunc
-	client       *http.Client
+	insightClient *InsightClient
+	urls          []string
+	activeServer  int
+	proxyDialer   proxy.Dialer
+	blockChan     chan Block
+	txChan        chan Transaction
+	httpClient    http.Client
+	cancelFunc    context.CancelFunc
+	client        *http.Client
+}
+
+func (p *ClientPool) currentClient() *InsightClient {
+	return p.insightClient
 }
 
 // NewClientPool instantiates a new ClientPool object with the given server APIs
@@ -54,8 +59,8 @@ func (p *ClientPool) Start() error {
 			Log.Error(err)
 			continue
 		}
-		p.InsightClient = client
-		p.InsightClient.requestFunc = p.doRequest
+		client.requestFunc = p.doRequest
+		p.insightClient = client
 		ctx, cancel := context.WithCancel(context.Background())
 		p.cancelFunc = cancel
 		if p.client != nil {
@@ -71,7 +76,7 @@ func (p *ClientPool) Start() error {
 // connectWebsockets attempts to connect to the server's socketio websocket
 // endpoint. If that fails it will rotate the server and try a new one.
 func (p *ClientPool) connectWebsockets() {
-	err := p.setupListeners(p.apiUrl, p.proxyDialer)
+	err := p.currentClient().setupListeners(p.currentClient().apiUrl, p.proxyDialer)
 	if err != nil {
 		p.rotateServer()
 	}
@@ -80,8 +85,8 @@ func (p *ClientPool) connectWebsockets() {
 // Stop will disconnect from the socket client
 func (p *ClientPool) Stop() {
 	p.cancelFunc()
-	if p.socketClient != nil {
-		p.socketClient.Close()
+	if p.currentClient().socketClient != nil {
+		p.currentClient().socketClient.Close()
 	}
 }
 
@@ -95,10 +100,10 @@ func (p *ClientPool) rotateServer() {
 	if err != nil {
 		Log.Error(err)
 	}
+	client.requestFunc = p.doRequest
+	p.insightClient = client
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancelFunc = cancel
-	p.InsightClient = client
-	p.InsightClient.requestFunc = p.doRequest
 	if p.client != nil {
 		p.httpClient = *p.client
 	}
@@ -110,8 +115,8 @@ func (p *ClientPool) rotateServer() {
 // error will this method return an error.
 func (p *ClientPool) doRequest(endpoint, method string, body []byte, query url.Values) (*http.Response, error) {
 	for i := 0; i < len(p.urls); i++ {
-		requestUrl := p.apiUrl
-		requestUrl.Path = path.Join(p.apiUrl.Path, endpoint)
+		requestUrl := p.currentClient().apiUrl
+		requestUrl.Path = path.Join(p.currentClient().apiUrl.Path, endpoint)
 		req, err := http.NewRequest(method, requestUrl.String(), bytes.NewReader(body))
 		if query != nil {
 			req.URL.RawQuery = query.Encode()
@@ -151,9 +156,9 @@ func (p *ClientPool) listenChans(ctx context.Context) {
 out:
 	for {
 		select {
-		case block := <-p.blockNotifyChan:
+		case block := <-p.currentClient().blockNotifyChan:
 			p.blockChan <- block
-		case tx := <-p.txNotifyChan:
+		case tx := <-p.currentClient().txNotifyChan:
 			p.txChan <- tx
 		case <-ctx.Done():
 			break out
@@ -164,6 +169,56 @@ out:
 // BlockNofity proxies the active InsightClient's block channel
 func (p *ClientPool) BlockNotify() <-chan Block {
 	return p.blockChan
+}
+
+// Broadcast proxies the same request to the active InsightClient
+func (p *ClientPool) Broadcast(tx []byte) (string, error) {
+	return p.currentClient().Broadcast(tx)
+}
+
+// Close proxies the same request to the active InsightClient
+func (p *ClientPool) Close() {
+	p.currentClient().Close()
+}
+
+// EstimateFee proxies the same request to the active InsightClient
+func (p *ClientPool) EstimateFee(nBlocks int) (int, error) {
+	return p.currentClient().EstimateFee(nBlocks)
+}
+
+// GetBestBlock proxies the same request to the active InsightClient
+func (p *ClientPool) GetBestBlock() (*Block, error) {
+	return p.currentClient().GetBestBlock()
+}
+
+// GetInfo proxies the same request to the active InsightClient
+func (p *ClientPool) GetInfo() (*Info, error) {
+	return p.currentClient().GetInfo()
+}
+
+// GetRawTransaction proxies the same request to the active InsightClient
+func (p *ClientPool) GetRawTransaction(txid string) ([]byte, error) {
+	return p.currentClient().GetRawTransaction(txid)
+}
+
+// GetTransactions proxies the same request to the active InsightClient
+func (p *ClientPool) GetTransactions(addrs []btcutil.Address) ([]Transaction, error) {
+	return p.currentClient().GetTransactions(addrs)
+}
+
+// GetTransaction proxies the same request to the active InsightClient
+func (p *ClientPool) GetTransaction(txid string) (*Transaction, error) {
+	return p.currentClient().GetTransaction(txid)
+}
+
+// GetUtxos proxies the same request to the active InsightClient
+func (p *ClientPool) GetUtxos(addrs []btcutil.Address) ([]Utxo, error) {
+	return p.currentClient().GetUtxos(addrs)
+}
+
+// ListenAddress proxies the same request to the active InsightClient
+func (p *ClientPool) ListenAddress(addr btcutil.Address) {
+	p.currentClient().ListenAddress(addr)
 }
 
 // TransactionNotify proxies the active InsightClient's tx channel
