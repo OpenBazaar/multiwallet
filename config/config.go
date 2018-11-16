@@ -80,11 +80,16 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 	}
 	mockDB := datastore.NewMockMultiwalletDatastore()
 	if coinTypes[wallet.Bitcoin] {
-		var apiEndpoint string
+		var apiEndpoints []string
 		if !testnet {
-			apiEndpoint = "https://btc.blockbook.api.openbazaar.org/"
+			apiEndpoints = []string{
+				"https://btc.bloqapi.net/insight-api",
+				"https://btc.insight.openbazaar.org/insight-api",
+			}
 		} else {
-			apiEndpoint = "https://test-insight.bitpay.com/api"
+			apiEndpoints = []string{
+				"https://test-insight.bitpay.com/api",
+			}
 		}
 		feeApi := "https://btc.fees.openbazaar.org"
 		db, _ := mockDB.GetDatastoreForWallet(wallet.Bitcoin)
@@ -95,17 +100,21 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 			MediumFee:  160,
 			HighFee:    180,
 			MaxFee:     2000,
-			ClientAPIs: []string{apiEndpoint},
+			ClientAPIs: apiEndpoints,
 			DB:         db,
 		}
 		cfg.Coins = append(cfg.Coins, btcCfg)
 	}
 	if coinTypes[wallet.BitcoinCash] {
-		var apiEndpoint string
+		var apiEndpoints []string
 		if !testnet {
-			apiEndpoint = "https://bch.blockbook.api.openbazaar.org/"
+			apiEndpoints = []string{
+				"https://bitcoincash.blockexplorer.com/api",
+			}
 		} else {
-			apiEndpoint = "https://test-bch-insight.bitpay.com/api"
+			apiEndpoints = []string{
+				"https://test-bch-insight.bitpay.com/api",
+			}
 		}
 		db, _ := mockDB.GetDatastoreForWallet(wallet.BitcoinCash)
 		bchCfg := CoinConfig{
@@ -115,17 +124,21 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 			MediumFee:  160,
 			HighFee:    180,
 			MaxFee:     2000,
-			ClientAPIs: []string{apiEndpoint},
+			ClientAPIs: apiEndpoints,
 			DB:         db,
 		}
 		cfg.Coins = append(cfg.Coins, bchCfg)
 	}
 	if coinTypes[wallet.Zcash] {
-		var apiEndpoint string
+		var apiEndpoints []string
 		if !testnet {
-			apiEndpoint = "https://zec.blockbook.api.openbazaar.org/"
+			apiEndpoints = []string{
+				"https://zcashnetwork.info/api",
+			}
 		} else {
-			apiEndpoint = "https://explorer.testnet.z.cash/api"
+			apiEndpoints = []string{
+				"https://explorer.testnet.z.cash/api",
+			}
 		}
 		db, _ := mockDB.GetDatastoreForWallet(wallet.Zcash)
 		zecCfg := CoinConfig{
@@ -135,17 +148,22 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 			MediumFee:  160,
 			HighFee:    180,
 			MaxFee:     2000,
-			ClientAPIs: []string{apiEndpoint},
+			ClientAPIs: apiEndpoints,
 			DB:         db,
 		}
 		cfg.Coins = append(cfg.Coins, zecCfg)
 	}
 	if coinTypes[wallet.Litecoin] {
-		var apiEndpoint string
+		var apiEndpoints []string
 		if !testnet {
-			apiEndpoint = "https://ltc.blockbook.api.openbazaar.org/"
+			apiEndpoints = []string{
+				"https://ltc.coin.space/api",
+				"https://ltc.insight.openbazaar.org/insight-lite-api",
+			}
 		} else {
-			apiEndpoint = "https://testnet.litecore.io/api"
+			apiEndpoints = []string{
+				"https://testnet.litecore.io/api",
+			}
 		}
 		db, _ := mockDB.GetDatastoreForWallet(wallet.Litecoin)
 		ltcCfg := CoinConfig{
@@ -155,17 +173,21 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 			MediumFee:  160,
 			HighFee:    180,
 			MaxFee:     2000,
-			ClientAPIs: []string{apiEndpoint},
+			ClientAPIs: apiEndpoints,
 			DB:         db,
 		}
 		cfg.Coins = append(cfg.Coins, ltcCfg)
 	}
 	if coinTypes[wallet.Ethereum] {
-		var apiEndpoint string
+		var apiEndpoints []string
 		if !testnet {
-			apiEndpoint = "https://rinkeby.infura.io"
+			apiEndpoints = []string{
+				"https://rinkeby.infura.io",
+			}
 		} else {
-			apiEndpoint = "https://rinkeby.infura.io"
+			apiEndpoints = []string{
+				"https://rinkeby.infura.io",
+			}
 		}
 		db, _ := mockDB.GetDatastoreForWallet(wallet.Ethereum)
 		ethCfg := CoinConfig{
@@ -175,7 +197,7 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 			MediumFee:  160,
 			HighFee:    180,
 			MaxFee:     2000,
-			ClientAPIs: []string{apiEndpoint},
+			ClientAPIs: apiEndpoints,
 			DB:         db,
 			Options: map[string]interface{}{
 				"RegistryAddress":        "0xab8dd0e05b73529b440d9c9df00b5f490c8596ff",
