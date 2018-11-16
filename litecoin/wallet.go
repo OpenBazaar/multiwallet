@@ -2,21 +2,11 @@ package litecoin
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"time"
 
-	wi "github.com/OpenBazaar/wallet-interface"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
-	hd "github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/ltcsuite/ltcwallet/wallet/txrules"
-	"github.com/tyler-smith/go-bip39"
-	"golang.org/x/net/proxy"
-
-	"encoding/hex"
 	"github.com/OpenBazaar/multiwallet/cache"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/config"
@@ -24,7 +14,16 @@ import (
 	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
+	wi "github.com/OpenBazaar/wallet-interface"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcutil"
+	hd "github.com/btcsuite/btcutil/hdkeychain"
+	"github.com/ltcsuite/ltcwallet/wallet/txrules"
 	rb "github.com/roasbeef/btcutil"
+	"github.com/tyler-smith/go-bip39"
+	"golang.org/x/net/proxy"
 )
 
 type LitecoinWallet struct {

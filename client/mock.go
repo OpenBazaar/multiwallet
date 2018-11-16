@@ -3,7 +3,9 @@ package client
 import (
 	"encoding/hex"
 	"errors"
-	"github.com/OpenBazaar/golang-socketio"
+	"fmt"
+
+	gosocketio "github.com/OpenBazaar/golang-socketio"
 	"github.com/btcsuite/btcutil"
 )
 
@@ -389,7 +391,7 @@ type MockSocketClient struct {
 func (m *MockSocketClient) On(method string, callback interface{}) error {
 	c, ok := callback.(func(h *gosocketio.Channel, args interface{}))
 	if !ok {
-		return nil
+		return fmt.Errorf("failed casting mock callback: %+v", callback)
 	}
 
 	if method == "bitcoind/addresstxid" {
@@ -404,11 +406,11 @@ func (m *MockSocketClient) Emit(method string, args []interface{}) error {
 	if method == "subscribe" {
 		subscribeTo, ok := args[0].(string)
 		if !ok || subscribeTo != "bitcoind/addresstxid" {
-			return nil
+			return fmt.Errorf("first emit arg is not bitcoind/addresstxid, was: %+v", args[0])
 		}
 		addrs, ok := args[1].([]string)
 		if !ok {
-			return nil
+			return fmt.Errorf("second emit arg is not address value, was %+v", args[1])
 		}
 		for _, addr := range addrs {
 			m.listeningAddresses = append(m.listeningAddresses, addr)

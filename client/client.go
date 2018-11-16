@@ -341,7 +341,6 @@ func (i *InsightClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) erro
 			return err
 		}
 	}
-	Log.Infof("Connected to websocket endpoint %s", u.Host)
 
 	i.socketClient.On("bitcoind/hashblock", func(h *gosocketio.Channel, arg interface{}) {
 		best, err := i.GetBestBlock()

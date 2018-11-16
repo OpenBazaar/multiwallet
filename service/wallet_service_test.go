@@ -364,17 +364,17 @@ func TestWalletService_listenersFired(t *testing.T) {
 	tx.Confirmations = 0
 	ws.saveSingleTxToDB(tx, int32(client.MockBlocks[0].Height), ws.getStoredAddresses())
 	if nCallbacks != 1 {
-		t.Error("Failed to fire transaction callback")
+		t.Errorf("expected 1 callback but had %d", nCallbacks)
 	}
 	ch, err := chainhash.NewHashFromStr(response.Txid)
 	if err != nil {
-		t.Error(err)
+		t.Errorf("failed getting hash from %s: %s", response.Txid, err)
 	}
 	if ch.String() != client.MockTransactions[0].Txid {
-		t.Error("Returned incorrect txid")
+		t.Errorf("expected hash to be %s, but was %s", client.MockTransactions[0].Txid, ch.String())
 	}
 	if response.Value != 2717080 {
-		t.Error("Returned incorrect value")
+		t.Errorf("expected tx value to be 2717080, but was %d", response.Value)
 	}
 	if response.Height != 0 {
 		t.Error("Returned incorrect height")
