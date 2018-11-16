@@ -509,6 +509,10 @@ func (i *BlockBookClient) GetBestBlock() (*client.Block, error) {
 		Backend backend `json:"backend"`
 	}
 
+	type resBlockHash struct {
+		BlockHash string `json:"blockHash"`
+	}
+
 	resp, err := i.doRequest("", http.MethodGet, nil, nil)
 	if err != nil {
 		return nil, err
@@ -519,9 +523,20 @@ func (i *BlockBookClient) GetBestBlock() (*client.Block, error) {
 	if err = decoder.Decode(bi); err != nil {
 		return nil, fmt.Errorf("error decoding block index: %s", err)
 	}
+	resp2, err := i.doRequest("/block-index/"+strconv.Itoa(bi.Backend.Blocks-1), http.MethodGet, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	decoder2 := json.NewDecoder(resp2.Body)
+	bh := new(resBlockHash)
+	defer resp2.Body.Close()
+	if err = decoder2.Decode(bh); err != nil {
+		return nil, fmt.Errorf("error decoding block hash: %s", err)
+	}
 	ret := client.Block{
 		Hash: bi.Backend.BestBlockHash,
 		Height: bi.Backend.Blocks,
+		PreviousBlockhash: bh.BlockHash,
 	}
 	return &ret, nil
 }
