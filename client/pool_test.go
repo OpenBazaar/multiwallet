@@ -19,8 +19,8 @@ func TestServerRotation(t *testing.T) {
 		endpointTwo = "http://localhost:8336"
 		p, err      = NewClientPool([]string{endpointOne, endpointTwo}, nil)
 		txid        = "1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"
-		testPath    = func(host string) string { return fmt.Sprintf("http://%s/tx/%s", host, txid) }
-		expectedTx  = TestTx
+		testPath    = func(host string) string { return fmt.Sprintf("%s/tx/%s", host, txid) }
+		expectedTx  = NewTransaction()
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -28,28 +28,22 @@ func TestServerRotation(t *testing.T) {
 
 	mockWebsocketClientOnClientPool(p)
 
-	// Test valid response from first server
-	response, err := httpmock.NewJsonResponse(http.StatusOK, expectedTx)
-	if err != nil {
-		t.Error(err)
-	}
-
 	httpmock.RegisterResponder(http.MethodGet, testPath(endpointOne),
 		func(req *http.Request) (*http.Response, error) {
-			return response, nil
+			return httpmock.NewJsonResponse(http.StatusOK, expectedTx)
 		},
 	)
 
-	tx, err := p.currentClient().GetTransaction("1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428")
+	tx, err := p.currentClient().GetTransaction(txid)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	validateTransaction(*tx, expectedTx, t)
 
 	// Test invalid response, server rotation, then valid response from second server
 	httpmock.RegisterResponder(http.MethodGet, testPath(endpointOne),
 		func(req *http.Request) (*http.Response, error) {
-			return httpmock.NewJsonResponse(http.StatusInternalServerError, "")
+			return httpmock.NewJsonResponse(http.StatusInternalServerError, expectedTx)
 		},
 	)
 
@@ -61,7 +55,7 @@ func TestServerRotation(t *testing.T) {
 
 	tx, err = p.currentClient().GetTransaction(txid)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	validateTransaction(*tx, expectedTx, t)
 }
@@ -97,8 +91,9 @@ func TestClientPool_BlockNotify(t *testing.T) {
 
 func TestClientPool_TransactionNotify(t *testing.T) {
 	var (
-		p, err = NewClientPool([]string{"http://localhost:8332", "http://localhost:8336"}, nil)
-		txChan = p.TransactionNotify()
+		p, err     = NewClientPool([]string{"http://localhost:8332", "http://localhost:8336"}, nil)
+		txChan     = p.TransactionNotify()
+		expectedTx = NewTransaction()
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +108,7 @@ func TestClientPool_TransactionNotify(t *testing.T) {
 	p.rotateAndStartNextClient()
 
 	go func() {
-		p.currentClient().txNotifyChan <- TestTx
+		p.currentClient().txNotifyChan <- expectedTx
 	}()
 
 	ticker := time.NewTicker(1 * time.Second)
@@ -135,7 +130,7 @@ func TestClientPool_TransactionNotify(t *testing.T) {
 			}
 			b.Outputs[n].Value = f
 		}
-		validateTransaction(b, TestTx, t)
+		validateTransaction(b, expectedTx, t)
 	}
 }
 
@@ -153,7 +148,6 @@ func TestClientPoolDoesntRaceWaitGroups(t *testing.T) {
 	}
 
 	httpmock.RegisterNoResponder(func(req *http.Request) (*http.Response, error) {
-		fmt.Printf("request for %s", req.URL)
 		time.Sleep(500 * time.Millisecond)
 		return httpmock.NewJsonResponse(http.StatusOK, `{}`)
 	})
