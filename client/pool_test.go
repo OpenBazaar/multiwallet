@@ -22,7 +22,7 @@ func TestServerRotation(t *testing.T) {
 
 	var (
 		p          = NewTestPool()
-		testPath   = fmt.Sprintf("http://%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", p.apiUrl.Host)
+		testPath   = fmt.Sprintf("http://%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", p.currentClient().apiUrl.Host)
 		testPath2  = fmt.Sprintf("http://%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", "localhost:8336")
 		expectedTx = TestTx
 	)
@@ -39,7 +39,7 @@ func TestServerRotation(t *testing.T) {
 		},
 	)
 
-	tx, err := p.GetTransaction("1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428")
+	tx, err := p.currentClient().GetTransaction("1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428")
 	if err != nil {
 		t.Error(err)
 	}
@@ -68,7 +68,7 @@ func TestServerRotation(t *testing.T) {
 		},
 	)
 
-	tx, err = p.GetTransaction("1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428")
+	tx, err = p.currentClient().GetTransaction("1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428")
 	if err != nil {
 		t.Error(err)
 	}
@@ -85,14 +85,14 @@ func TestClientPool_BlockNotify(t *testing.T) {
 	p.rotateServer()
 
 	go func() {
-		p.blockNotifyChan <- Block{Hash: testHash}
+		p.currentClient().blockNotifyChan <- Block{Hash: testHash}
 	}()
 
 	ticker := time.NewTicker(time.Second)
 	select {
 	case <-ticker.C:
 		t.Error("Timed out waiting for block")
-	case b := <-p.BlockNotify():
+	case b := <-p.currentClient().BlockNotify():
 		if b.Hash != testHash {
 			t.Error("Returned incorrect block hash")
 		}
@@ -106,7 +106,7 @@ func TestClientPool_TransactionNotify(t *testing.T) {
 	p.rotateServer()
 
 	go func() {
-		p.txNotifyChan <- TestTx
+		p.currentClient().txNotifyChan <- TestTx
 	}()
 
 	ticker := time.NewTicker(time.Second)
