@@ -383,6 +383,14 @@ func (m *MockAPIClient) EstimateFee(nBlocks int) (int, error) {
 
 func (m *MockAPIClient) Close() {}
 
+func mockWebsocketClientOnClientPool(p *ClientPool) *MockSocketClient {
+	mockSocketClient := &MockSocketClient{make(map[string]func(h *gosocketio.Channel, args interface{})), []string{}}
+	for _, c := range p.clientCache {
+		c.socketClient = mockSocketClient
+	}
+	return mockSocketClient
+}
+
 type MockSocketClient struct {
 	callbacks          map[string]func(h *gosocketio.Channel, args interface{})
 	listeningAddresses []string
