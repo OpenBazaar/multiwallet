@@ -2,6 +2,8 @@ package api
 
 import (
 	"errors"
+	"net"
+
 	"github.com/OpenBazaar/multiwallet"
 	"github.com/OpenBazaar/multiwallet/api/pb"
 	"github.com/OpenBazaar/multiwallet/bitcoin"
@@ -13,7 +15,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"net"
 )
 
 const Addr = "127.0.0.1:8234"
@@ -164,7 +165,7 @@ func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) 
 	default:
 		feeLevel = wallet.NORMAL
 	}
-	txid, err := wal.Spend(int64(in.Amount), addr, feeLevel)
+	txid, err := wal.Spend(int64(in.Amount), addr, feeLevel, "")
 	if err != nil {
 		return nil, err
 	}
