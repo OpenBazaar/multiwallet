@@ -2,11 +2,11 @@ package bitcoincash
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"time"
 
-	"github.com/OpenBazaar/multiwallet/cache"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -20,7 +20,7 @@ import (
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
 
-	"encoding/hex"
+	"github.com/OpenBazaar/multiwallet/cache"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/config"
 	"github.com/OpenBazaar/multiwallet/keys"
@@ -220,7 +220,7 @@ func (w *BitcoinCashWallet) GetFeePerByte(feeLevel wi.FeeLevel) uint64 {
 	return w.fp.GetFeePerByte(feeLevel)
 }
 
-func (w *BitcoinCashWallet) Spend(amount int64, addr btcutil.Address, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+func (w *BitcoinCashWallet) Spend(amount int64, addr btcutil.Address, feeLevel wi.FeeLevel, referenceID string) (*chainhash.Hash, error) {
 	tx, err := w.buildTx(amount, addr, feeLevel, nil)
 	if err != nil {
 		return nil, err
