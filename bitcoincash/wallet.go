@@ -7,6 +7,12 @@ import (
 	"io"
 	"time"
 
+	"github.com/OpenBazaar/multiwallet/cache"
+	"github.com/OpenBazaar/multiwallet/client"
+	"github.com/OpenBazaar/multiwallet/config"
+	"github.com/OpenBazaar/multiwallet/keys"
+	"github.com/OpenBazaar/multiwallet/service"
+	"github.com/OpenBazaar/multiwallet/util"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -19,13 +25,6 @@ import (
 	"github.com/cpacia/bchutil"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
-
-	"github.com/OpenBazaar/multiwallet/cache"
-	"github.com/OpenBazaar/multiwallet/client"
-	"github.com/OpenBazaar/multiwallet/config"
-	"github.com/OpenBazaar/multiwallet/keys"
-	"github.com/OpenBazaar/multiwallet/service"
-	"github.com/OpenBazaar/multiwallet/util"
 )
 
 type BitcoinCashWallet struct {
@@ -58,7 +57,7 @@ func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chainc
 		return nil, err
 	}
 
-	c, err := client.NewInsightClient(cfg.ClientAPI.String(), proxy)
+	c, err := client.NewClientPool(cfg.ClientAPIs, proxy)
 	if err != nil {
 		return nil, err
 	}

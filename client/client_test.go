@@ -10,15 +10,15 @@ import (
 
 	"sync"
 
-	"github.com/OpenBazaar/golang-socketio"
+	gosocketio "github.com/OpenBazaar/golang-socketio"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil"
-	"gopkg.in/jarcoal/httpmock.v1"
+	httpmock "gopkg.in/jarcoal/httpmock.v1"
 )
 
 func NewTestClient() *InsightClient {
 	u, _ := url.Parse("http://localhost:8334/")
-	return &InsightClient{
+	ic := &InsightClient{
 		httpClient:      http.Client{},
 		apiUrl:          *u,
 		blockNotifyChan: make(chan Block),
@@ -26,14 +26,8 @@ func NewTestClient() *InsightClient {
 		socketClient:    &gosocketio.Client{},
 		listenLock:      sync.Mutex{},
 	}
-}
-
-func setup() {
-	httpmock.Activate()
-}
-
-func teardown() {
-	httpmock.DeactivateAndReset()
+	ic.requestFunc = ic.doRequest
+	return ic
 }
 
 var TestTx = Transaction{
@@ -82,8 +76,8 @@ var TestTx = Transaction{
 }
 
 func TestInsightClient_GetInfo(t *testing.T) {
-	setup()
-	defer teardown()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	var (
 		c            = NewTestClient()
@@ -112,8 +106,8 @@ func TestInsightClient_GetInfo(t *testing.T) {
 }
 
 func TestInsightClient_GetTransaction(t *testing.T) {
-	setup()
-	defer teardown()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	var (
 		c          = NewTestClient()
@@ -140,8 +134,8 @@ func TestInsightClient_GetTransaction(t *testing.T) {
 }
 
 func TestInsightClient_GetRawTransaction(t *testing.T) {
-	setup()
-	defer teardown()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	var (
 		c               = NewTestClient()
@@ -170,8 +164,8 @@ func TestInsightClient_GetRawTransaction(t *testing.T) {
 }
 
 func TestInsightClient_GetTransactions(t *testing.T) {
-	setup()
-	defer teardown()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	var (
 		c        = NewTestClient()
@@ -291,8 +285,8 @@ func validateTransaction(tx, expectedTx Transaction, t *testing.T) {
 }
 
 func TestInsightClient_GetUtxos(t *testing.T) {
-	setup()
-	defer teardown()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	var (
 		c        = NewTestClient()
@@ -411,8 +405,8 @@ func TestInsightClient_TransactionNotify(t *testing.T) {
 }
 
 func TestInsightClient_Broadcast(t *testing.T) {
-	setup()
-	defer teardown()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	type Response struct {
 		Txid string `json:"txid"`
@@ -445,8 +439,8 @@ func TestInsightClient_Broadcast(t *testing.T) {
 }
 
 func TestInsightClient_GetBestBlock(t *testing.T) {
-	setup()
-	defer teardown()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	var (
 		c        = NewTestClient()
@@ -511,8 +505,8 @@ func validateBlock(b, expected Block, prevhash string, t *testing.T) {
 }
 
 func TestInsightClient_GetBlocksBefore(t *testing.T) {
-	setup()
-	defer teardown()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	var (
 		c        = NewTestClient()
@@ -570,8 +564,8 @@ func Test_toFloat64(t *testing.T) {
 }
 
 func TestInsightClient_setupListeners(t *testing.T) {
-	setup()
-	defer teardown()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	var (
 		c             = NewTestClient()
@@ -619,7 +613,7 @@ func TestInsightClient_setupListeners(t *testing.T) {
 	)
 
 	c.socketClient = mockSocket
-	go c.setupListeners(c.apiUrl, nil)
+	go c.Start()
 	time.Sleep(time.Second)
 
 	go func() {
@@ -670,8 +664,8 @@ func TestInsightClient_setupListeners(t *testing.T) {
 }
 
 func TestInsightClient_ListenAddress(t *testing.T) {
-	setup()
-	defer teardown()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	var (
 		c          = NewTestClient()
@@ -692,8 +686,8 @@ func TestInsightClient_ListenAddress(t *testing.T) {
 }
 
 func TestInsightClient_EstimateFee(t *testing.T) {
-	setup()
-	defer teardown()
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
 
 	var (
 		c        = NewTestClient()

@@ -3,7 +3,9 @@ package client
 import (
 	"encoding/hex"
 	"errors"
-	"github.com/OpenBazaar/golang-socketio"
+	"fmt"
+
+	gosocketio "github.com/OpenBazaar/golang-socketio"
 	"github.com/btcsuite/btcutil"
 )
 
@@ -309,7 +311,10 @@ func NewMockApiClient(addrToScript func(btcutil.Address) ([]byte, error)) APICli
 	}
 }
 
-func (m *MockAPIClient) Start() {}
+func (m *MockAPIClient) Start() error {
+	return nil
+}
+
 func (m *MockAPIClient) GetInfo() (*Info, error) {
 	return m.info, nil
 }
@@ -378,6 +383,14 @@ func (m *MockAPIClient) EstimateFee(nBlocks int) (int, error) {
 
 func (m *MockAPIClient) Close() {}
 
+func mockWebsocketClientOnClientPool(p *ClientPool) *MockSocketClient {
+	mockSocketClient := &MockSocketClient{make(map[string]func(h *gosocketio.Channel, args interface{})), []string{}}
+	for _, c := range p.clientCache {
+		c.socketClient = mockSocketClient
+	}
+	return mockSocketClient
+}
+
 type MockSocketClient struct {
 	callbacks          map[string]func(h *gosocketio.Channel, args interface{})
 	listeningAddresses []string
@@ -386,7 +399,7 @@ type MockSocketClient struct {
 func (m *MockSocketClient) On(method string, callback interface{}) error {
 	c, ok := callback.(func(h *gosocketio.Channel, args interface{}))
 	if !ok {
-		return nil
+		return fmt.Errorf("failed casting mock callback: %+v", callback)
 	}
 
 	if method == "bitcoind/addresstxid" {
@@ -401,11 +414,11 @@ func (m *MockSocketClient) Emit(method string, args []interface{}) error {
 	if method == "subscribe" {
 		subscribeTo, ok := args[0].(string)
 		if !ok || subscribeTo != "bitcoind/addresstxid" {
-			return nil
+			return fmt.Errorf("first emit arg is not bitcoind/addresstxid, was: %+v", args[0])
 		}
 		addrs, ok := args[1].([]string)
 		if !ok {
-			return nil
+			return fmt.Errorf("second emit arg is not address value, was %+v", args[1])
 		}
 		for _, addr := range addrs {
 			m.listeningAddresses = append(m.listeningAddresses, addr)
