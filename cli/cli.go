@@ -3,13 +3,14 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/OpenBazaar/multiwallet/api"
 	"github.com/OpenBazaar/multiwallet/api/pb"
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"strconv"
-	"strings"
 )
 
 func SetupCli(parser *flags.Parser) {
@@ -58,11 +59,12 @@ func SetupCli(parser *flags.Parser) {
 			"2. address       (string) The recipient's bitcoin address\n"+
 			"3. amount        (integer) The amount to send in satoshi"+
 			"4. feelevel      (string default=normal) The fee level: economic, normal, priority\n\n"+
+			"5. memo          (string) The orderID\n"+
 			"Examples:\n"+
 			"> multiwallet spend bitcoin 1DxGWC22a46VPEjq8YKoeVXSLzB7BA8sJS 1000000\n"+
-			"82bfd45f3564e0b5166ab9ca072200a237f78499576e9658b20b0ccd10ff325c"+
+			"82bfd45f3564e0b5166ab9ca072200a237f78499576e9658b20b0ccd10ff325c 1a3w"+
 			"> multiwallet spend bitcoin 1DxGWC22a46VPEjq8YKoeVXSLzB7BA8sJS 3000000000 priority\n"+
-			"82bfd45f3564e0b5166ab9ca072200a237f78499576e9658b20b0ccd10ff325c",
+			"82bfd45f3564e0b5166ab9ca072200a237f78499576e9658b20b0ccd10ff325c 4wq2",
 		&spend)
 	parser.AddCommand("balance",
 		"get the wallet's balances",
@@ -83,6 +85,8 @@ func coinType(args []string) pb.CoinType {
 		return pb.CoinType_ZCASH
 	case "litecoin":
 		return pb.CoinType_LITECOIN
+	case "ethereum":
+		return pb.CoinType_ETHEREUM
 	default:
 		return pb.CoinType_BITCOIN
 	}
@@ -140,7 +144,7 @@ func (x *CurrentAddress) Execute(args []string) error {
 		purpose = pb.KeyPurpose_EXTERNAL
 	}
 
-	resp, err := client.CurrentAddress(context.Background(), &pb.KeySelection{t, purpose})
+	resp, err := client.CurrentAddress(context.Background(), &pb.KeySelection{Coin: t, Purpose: purpose})
 	if err != nil {
 		return err
 	}
@@ -177,7 +181,7 @@ func (x *NewAddress) Execute(args []string) error {
 	default:
 		purpose = pb.KeyPurpose_EXTERNAL
 	}
-	resp, err := client.NewAddress(context.Background(), &pb.KeySelection{t, purpose})
+	resp, err := client.NewAddress(context.Background(), &pb.KeySelection{Coin: t, Purpose: purpose})
 	if err != nil {
 		return err
 	}
@@ -199,7 +203,7 @@ func (x *ChainTip) Execute(args []string) error {
 		return errors.New("Must select coin type")
 	}
 	t := coinType(args)
-	resp, err := client.ChainTip(context.Background(), &pb.CoinSelection{t})
+	resp, err := client.ChainTip(context.Background(), &pb.CoinSelection{Coin: t})
 	if err != nil {
 		return err
 	}
@@ -221,7 +225,7 @@ func (x *DumpTables) Execute(args []string) error {
 		return errors.New("Must select coin type")
 	}
 	t := coinType(args)
-	resp, err := client.DumpTables(context.Background(), &pb.CoinSelection{t})
+	resp, err := client.DumpTables(context.Background(), &pb.CoinSelection{Coin: t})
 	if err != nil {
 		return err
 	}
@@ -251,10 +255,12 @@ func (x *Spend) Execute(args []string) error {
 	t := coinType(args)
 	var feeLevel pb.FeeLevel
 	userSelection := ""
-	if len(args) > 3 {
+	referenceID := ""
+	if len(args) > 4 {
 		userSelection = args[3]
+		referenceID = args[4]
 	}
-	if len(args) < 3 {
+	if len(args) < 4 {
 		return errors.New("Address and amount are required")
 	}
 	switch strings.ToLower(userSelection) {
@@ -271,7 +277,13 @@ func (x *Spend) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := client.Spend(context.Background(), &pb.SpendInfo{t, args[1], uint64(amt), feeLevel})
+	resp, err := client.Spend(context.Background(), &pb.SpendInfo{
+		Coin:     t,
+		Address:  args[1],
+		Amount:   uint64(amt),
+		FeeLevel: feeLevel,
+		Memo:     referenceID,
+	})
 	if err != nil {
 		return err
 	}
@@ -293,7 +305,7 @@ func (x *Balance) Execute(args []string) error {
 		return errors.New("Must select coin type")
 	}
 	t := coinType(args)
-	resp, err := client.Balance(context.Background(), &pb.CoinSelection{t})
+	resp, err := client.Balance(context.Background(), &pb.CoinSelection{Coin: t})
 	if err != nil {
 		return err
 	}
