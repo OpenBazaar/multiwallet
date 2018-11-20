@@ -251,7 +251,7 @@ func (i *BlockBookClient) getTransactions(addr string) ([]client.Transaction, er
 		if err != nil {
 			return nil, err
 		}
-		resp, err := i.doRequest("/addrs/"+addr, http.MethodGet, nil, q)
+		resp, err := i.doRequest("/address/"+addr, http.MethodGet, nil, q)
 		if err != nil {
 			return nil, err
 		}
@@ -424,6 +424,7 @@ func (i *BlockBookClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 	i.socketClient.On("bitcoind/hashblock", func(h *gosocketio.Channel, arg interface{}) {
 		best, err := i.GetBestBlock()
 		if err != nil {
+			fmt.Println("err", err.Error())
 			Log.Errorf("Error downloading best block: %s", err.Error())
 			return
 		}
