@@ -304,7 +304,7 @@ func (i *BlockBookClient) GetUtxos(addrs []btcutil.Address) ([]client.Utxo, erro
 			wg.Add(1)
 		}
 		for _, addr := range addrs {
-			go func() {
+			go func(addr btcutil.Address) {
 				resp, err := i.doRequest("/utxo/"+addr.String(), http.MethodGet, nil, nil)
 				if err != nil {
 					utxoChan <- utxoOrError{nil, err}
@@ -355,7 +355,7 @@ func (i *BlockBookClient) GetUtxos(addrs []btcutil.Address) ([]client.Utxo, erro
 				}
 				wg2.Wait()
 				wg.Done()
-			}()
+			}(addr)
 		}
 		wg.Wait()
 		close(utxoChan)
