@@ -37,6 +37,7 @@ enum CoinType {
     BITCOIN_CASH = 1;
     ZCASH        = 2;
     LITECOIN     = 3;
+    ETHEREUM     = 4;
 }
 
 message Empty {}
@@ -135,6 +136,7 @@ message SpendInfo {
     string address    = 2;
     uint64 amount     = 3;
     FeeLevel feeLevel = 4;
+    string memo       = 5;
 }
 
 message Confirmations {

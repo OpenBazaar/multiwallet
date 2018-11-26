@@ -62,6 +62,7 @@ func (x *Start) Execute(args []string) error {
 	m[wi.BitcoinCash] = true
 	m[wi.Zcash] = true
 	m[wi.Litecoin] = true
+	m[wi.Ethereum] = true
 	params := &chaincfg.MainNetParams
 	if x.Testnet {
 		params = &chaincfg.TestNet3Params
