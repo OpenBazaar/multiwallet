@@ -244,25 +244,31 @@ type Spend struct{}
 var spend Spend
 
 func (x *Spend) Execute(args []string) error {
-	client, conn, err := newGRPCClient()
+	var (
+		address       string
+		feeLevel      pb.FeeLevel
+		referenceID   string
+		userSelection string
+
+		client, conn, err = newGRPCClient()
+	)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+
 	if len(args) == 0 {
 		return errors.New("Must select coin type")
 	}
-	t := coinType(args)
-	var feeLevel pb.FeeLevel
-	userSelection := ""
-	referenceID := ""
 	if len(args) > 4 {
+		address = args[1]
 		userSelection = args[3]
 		referenceID = args[4]
 	}
 	if len(args) < 4 {
 		return errors.New("Address and amount are required")
 	}
+
 	switch strings.ToLower(userSelection) {
 	case "economic":
 		feeLevel = pb.FeeLevel_ECONOMIC
@@ -273,13 +279,15 @@ func (x *Spend) Execute(args []string) error {
 	default:
 		feeLevel = pb.FeeLevel_NORMAL
 	}
+
 	amt, err := strconv.Atoi(args[2])
 	if err != nil {
 		return err
 	}
+
 	resp, err := client.Spend(context.Background(), &pb.SpendInfo{
-		Coin:     t,
-		Address:  args[1],
+		Coin:     coinType(args),
+		Address:  address,
 		Amount:   uint64(amt),
 		FeeLevel: feeLevel,
 		Memo:     referenceID,
@@ -287,6 +295,7 @@ func (x *Spend) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+
 	fmt.Println(resp.Hash)
 	return nil
 }
