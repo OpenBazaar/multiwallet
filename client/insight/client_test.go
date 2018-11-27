@@ -1,4 +1,4 @@
-package insight
+package insight_test
 
 import (
 	"encoding/hex"
@@ -8,49 +8,44 @@ import (
 	"testing"
 	"time"
 
-	"sync"
-
-	gosocketio "github.com/OpenBazaar/golang-socketio"
+	"github.com/OpenBazaar/multiwallet/client/insight"
+	"github.com/OpenBazaar/multiwallet/model"
+	"github.com/OpenBazaar/multiwallet/model/mock"
+	"github.com/OpenBazaar/multiwallet/test"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil"
 	httpmock "gopkg.in/jarcoal/httpmock.v1"
 )
 
-func NewTestClient() *InsightClient {
-	u, _ := url.Parse("http://localhost:8334/")
-	ic := &InsightClient{
-		httpClient:      http.Client{},
-		apiUrl:          *u,
-		blockNotifyChan: make(chan Block),
-		txNotifyChan:    make(chan Transaction),
-		socketClient:    &gosocketio.Client{},
-		listenLock:      sync.Mutex{},
+func MustNewInsightClient(target string) *insight.InsightClient {
+	ic, err := insight.NewInsightClient(target, nil)
+	if err != nil {
+		panic(err)
 	}
-	ic.requestFunc = ic.doRequest
 	return ic
 }
 
-var TestTx = Transaction{
+var TestTx = model.Transaction{
 	Txid:     "1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428",
 	Version:  2,
 	Locktime: 512378,
-	Inputs: []Input{
+	Inputs: []model.Input{
 		{
 			Txid:       "6d892f04fc097f430d58ab06229c9b6344a130fc1842da5b990e857daed42194",
 			Vout:       1,
 			Sequence:   1,
 			ValueIface: "0.04294455",
-			ScriptSig: Script{
+			ScriptSig: model.Script{
 				Hex: "4830450221008665481674067564ef562cfd8d1ca8f1506133fb26a2319e4b8dfba3cedfd5de022038f27121c44e6c64b93b94d72620e11b9de35fd864730175db9176ca98f1ec610121022023e49335a0dddb864ff673468a6cc04e282571b1227933fcf3ff9babbcc662",
 			},
 			Addr:     "1C74Gbij8Q5h61W58aSKGvXK4rk82T2A3y",
 			Satoshis: 4294455,
 		},
 	},
-	Outputs: []Output{
+	Outputs: []model.Output{
 		{
-			ScriptPubKey: OutScript{
-				Script: Script{
+			ScriptPubKey: model.OutScript{
+				Script: model.Script{
 					Hex: "76a914ff3f7d402fbd6d116ba4a02af9784f3ae9b7108a88ac",
 				},
 				Type:      "pay-to-pubkey-hash",
@@ -59,8 +54,8 @@ var TestTx = Transaction{
 			ValueIface: "0.01398175",
 		},
 		{
-			ScriptPubKey: OutScript{
-				Script: Script{
+			ScriptPubKey: model.OutScript{
+				Script: model.Script{
 					Hex: "a9148a62462d08a977fa89226a56fca7eb01b6fef67c87",
 				},
 				Type:      "pay-to-script-hashh",
@@ -76,18 +71,20 @@ var TestTx = Transaction{
 }
 
 func TestInsightClient_GetInfo(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	var (
-		c            = NewTestClient()
-		testPath     = fmt.Sprintf("http://%s/status", c.apiUrl.Host)
-		expectedInfo = MockInfo
+		endpoint     = "http://localhost:8334"
+		c            = MustNewInsightClient(endpoint)
+		testPath     = fmt.Sprintf("%s/status", endpoint)
+		expectedInfo = mock.MockInfo
+		httpClient   = http.Client{}
 	)
+	httpmock.ActivateNonDefault(&httpClient)
+	defer httpmock.DeactivateAndReset()
+	c.HTTPClient = httpClient
 
-	response, err := httpmock.NewJsonResponse(http.StatusOK, Status{Info: expectedInfo})
+	response, err := httpmock.NewJsonResponse(http.StatusOK, model.Status{Info: expectedInfo})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	httpmock.RegisterResponder(http.MethodGet, testPath,
@@ -98,7 +95,7 @@ func TestInsightClient_GetInfo(t *testing.T) {
 
 	info, err := c.GetInfo()
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if !expectedInfo.IsEqual(*info) {
 		t.Errorf("returned invalid info: %v", info)
@@ -106,18 +103,20 @@ func TestInsightClient_GetInfo(t *testing.T) {
 }
 
 func TestInsightClient_GetTransaction(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	var (
-		c          = NewTestClient()
-		testPath   = fmt.Sprintf("http://%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", c.apiUrl.Host)
+		endpoint   = "http://localhost:8334"
+		c          = MustNewInsightClient(endpoint)
+		testPath   = fmt.Sprintf("%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", endpoint)
 		expectedTx = TestTx
+		httpClient = http.Client{}
 	)
+	httpmock.ActivateNonDefault(&httpClient)
+	defer httpmock.DeactivateAndReset()
+	c.HTTPClient = httpClient
 
 	response, err := httpmock.NewJsonResponse(http.StatusOK, expectedTx)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	httpmock.RegisterResponder(http.MethodGet, testPath,
@@ -128,24 +127,26 @@ func TestInsightClient_GetTransaction(t *testing.T) {
 
 	tx, err := c.GetTransaction("1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428")
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
-	validateTransaction(*tx, expectedTx, t)
+	test.ValidateTransaction(*tx, expectedTx, t)
 }
 
 func TestInsightClient_GetRawTransaction(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	var (
-		c               = NewTestClient()
-		testPath        = fmt.Sprintf("http://%s/rawtx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", c.apiUrl.Host)
+		endpoint        = "http://localhost:8334"
+		c               = MustNewInsightClient(endpoint)
+		testPath        = fmt.Sprintf("%s/rawtx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", endpoint)
 		expectedTxBytes = []byte("encoded tx data here")
+		httpClient      = http.Client{}
 	)
+	httpmock.ActivateNonDefault(&httpClient)
+	defer httpmock.DeactivateAndReset()
+	c.HTTPClient = httpClient
 
-	response, err := httpmock.NewJsonResponse(http.StatusOK, RawTxResponse{RawTx: hex.EncodeToString(expectedTxBytes)})
+	response, err := httpmock.NewJsonResponse(http.StatusOK, model.RawTxResponse{RawTx: hex.EncodeToString(expectedTxBytes)})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	httpmock.RegisterResponder(http.MethodGet, testPath,
@@ -156,7 +157,7 @@ func TestInsightClient_GetRawTransaction(t *testing.T) {
 
 	txBytes, err := c.GetRawTransaction("1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428")
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if string(txBytes) != string(expectedTxBytes) {
 		t.Errorf("returned unexpected raw tx bytes: %v\n", hex.EncodeToString(txBytes))
@@ -164,25 +165,27 @@ func TestInsightClient_GetRawTransaction(t *testing.T) {
 }
 
 func TestInsightClient_GetTransactions(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	var (
-		c        = NewTestClient()
-		testPath = fmt.Sprintf("http://%s/addrs/txs", c.apiUrl.Host)
-		expected = TransactionList{
+		endpoint = "http://localhost:8334"
+		c        = MustNewInsightClient(endpoint)
+		testPath = fmt.Sprintf("%s/addrs/txs", endpoint)
+		expected = model.TransactionList{
 			TotalItems: 1,
 			From:       0,
 			To:         1,
-			Items: []Transaction{
+			Items: []model.Transaction{
 				TestTx,
 			},
 		}
+		httpClient = http.Client{}
 	)
+	httpmock.ActivateNonDefault(&httpClient)
+	defer httpmock.DeactivateAndReset()
+	c.HTTPClient = httpClient
 
 	response, err := httpmock.NewJsonResponse(http.StatusOK, expected)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	httpmock.RegisterResponder(http.MethodPost, testPath,
@@ -193,105 +196,25 @@ func TestInsightClient_GetTransactions(t *testing.T) {
 
 	addr, err := btcutil.DecodeAddress("1C74Gbij8Q5h61W58aSKGvXK4rk82T2A3y", &chaincfg.MainNetParams)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	txs, err := c.GetTransactions([]btcutil.Address{addr})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if len(txs) != 1 {
 		t.Error("Returned incorrect number of transactions")
 		return
 	}
-	validateTransaction(txs[0], expected.Items[0], t)
-}
-
-func validateTransaction(tx, expectedTx Transaction, t *testing.T) {
-	if tx.Txid != expectedTx.Txid {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Version != expectedTx.Version {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Locktime != expectedTx.Locktime {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Time != expectedTx.Time {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.BlockHash != expectedTx.BlockHash {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.BlockHeight != expectedTx.BlockHeight {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Confirmations != expectedTx.Confirmations {
-		t.Error("Returned invalid transaction")
-	}
-	if len(tx.Inputs) != 1 {
-		t.Error("Returned incorrect number of inputs")
-		return
-	}
-	if tx.Inputs[0].Txid != expectedTx.Inputs[0].Txid {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Inputs[0].Value != 0.04294455 {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Inputs[0].Satoshis != expectedTx.Inputs[0].Satoshis {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Inputs[0].Addr != expectedTx.Inputs[0].Addr {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Inputs[0].Sequence != expectedTx.Inputs[0].Sequence {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Inputs[0].Vout != expectedTx.Inputs[0].Vout {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Inputs[0].ScriptSig.Hex != expectedTx.Inputs[0].ScriptSig.Hex {
-		t.Error("Returned invalid transaction")
-	}
-
-	if len(tx.Outputs) != 2 {
-		t.Error("Returned incorrect number of outputs")
-		return
-	}
-	if tx.Outputs[0].Value != 0.01398175 {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Outputs[0].ScriptPubKey.Hex != expectedTx.Outputs[0].ScriptPubKey.Hex {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Outputs[0].ScriptPubKey.Type != expectedTx.Outputs[0].ScriptPubKey.Type {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Outputs[0].ScriptPubKey.Addresses[0] != expectedTx.Outputs[0].ScriptPubKey.Addresses[0] {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Outputs[1].Value != 0.02717080 {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Outputs[1].ScriptPubKey.Hex != expectedTx.Outputs[1].ScriptPubKey.Hex {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Outputs[1].ScriptPubKey.Type != expectedTx.Outputs[1].ScriptPubKey.Type {
-		t.Error("Returned invalid transaction")
-	}
-	if tx.Outputs[1].ScriptPubKey.Addresses[0] != expectedTx.Outputs[1].ScriptPubKey.Addresses[0] {
-		t.Error("Returned invalid transaction")
-	}
+	test.ValidateTransaction(txs[0], expected.Items[0], t)
 }
 
 func TestInsightClient_GetUtxos(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	var (
-		c        = NewTestClient()
-		testPath = fmt.Sprintf("http://%s/addrs/utxo", c.apiUrl.Host)
-		expected = []Utxo{
+		endpoint = "http://localhost:8334"
+		c        = MustNewInsightClient(endpoint)
+		testPath = fmt.Sprintf("%s/addrs/utxo", endpoint)
+		expected = []model.Utxo{
 			{
 				Address:       "1QGdNEDjWnghrjfTBCTDAPZZ3ffoKvGc9B",
 				ScriptPubKey:  "76a914ff3f7d402fbd6d116ba4a02af9784f3ae9b7108a88ac",
@@ -302,11 +225,15 @@ func TestInsightClient_GetUtxos(t *testing.T) {
 				AmountIface:   "0.01398175",
 			},
 		}
+		httpClient = http.Client{}
 	)
+	httpmock.ActivateNonDefault(&httpClient)
+	defer httpmock.DeactivateAndReset()
+	c.HTTPClient = httpClient
 
 	response, err := httpmock.NewJsonResponse(http.StatusOK, expected)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	httpmock.RegisterResponder(http.MethodPost, testPath,
@@ -317,11 +244,11 @@ func TestInsightClient_GetUtxos(t *testing.T) {
 
 	addr, err := btcutil.DecodeAddress("1QGdNEDjWnghrjfTBCTDAPZZ3ffoKvGc9B", &chaincfg.MainNetParams)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	utxos, err := c.GetUtxos([]btcutil.Address{addr})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if len(utxos) != 1 {
 		t.Error("Returned incorrect number of utxos")
@@ -329,7 +256,7 @@ func TestInsightClient_GetUtxos(t *testing.T) {
 	validateUtxo(utxos[0], expected[0], t)
 }
 
-func validateUtxo(utxo, expected Utxo, t *testing.T) {
+func validateUtxo(utxo, expected model.Utxo, t *testing.T) {
 	if utxo.Txid != expected.Txid {
 		t.Error("Invalid utxo")
 	}
@@ -355,18 +282,19 @@ func validateUtxo(utxo, expected Utxo, t *testing.T) {
 
 func TestInsightClient_BlockNotify(t *testing.T) {
 	var (
-		c        = NewTestClient()
+		endpoint = "http://localhost:8334"
+		c        = MustNewInsightClient(endpoint)
 		testHash = "0000000000000000003f1fb88ac3dab0e607e87def0e9031f7bea02cb464a04f"
 	)
 
 	go func() {
-		c.blockNotifyChan <- Block{Hash: testHash}
+		c.BlockChannel() <- model.Block{Hash: testHash}
 	}()
 
 	ticker := time.NewTicker(time.Second)
 	select {
 	case <-ticker.C:
-		t.Error("Timed out waiting for block")
+		t.Fatal("Timed out waiting for block")
 	case b := <-c.BlockNotify():
 		if b.Hash != testHash {
 			t.Error("Returned incorrect block hash")
@@ -375,52 +303,56 @@ func TestInsightClient_BlockNotify(t *testing.T) {
 }
 
 func TestInsightClient_TransactionNotify(t *testing.T) {
-	c := NewTestClient()
+	endpoint := "http://localhost:8334"
+	c := MustNewInsightClient(endpoint)
 
 	go func() {
-		c.txNotifyChan <- TestTx
+		c.TxChannel() <- TestTx
 	}()
 
 	ticker := time.NewTicker(time.Second)
 	select {
 	case <-ticker.C:
-		t.Error("Timed out waiting for tx")
+		t.Fatal("Timed out waiting for tx")
 	case b := <-c.TransactionNotify():
 		for n, in := range b.Inputs {
-			f, err := toFloat(in.ValueIface)
+			f, err := model.ToFloat(in.ValueIface)
 			if err != nil {
 				t.Error(err)
 			}
 			b.Inputs[n].Value = f
 		}
 		for n, out := range b.Outputs {
-			f, err := toFloat(out.ValueIface)
+			f, err := model.ToFloat(out.ValueIface)
 			if err != nil {
 				t.Error(err)
 			}
 			b.Outputs[n].Value = f
 		}
-		validateTransaction(b, TestTx, t)
+		test.ValidateTransaction(b, TestTx, t)
 	}
 }
 
 func TestInsightClient_Broadcast(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
 
 	type Response struct {
 		Txid string `json:"txid"`
 	}
 
 	var (
-		c        = NewTestClient()
-		testPath = fmt.Sprintf("http://%s/tx/send", c.apiUrl.Host)
-		expected = Response{"1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"}
+		endpoint   = "http://localhost:8334"
+		c          = MustNewInsightClient(endpoint)
+		testPath   = fmt.Sprintf("%s/tx/send", endpoint)
+		expected   = Response{"1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"}
+		httpClient = http.Client{}
 	)
+	httpmock.ActivateNonDefault(&httpClient)
+	defer httpmock.DeactivateAndReset()
+	c.HTTPClient = httpClient
 
 	response, err := httpmock.NewJsonResponse(http.StatusOK, expected)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	httpmock.RegisterResponder(http.MethodPost, testPath,
@@ -431,7 +363,7 @@ func TestInsightClient_Broadcast(t *testing.T) {
 
 	id, err := c.Broadcast([]byte{0x00, 0x01, 0x02, 0x03})
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if id != expected.Txid {
 		t.Error("Returned incorrect txid")
@@ -439,14 +371,12 @@ func TestInsightClient_Broadcast(t *testing.T) {
 }
 
 func TestInsightClient_GetBestBlock(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	var (
-		c        = NewTestClient()
-		testPath = fmt.Sprintf("http://%s/blocks", c.apiUrl.Host)
-		expected = BlockList{
-			Blocks: []Block{
+		endpoint = "http://localhost:8334"
+		c        = MustNewInsightClient(endpoint)
+		testPath = fmt.Sprintf("%s/blocks", endpoint)
+		expected = model.BlockList{
+			Blocks: []model.Block{
 				{
 					Hash:   "00000000000000000108a1f4d4db839702d72f16561b1154600a26c453ecb378",
 					Height: 2,
@@ -463,11 +393,15 @@ func TestInsightClient_GetBestBlock(t *testing.T) {
 				},
 			},
 		}
+		httpClient = http.Client{}
 	)
+	httpmock.ActivateNonDefault(&httpClient)
+	defer httpmock.DeactivateAndReset()
+	c.HTTPClient = httpClient
 
 	response, err := httpmock.NewJsonResponse(http.StatusOK, expected)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	httpmock.RegisterResponder(http.MethodGet, testPath,
@@ -478,12 +412,12 @@ func TestInsightClient_GetBestBlock(t *testing.T) {
 
 	best, err := c.GetBestBlock()
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	validateBlock(*best, expected.Blocks[0], expected.Blocks[1].Hash, t)
 }
 
-func validateBlock(b, expected Block, prevhash string, t *testing.T) {
+func validateBlock(b, expected model.Block, prevhash string, t *testing.T) {
 	if len(b.Tx) != len(expected.Tx) {
 		t.Errorf("Invalid block obj")
 	}
@@ -505,14 +439,13 @@ func validateBlock(b, expected Block, prevhash string, t *testing.T) {
 }
 
 func TestInsightClient_GetBlocksBefore(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
 
 	var (
-		c        = NewTestClient()
-		testPath = fmt.Sprintf("http://%s/blocks", c.apiUrl.Host)
-		expected = BlockList{
-			Blocks: []Block{
+		endpoint = "http://localhost:8334"
+		c        = MustNewInsightClient(endpoint)
+		testPath = fmt.Sprintf("%s/blocks", endpoint)
+		expected = model.BlockList{
+			Blocks: []model.Block{
 				{
 					Hash:              "0000000000c96f193d23fde69a2fff56793e99e23cbd51947828a33e287ff659",
 					Height:            1,
@@ -523,11 +456,15 @@ func TestInsightClient_GetBlocksBefore(t *testing.T) {
 				},
 			},
 		}
+		httpClient = http.Client{}
 	)
+	httpmock.ActivateNonDefault(&httpClient)
+	defer httpmock.DeactivateAndReset()
+	c.HTTPClient = httpClient
 
 	response, err := httpmock.NewJsonResponse(http.StatusOK, expected)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	httpmock.RegisterResponder(http.MethodGet, testPath,
@@ -538,41 +475,22 @@ func TestInsightClient_GetBlocksBefore(t *testing.T) {
 
 	blocks, err := c.GetBlocksBefore(time.Unix(23450, 0), 1)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if len(blocks.Blocks) != 1 {
-		t.Fatalf("returned incorrect number of blocks: %v", len(blocks.Blocks))
+		t.Errorf("returned incorrect number of blocks: %v", len(blocks.Blocks))
 	}
 	validateBlock(blocks.Blocks[0], expected.Blocks[0], expected.Blocks[0].PreviousBlockhash, t)
 }
 
-func Test_toFloat64(t *testing.T) {
-	f, err := toFloat(12.345)
-	if err != nil {
-		t.Error(err)
-	}
-	if f != 12.345 {
-		t.Error("Returned incorrect float")
-	}
-	f, err = toFloat("456.789")
-	if err != nil {
-		t.Error(err)
-	}
-	if f != 456.789 {
-		t.Error("Returned incorrect float")
-	}
-}
-
 func TestInsightClient_setupListeners(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	var (
-		c             = NewTestClient()
-		mockSocket    = &MockSocketClient{make(map[string]func(h *gosocketio.Channel, args interface{})), []string{}}
-		testBlockPath = fmt.Sprintf("http://%s/blocks", c.apiUrl.Host)
-		expected      = BlockList{
-			Blocks: []Block{
+		endpoint      = "http://localhost:8334"
+		c             = MustNewInsightClient(endpoint)
+		mockSocket    = mock.NewMockWebsocketClient()
+		testBlockPath = fmt.Sprintf("%s/blocks", endpoint)
+		expected      = model.BlockList{
+			Blocks: []model.Block{
 				{
 					Hash:   "00000000000000000108a1f4d4db839702d72f16561b1154600a26c453ecb378",
 					Height: 2,
@@ -589,13 +507,19 @@ func TestInsightClient_setupListeners(t *testing.T) {
 				},
 			},
 		}
-		testTxPath = fmt.Sprintf("http://%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", c.apiUrl.Host)
+		testTxPath = fmt.Sprintf("%s/tx/1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428", endpoint)
 		expectedTx = TestTx
+		httpClient = http.Client{}
 	)
+	httpmock.ActivateNonDefault(&httpClient)
+	defer httpmock.DeactivateAndReset()
+	c.HTTPClient = httpClient
+
+	c.SocketClient = mockSocket
 
 	response, err := httpmock.NewJsonResponse(http.StatusOK, expected)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	httpmock.RegisterResponder(http.MethodGet, testBlockPath,
 		func(req *http.Request) (*http.Response, error) {
@@ -604,7 +528,7 @@ func TestInsightClient_setupListeners(t *testing.T) {
 	)
 	response2, err := httpmock.NewJsonResponse(http.StatusOK, expectedTx)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	httpmock.RegisterResponder(http.MethodGet, testTxPath,
 		func(req *http.Request) (*http.Response, error) {
@@ -612,24 +536,23 @@ func TestInsightClient_setupListeners(t *testing.T) {
 		},
 	)
 
-	c.socketClient = mockSocket
 	go c.Start()
 	time.Sleep(time.Second)
 
 	go func() {
 		m := make(map[string]interface{})
 		m[""] = "1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"
-		mockSocket.callbacks["bitcoind/hashblock"](nil, "")
-		mockSocket.callbacks["bitcoind/addresstxid"](nil, m)
+		mockSocket.SendCallback("bitcoind/hashblock", nil, "")
+		mockSocket.SendCallback("bitcoind/addresstxid", nil, m)
 	}()
 
 	ticker := time.NewTicker(time.Second * 2)
-	var best Block
+	var best model.Block
 	select {
-	case b := <-c.blockNotifyChan:
+	case b := <-c.BlockChannel():
 		best = b
 	case <-ticker.C:
-		t.Error("Block notify listener timed out")
+		t.Fatal("Block notify listener timed out")
 		return
 	}
 	if len(best.Tx) != len(expected.Blocks[0].Tx) {
@@ -652,52 +575,56 @@ func TestInsightClient_setupListeners(t *testing.T) {
 	}
 
 	ticker = time.NewTicker(time.Second * 2)
-	var trans Transaction
+	var trans model.Transaction
 	select {
-	case tx := <-c.txNotifyChan:
+	case tx := <-c.TxChannel():
 		trans = tx
 	case <-ticker.C:
-		t.Error("Tx notify listener timed out")
+		t.Fatal("Tx notify listener timed out")
 		return
 	}
-	validateTransaction(trans, TestTx, t)
+	test.ValidateTransaction(trans, TestTx, t)
 }
 
 func TestInsightClient_ListenAddress(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	var (
-		c          = NewTestClient()
-		mockSocket = &MockSocketClient{make(map[string]func(h *gosocketio.Channel, args interface{})), []string{}}
+		endpoint   = "http://localhost:8334"
+		c          = MustNewInsightClient(endpoint)
+		mockSocket = mock.NewMockWebsocketClient()
+		httpClient = http.Client{}
 	)
+	httpmock.ActivateNonDefault(&httpClient)
+	defer httpmock.DeactivateAndReset()
+	c.HTTPClient = httpClient
 
 	addr, err := btcutil.DecodeAddress("17rxURoF96VhmkcEGCj5LNQkmN9HVhWb7F", &chaincfg.MainNetParams)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
-	c.socketClient = mockSocket
+	c.SocketClient = mockSocket
 	c.ListenAddress(addr)
 
-	if mockSocket.listeningAddresses[0] != addr.String() {
-		t.Error("Failed to listen on address")
+	if !mockSocket.IsListeningForAddress(addr.String()) {
+		t.Fatal("Failed to listen on address")
 	}
 }
 
 func TestInsightClient_EstimateFee(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
 	var (
-		c        = NewTestClient()
-		testPath = fmt.Sprintf("http://%s/utils/estimatefee", c.apiUrl.Host)
-		expected = map[int]float64{2: 1.234}
+		endpoint   = "http://localhost:8334"
+		c          = MustNewInsightClient(endpoint)
+		testPath   = fmt.Sprintf("%s/utils/estimatefee", endpoint)
+		expected   = map[int]float64{2: 1.234}
+		httpClient = http.Client{}
 	)
+	httpmock.ActivateNonDefault(&httpClient)
+	defer httpmock.DeactivateAndReset()
+	c.HTTPClient = httpClient
 
 	response, err := httpmock.NewJsonResponse(http.StatusOK, expected)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	httpmock.RegisterResponder(http.MethodGet, testPath,
@@ -708,7 +635,7 @@ func TestInsightClient_EstimateFee(t *testing.T) {
 
 	fee, err := c.EstimateFee(2)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if fee != int(expected[2]*1e8) {
 		t.Errorf("returned unexpected fee: %v", fee)
@@ -727,9 +654,9 @@ func TestDefaultPort(t *testing.T) {
 	for _, s := range urls {
 		u, err := url.Parse(s.url)
 		if err != nil {
-			t.Error(err)
+			t.Fatal(err)
 		}
-		port := defaultPort(*u)
+		port := model.DefaultPort(*u)
 		if port != s.port {
 			t.Error("Returned incorrect port")
 		}

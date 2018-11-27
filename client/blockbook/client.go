@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/OpenBazaar/multiwallet/client"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -16,9 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/OpenBazaar/golang-socketio"
+	gosocketio "github.com/OpenBazaar/golang-socketio"
 	"github.com/OpenBazaar/golang-socketio/protocol"
 	"github.com/OpenBazaar/multiwallet/client/transport"
+	"github.com/OpenBazaar/multiwallet/model"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcutil"
 	"github.com/op/go-logging"
@@ -28,15 +28,16 @@ import (
 var Log = logging.MustGetLogger("client")
 
 type BlockBookClient struct {
-	httpClient      http.Client
 	apiUrl          url.URL
-	blockNotifyChan chan client.Block
-	txNotifyChan    chan client.Transaction
-	socketClient    client.SocketClient
+	blockNotifyChan chan model.Block
+	listenLock      sync.Mutex
+	listenQueue     []string
 	proxyDialer     proxy.Dialer
+	txNotifyChan    chan model.Transaction
 
-	listenQueue []string
-	listenLock  sync.Mutex
+	HTTPClient   http.Client
+	RequestFunc  func(endpoint, method string, body []byte, query url.Values) (*http.Response, error)
+	SocketClient model.SocketClient
 }
 
 func NewBlockBookClient(apiUrl string, proxyDialer proxy.Dialer) (*BlockBookClient, error) {
@@ -54,11 +55,11 @@ func NewBlockBookClient(apiUrl string, proxyDialer proxy.Dialer) (*BlockBookClie
 		dial = proxyDialer.Dial
 	}
 
-	bch := make(chan client.Block)
-	tch := make(chan client.Transaction)
+	bch := make(chan model.Block)
+	tch := make(chan model.Transaction)
 	tbTransport := &http.Transport{Dial: dial}
 	ic := &BlockBookClient{
-		httpClient:      http.Client{Timeout: time.Second * 30, Transport: tbTransport},
+		HTTPClient:      http.Client{Timeout: time.Second * 30, Transport: tbTransport},
 		apiUrl:          *u,
 		proxyDialer:     proxyDialer,
 		blockNotifyChan: bch,
@@ -68,13 +69,26 @@ func NewBlockBookClient(apiUrl string, proxyDialer proxy.Dialer) (*BlockBookClie
 	return ic, nil
 }
 
-func (i *BlockBookClient) Start() {
+func (i *BlockBookClient) BlockChannel() chan model.Block {
+	return i.blockNotifyChan
+}
+
+func (i *BlockBookClient) TxChannel() chan model.Transaction {
+	return i.txNotifyChan
+}
+
+func (i *BlockBookClient) EndpointURL() url.URL {
+	return i.apiUrl
+}
+
+func (i *BlockBookClient) Start() error {
 	go i.setupListeners(i.apiUrl, i.proxyDialer)
+	return nil
 }
 
 func (i *BlockBookClient) Close() {
-	if i.socketClient != nil {
-		i.socketClient.Close()
+	if i.SocketClient != nil {
+		i.SocketClient.Close()
 	}
 }
 
@@ -98,7 +112,7 @@ func (i *BlockBookClient) doRequest(endpoint, method string, body []byte, query 
 	}
 	req.Header.Add("Content-Type", "application/json")
 
-	resp, err := i.httpClient.Do(req)
+	resp, err := i.HTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +120,7 @@ func (i *BlockBookClient) doRequest(endpoint, method string, body []byte, query 
 	if resp.StatusCode == http.StatusBadRequest {
 		// Reset the body so we can read it again.
 		req.Body = ioutil.NopCloser(bytes.NewReader(body))
-		resp, err = i.httpClient.Do(req)
+		resp, err = i.HTTPClient.Do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -118,26 +132,26 @@ func (i *BlockBookClient) doRequest(endpoint, method string, body []byte, query 
 }
 
 // GetInfo is unused for now so we will not implement it yet
-func (i *BlockBookClient) GetInfo() (*client.Info, error) {
+func (i *BlockBookClient) GetInfo() (*model.Info, error) {
 	return nil, nil
 }
 
-func (i *BlockBookClient) GetTransaction(txid string) (*client.Transaction, error) {
+func (i *BlockBookClient) GetTransaction(txid string) (*model.Transaction, error) {
 	type resIn struct {
-		client.Input
+		model.Input
 		Addresses []string `json:"addresses"`
 	}
 	type resOut struct {
-		client.Output
+		model.Output
 		Spent bool `json:"spent"`
 	}
 	type resTx struct {
-		client.Transaction
-		Hex string `json:"hex"`
-		Vin []resIn `json:"vin"`
+		model.Transaction
+		Hex  string   `json:"hex"`
+		Vin  []resIn  `json:"vin"`
 		Vout []resOut `json:"vout"`
 	}
-	resp, err := i.doRequest("tx/"+txid, http.MethodGet, nil, nil)
+	resp, err := i.RequestFunc("tx/"+txid, http.MethodGet, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -148,14 +162,14 @@ func (i *BlockBookClient) GetTransaction(txid string) (*client.Transaction, erro
 		return nil, fmt.Errorf("error decoding transactions: %s", err)
 	}
 	for n, in := range tx.Vin {
-		f, err := toFloat(in.ValueIface)
+		f, err := model.ToFloat(in.ValueIface)
 		if err != nil {
 			return nil, err
 		}
 		tx.Vin[n].Value = f
 	}
 	for n, out := range tx.Vout {
-		f, err := toFloat(out.ValueIface)
+		f, err := model.ToFloat(out.ValueIface)
 		if err != nil {
 			return nil, err
 		}
@@ -165,23 +179,27 @@ func (i *BlockBookClient) GetTransaction(txid string) (*client.Transaction, erro
 	if err != nil {
 		return nil, err
 	}
-	ctx := client.Transaction{
-		Txid: tx.Txid,
+	ctx := model.Transaction{
+		BlockHash:     tx.BlockHash,
+		BlockHeight:   tx.BlockHeight,
+		BlockTime:     tx.BlockTime,
 		Confirmations: tx.Confirmations,
-		RawBytes: raw,
-		BlockHeight: tx.BlockHeight,
-		BlockTime: tx.BlockTime,
-		BlockHash: tx.BlockHash,
-		Time: tx.Time,
-		Version: tx.Version,
+		Locktime:      tx.Locktime,
+		RawBytes:      raw,
+		Time:          tx.Time,
+		Txid:          tx.Txid,
+		Version:       tx.Version,
 	}
 	for n, i := range tx.Vin {
-		newIn := client.Input{
-			Txid: i.Txid,
-			Value: tx.Vin[n].Value,
-			N: i.N,
-			Sequence: i.Sequence,
+		newIn := model.Input{
+			Addr:      i.Addr,
+			N:         i.N,
+			Satoshis:  i.Satoshis,
 			ScriptSig: i.ScriptSig,
+			Sequence:  i.Sequence,
+			Txid:      i.Txid,
+			Value:     tx.Vin[n].Value,
+			Vout:      i.Vout,
 		}
 		if len(i.Addresses) > 0 {
 			newIn.Addr = i.Addresses[0]
@@ -189,9 +207,9 @@ func (i *BlockBookClient) GetTransaction(txid string) (*client.Transaction, erro
 		ctx.Inputs = append(ctx.Inputs, newIn)
 	}
 	for n, o := range tx.Vout {
-		newOut := client.Output {
-			Value: tx.Vout[n].Value,
-			N: o.N,
+		newOut := model.Output{
+			Value:        tx.Vout[n].Value,
+			N:            o.N,
 			ScriptPubKey: o.ScriptPubKey,
 		}
 		ctx.Outputs = append(ctx.Outputs, newOut)
@@ -204,10 +222,10 @@ func (i *BlockBookClient) GetRawTransaction(txid string) ([]byte, error) {
 	return nil, nil
 }
 
-func (i *BlockBookClient) GetTransactions(addrs []btcutil.Address) ([]client.Transaction, error) {
-	var txs []client.Transaction
+func (i *BlockBookClient) GetTransactions(addrs []btcutil.Address) ([]model.Transaction, error) {
+	var txs []model.Transaction
 	type txsOrError struct {
-		Txs []client.Transaction
+		Txs []model.Transaction
 		Err error
 	}
 	txChan := make(chan txsOrError)
@@ -233,14 +251,14 @@ func (i *BlockBookClient) GetTransactions(addrs []btcutil.Address) ([]client.Tra
 	return txs, nil
 }
 
-func (i *BlockBookClient) getTransactions(addr string) ([]client.Transaction, error) {
-	var ret []client.Transaction
+func (i *BlockBookClient) getTransactions(addr string) ([]model.Transaction, error) {
+	var ret []model.Transaction
 	type resAddr struct {
-		TotalPages int `json:"totalPages"`
+		TotalPages   int      `json:"totalPages"`
 		Transactions []string `json:"transactions"`
 	}
 	type txOrError struct {
-		Tx client.Transaction
+		Tx  model.Transaction
 		Err error
 	}
 	page := 1
@@ -249,7 +267,7 @@ func (i *BlockBookClient) getTransactions(addr string) ([]client.Transaction, er
 		if err != nil {
 			return nil, err
 		}
-		resp, err := i.doRequest("/address/"+addr, http.MethodGet, nil, q)
+		resp, err := i.RequestFunc("/address/"+addr, http.MethodGet, nil, q)
 		if err != nil {
 			return nil, err
 		}
@@ -287,11 +305,11 @@ func (i *BlockBookClient) getTransactions(addr string) ([]client.Transaction, er
 	return ret, nil
 }
 
-func (i *BlockBookClient) GetUtxos(addrs []btcutil.Address) ([]client.Utxo, error) {
-	var ret []client.Utxo
+func (i *BlockBookClient) GetUtxos(addrs []btcutil.Address) ([]model.Utxo, error) {
+	var ret []model.Utxo
 	type utxoOrError struct {
-		Utxo *client.Utxo
-		Err error
+		Utxo *model.Utxo
+		Err  error
 	}
 	utxoChan := make(chan utxoOrError)
 	var wg sync.WaitGroup
@@ -301,12 +319,12 @@ func (i *BlockBookClient) GetUtxos(addrs []btcutil.Address) ([]client.Utxo, erro
 			go func(addr btcutil.Address) {
 				defer wg.Done()
 
-				resp, err := i.doRequest("/utxo/"+addr.String(), http.MethodGet, nil, nil)
+				resp, err := i.RequestFunc("/utxo/"+addr.String(), http.MethodGet, nil, nil)
 				if err != nil {
 					utxoChan <- utxoOrError{nil, err}
 					return
 				}
-				var utxos []client.Utxo
+				var utxos []model.Utxo
 				decoder := json.NewDecoder(resp.Body)
 				defer resp.Body.Close()
 				if err = decoder.Decode(&utxos); err != nil {
@@ -314,7 +332,7 @@ func (i *BlockBookClient) GetUtxos(addrs []btcutil.Address) ([]client.Utxo, erro
 					return
 				}
 				for z, u := range utxos {
-					f, err := toFloat(u.AmountIface)
+					f, err := model.ToFloat(u.AmountIface)
 					if err != nil {
 						utxoChan <- utxoOrError{nil, err}
 						return
@@ -324,7 +342,7 @@ func (i *BlockBookClient) GetUtxos(addrs []btcutil.Address) ([]client.Utxo, erro
 				var wg2 sync.WaitGroup
 				wg2.Add(len(utxos))
 				for _, u := range utxos {
-					go func(ut client.Utxo) {
+					go func(ut model.Utxo) {
 						defer wg2.Done()
 
 						tx, err := i.GetTransaction(ut.Txid)
@@ -358,11 +376,11 @@ func (i *BlockBookClient) GetUtxos(addrs []btcutil.Address) ([]client.Utxo, erro
 	return ret, nil
 }
 
-func (i *BlockBookClient) BlockNotify() <-chan client.Block {
+func (i *BlockBookClient) BlockNotify() <-chan model.Block {
 	return i.blockNotifyChan
 }
 
-func (i *BlockBookClient) TransactionNotify() <-chan client.Transaction {
+func (i *BlockBookClient) TransactionNotify() <-chan model.Transaction {
 	return i.txNotifyChan
 }
 
@@ -372,8 +390,8 @@ func (i *BlockBookClient) ListenAddress(addr btcutil.Address) {
 	var args []interface{}
 	args = append(args, "bitcoind/addresstxid")
 	args = append(args, []string{addr.String()})
-	if i.socketClient != nil {
-		i.socketClient.Emit("subscribe", args)
+	if i.SocketClient != nil {
+		i.SocketClient.Emit("subscribe", args)
 	} else {
 		i.listenQueue = append(i.listenQueue, addr.String())
 	}
@@ -381,12 +399,12 @@ func (i *BlockBookClient) ListenAddress(addr btcutil.Address) {
 
 func (i *BlockBookClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 	for {
-		if i.socketClient != nil {
+		if i.SocketClient != nil {
 			i.listenLock.Lock()
 			break
 		}
 		socketClient, err := gosocketio.Dial(
-			gosocketio.GetUrl(u.Hostname(), defaultPort(u), hasImpliedURLSecurity(u)),
+			gosocketio.GetUrl(u.Hostname(), model.DefaultPort(u), model.HasImpliedURLSecurity(u)),
 			transport.GetDefaultWebsocketTransport(proxyDialer),
 		)
 		if err == nil {
@@ -401,7 +419,7 @@ func (i *BlockBookClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 			case <-socketReady:
 				break
 			}
-			i.socketClient = socketClient
+			i.SocketClient = socketClient
 			continue
 		}
 		if time.Now().Unix()%60 == 0 {
@@ -410,7 +428,7 @@ func (i *BlockBookClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 		time.Sleep(time.Second * 2)
 	}
 
-	i.socketClient.On("bitcoind/hashblock", func(h *gosocketio.Channel, arg interface{}) {
+	i.SocketClient.On("bitcoind/hashblock", func(h *gosocketio.Channel, arg interface{}) {
 		best, err := i.GetBestBlock()
 		if err != nil {
 			Log.Errorf("Error downloading best block: %s", err.Error())
@@ -418,9 +436,9 @@ func (i *BlockBookClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 		}
 		i.blockNotifyChan <- *best
 	})
-	i.socketClient.Emit("subscribe", protocol.ToArgArray("bitcoind/hashblock"))
+	i.SocketClient.Emit("subscribe", protocol.ToArgArray("bitcoind/hashblock"))
 
-	i.socketClient.On("bitcoind/addresstxid", func(h *gosocketio.Channel, arg interface{}) {
+	i.SocketClient.On("bitcoind/addresstxid", func(h *gosocketio.Channel, arg interface{}) {
 		m, ok := arg.(map[string]interface{})
 		if !ok {
 			Log.Errorf("Error checking type after socket notification: %T", arg)
@@ -447,33 +465,16 @@ func (i *BlockBookClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 		var args []interface{}
 		args = append(args, "bitcoind/addresstxid")
 		args = append(args, []string{addr})
-		i.socketClient.Emit("subscribe", args)
+		i.SocketClient.Emit("subscribe", args)
 	}
 	i.listenQueue = []string{}
 	i.listenLock.Unlock()
 	Log.Infof("Connected to websocket endpoint %s", u.Host)
 }
 
-func defaultPort(u url.URL) int {
-	var port int
-	if parsedPort, err := strconv.ParseInt(u.Port(), 10, 32); err == nil {
-		port = int(parsedPort)
-	}
-	if port == 0 {
-		if hasImpliedURLSecurity(u) {
-			port = 443
-		} else {
-			port = 80
-		}
-	}
-	return port
-}
-
-func hasImpliedURLSecurity(u url.URL) bool { return u.Scheme == "https" }
-
 func (i *BlockBookClient) Broadcast(tx []byte) (string, error) {
 	txHex := hex.EncodeToString(tx)
-	resp, err := i.doRequest("sendtx/"+txHex, http.MethodGet, nil, nil)
+	resp, err := i.RequestFunc("sendtx/"+txHex, http.MethodGet, nil, nil)
 	if err != nil {
 		return "", fmt.Errorf("error broadcasting tx: %s", err)
 	}
@@ -489,9 +490,9 @@ func (i *BlockBookClient) Broadcast(tx []byte) (string, error) {
 	return rs.Txid, nil
 }
 
-func (i *BlockBookClient) GetBestBlock() (*client.Block, error) {
+func (i *BlockBookClient) GetBestBlock() (*model.Block, error) {
 	type backend struct {
-		Blocks int `json:"blocks"`
+		Blocks        int    `json:"blocks"`
 		BestBlockHash string `json:"bestBlockHash"`
 	}
 	type resIndex struct {
@@ -502,7 +503,7 @@ func (i *BlockBookClient) GetBestBlock() (*client.Block, error) {
 		BlockHash string `json:"blockHash"`
 	}
 
-	resp, err := i.doRequest("", http.MethodGet, nil, nil)
+	resp, err := i.RequestFunc("", http.MethodGet, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -512,7 +513,7 @@ func (i *BlockBookClient) GetBestBlock() (*client.Block, error) {
 	if err = decoder.Decode(bi); err != nil {
 		return nil, fmt.Errorf("error decoding block index: %s", err)
 	}
-	resp2, err := i.doRequest("/block-index/"+strconv.Itoa(bi.Backend.Blocks-1), http.MethodGet, nil, nil)
+	resp2, err := i.RequestFunc("/block-index/"+strconv.Itoa(bi.Backend.Blocks-1), http.MethodGet, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -522,16 +523,16 @@ func (i *BlockBookClient) GetBestBlock() (*client.Block, error) {
 	if err = decoder2.Decode(bh); err != nil {
 		return nil, fmt.Errorf("error decoding block hash: %s", err)
 	}
-	ret := client.Block{
-		Hash: bi.Backend.BestBlockHash,
-		Height: bi.Backend.Blocks,
+	ret := model.Block{
+		Hash:              bi.Backend.BestBlockHash,
+		Height:            bi.Backend.Blocks,
 		PreviousBlockhash: bh.BlockHash,
 	}
 	return &ret, nil
 }
 
-func (i *BlockBookClient) GetBlocksBefore(to time.Time, limit int) (*client.BlockList, error) {
-	resp, err := i.doRequest("blocks", http.MethodGet, nil, url.Values{
+func (i *BlockBookClient) GetBlocksBefore(to time.Time, limit int) (*model.BlockList, error) {
+	resp, err := i.RequestFunc("blocks", http.MethodGet, nil, url.Values{
 		"blockDate":      {to.Format("2006-01-02")},
 		"startTimestamp": {fmt.Sprint(to.Unix())},
 		"limit":          {fmt.Sprint(limit)},
@@ -539,7 +540,7 @@ func (i *BlockBookClient) GetBlocksBefore(to time.Time, limit int) (*client.Bloc
 	if err != nil {
 		return nil, err
 	}
-	list := new(client.BlockList)
+	list := new(model.BlockList)
 	decoder := json.NewDecoder(resp.Body)
 	defer resp.Body.Close()
 	if err = decoder.Decode(list); err != nil {
@@ -548,26 +549,8 @@ func (i *BlockBookClient) GetBlocksBefore(to time.Time, limit int) (*client.Bloc
 	return list, nil
 }
 
-// API sometimees returns a float64 or a string so we'll always convert it into a float64
-func toFloat(i interface{}) (float64, error) {
-	_, fok := i.(float64)
-	_, sok := i.(string)
-	if fok {
-		return i.(float64), nil
-	} else if sok {
-		s := i.(string)
-		f, err := strconv.ParseFloat(s, 64)
-		if err != nil {
-			return 0, fmt.Errorf("error parsing value float: %s", err)
-		}
-		return f, nil
-	} else {
-		return 0, errors.New("Unknown value type in response")
-	}
-}
-
 func (i *BlockBookClient) EstimateFee(nbBlocks int) (int, error) {
-	resp, err := i.doRequest("utils/estimatefee", http.MethodGet, nil, url.Values{"nbBlocks": {fmt.Sprint(nbBlocks)}})
+	resp, err := i.RequestFunc("utils/estimatefee", http.MethodGet, nil, url.Values{"nbBlocks": {fmt.Sprint(nbBlocks)}})
 	if err != nil {
 		return 0, err
 	}

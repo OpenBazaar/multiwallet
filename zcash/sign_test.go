@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/OpenBazaar/multiwallet/cache"
-	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/multiwallet/keys"
+	"github.com/OpenBazaar/multiwallet/model/mock"
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
 	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
@@ -59,7 +59,7 @@ func newMockWallet() (*ZCashWallet, error) {
 		db:     db,
 		fp:     fp,
 	}
-	cli := client.NewMockApiClient(bw.AddressToScript)
+	cli := mock.NewMockApiClient(bw.AddressToScript)
 	ws, err := service.NewWalletService(db, km, cli, params, wallet.BitcoinCash, cache.NewMockCacher())
 	if err != nil {
 		return nil, err

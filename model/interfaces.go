@@ -1,8 +1,6 @@
-package client
+package model
 
-import (
-	"github.com/btcsuite/btcutil"
-)
+import "github.com/btcsuite/btcutil"
 
 type APIClient interface {
 

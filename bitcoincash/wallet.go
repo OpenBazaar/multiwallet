@@ -11,6 +11,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/config"
 	"github.com/OpenBazaar/multiwallet/keys"
+	"github.com/OpenBazaar/multiwallet/model"
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
 	wi "github.com/OpenBazaar/wallet-interface"
@@ -31,7 +32,7 @@ type BitcoinCashWallet struct {
 	db     wi.Datastore
 	km     *keys.KeyManager
 	params *chaincfg.Params
-	client client.APIClient
+	client model.APIClient
 	ws     *service.WalletService
 	fp     *bcw.FeeProvider
 
@@ -341,7 +342,7 @@ func (w *BitcoinCashWallet) DumpTables(wr io.Writer) {
 func (w *BitcoinCashWallet) Broadcast(tx *wire.MsgTx) error {
 	var buf bytes.Buffer
 	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.BaseEncoding)
-	cTxn := client.Transaction{
+	cTxn := model.Transaction{
 		Txid:          tx.TxHash().String(),
 		Locktime:      int(tx.LockTime),
 		Version:       int(tx.Version),
@@ -365,10 +366,10 @@ func (w *BitcoinCashWallet) Broadcast(tx *wire.MsgTx) error {
 		if err != nil {
 			return err
 		}
-		input := client.Input{
+		input := model.Input{
 			Txid: in.PreviousOutPoint.Hash.String(),
 			Vout: int(in.PreviousOutPoint.Index),
-			ScriptSig: client.Script{
+			ScriptSig: model.Script{
 				Hex: hex.EncodeToString(in.SignatureScript),
 			},
 			Sequence: uint32(in.Sequence),
@@ -383,10 +384,10 @@ func (w *BitcoinCashWallet) Broadcast(tx *wire.MsgTx) error {
 		if err != nil {
 			return err
 		}
-		output := client.Output{
+		output := model.Output{
 			N: n,
-			ScriptPubKey: client.OutScript{
-				Script: client.Script{
+			ScriptPubKey: model.OutScript{
+				Script: model.Script{
 					Hex: hex.EncodeToString(out.PkScript),
 				},
 				Addresses: []string{addr.String()},

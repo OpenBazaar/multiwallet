@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/OpenBazaar/multiwallet/cache"
-	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/multiwallet/keys"
 	laddr "github.com/OpenBazaar/multiwallet/litecoin/address"
+	"github.com/OpenBazaar/multiwallet/model/mock"
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
 	"github.com/OpenBazaar/wallet-interface"
@@ -59,7 +59,7 @@ func newMockWallet() (*LitecoinWallet, error) {
 		db:     db,
 		fp:     fp,
 	}
-	cli := client.NewMockApiClient(bw.AddressToScript)
+	cli := mock.NewMockApiClient(bw.AddressToScript)
 	ws, err := service.NewWalletService(db, km, cli, params, wallet.Litecoin, cache.NewMockCacher())
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func waitForTxnSync(t *testing.T, txnStore wallet.Txns) {
 	// transactions are relevant, so the numbers don't add up.
 	// Even better would be for the wallet to signal that the initial sync was
 	// done.
-	lastTxn := client.MockTransactions[len(client.MockTransactions)-2]
+	lastTxn := mock.MockTransactions[len(mock.MockTransactions)-2]
 	txHash, err := chainhash.NewHashFromStr(lastTxn.Txid)
 	if err != nil {
 		t.Fatal(err)

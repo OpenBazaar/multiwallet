@@ -1,4 +1,4 @@
-package client
+package model
 
 type Status struct {
 	Info Info `json:"info"`

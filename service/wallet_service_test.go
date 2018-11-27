@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/OpenBazaar/multiwallet/cache"
-	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/multiwallet/keys"
+	"github.com/OpenBazaar/multiwallet/model/mock"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
@@ -19,9 +19,9 @@ import (
 )
 
 func mockWalletService() (*WalletService, error) {
-	mock := datastore.NewMockMultiwalletDatastore()
+	datastore := datastore.NewMockMultiwalletDatastore()
 
-	db, err := mock.GetDatastoreForWallet(wallet.Bitcoin)
+	db, err := datastore.GetDatastoreForWallet(wallet.Bitcoin)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func mockWalletService() (*WalletService, error) {
 	if err != nil {
 		return nil, err
 	}
-	cli := client.NewMockApiClient(func(addr btcutil.Address) ([]byte, error) {
+	cli := mock.NewMockApiClient(func(addr btcutil.Address) ([]byte, error) {
 		return txscript.PayToAddrScript(addr)
 	})
 	return NewWalletService(db, km, cli, params, wallet.Bitcoin, cache.NewMockCacher())
@@ -202,7 +202,7 @@ func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 	}
 
 	// Process an incoming transaction
-	ws.ProcessIncomingTransaction(client.MockTransactions[0])
+	ws.ProcessIncomingTransaction(mock.MockTransactions[0])
 	txns, err := ws.db.Txns().GetAll(true)
 	if err != nil {
 		t.Error(err)
@@ -210,7 +210,7 @@ func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 	if len(txns) != 1 {
 		t.Error("Failed to update state correctly")
 	}
-	if txns[0].Txid != client.MockTransactions[0].Txid {
+	if txns[0].Txid != mock.MockTransactions[0].Txid {
 		t.Error("Saved incorrect transaction")
 	}
 	if txns[0].Value != 2717080 {
@@ -230,7 +230,7 @@ func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 	if utxos[0].WatchOnly {
 		t.Error("Saved incorrect watch only")
 	}
-	if utxos[0].Op.Hash.String() != client.MockTransactions[0].Txid {
+	if utxos[0].Op.Hash.String() != mock.MockTransactions[0].Txid {
 		t.Error("Saved incorrect transaction ID")
 	}
 	if utxos[0].Op.Index != 1 {
@@ -241,7 +241,7 @@ func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 	}
 
 	// Process an outgoing transaction. Make sure it deletes the utxo
-	ws.ProcessIncomingTransaction(client.MockTransactions[1])
+	ws.ProcessIncomingTransaction(mock.MockTransactions[1])
 	txns, err = ws.db.Txns().GetAll(true)
 	if err != nil {
 		t.Error(err)
@@ -257,7 +257,7 @@ func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 	if len(utxos) != 1 {
 		t.Error("Failed to update state correctly")
 	}
-	if utxos[0].Op.Hash.String() != client.MockTransactions[1].Txid {
+	if utxos[0].Op.Hash.String() != mock.MockTransactions[1].Txid {
 		t.Error("Failed to save correct utxo")
 	}
 	if utxos[0].Op.Index != 1 {
@@ -271,25 +271,25 @@ func TestWalletService_processIncomingBlock(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	ws.chainHeight = uint32(client.MockBlocks[0].Height)
-	ws.bestBlock = client.MockBlocks[0].Hash
+	ws.chainHeight = uint32(mock.MockBlocks[0].Height)
+	ws.bestBlock = mock.MockBlocks[0].Hash
 
 	// Check update height
-	ws.processIncomingBlock(client.MockBlocks[1])
+	ws.processIncomingBlock(mock.MockBlocks[1])
 	height, hash := ws.ChainTip()
-	if height != uint32(client.MockBlocks[1].Height) {
+	if height != uint32(mock.MockBlocks[1].Height) {
 		t.Error("Failed to update height")
 	}
-	if hash.String() != client.MockBlocks[1].Hash {
+	if hash.String() != mock.MockBlocks[1].Hash {
 		t.Error("Failed to update hash")
 	}
 
 	// Check update height of unconfirmed txs and utxos
-	tx := client.MockTransactions[0]
+	tx := mock.MockTransactions[0]
 	tx.Confirmations = 0
 	ws.ProcessIncomingTransaction(tx)
 
-	ws.processIncomingBlock(client.MockBlocks[2])
+	ws.processIncomingBlock(mock.MockBlocks[2])
 	time.Sleep(time.Second / 2)
 
 	txns, err := ws.db.Txns().GetAll(true)
@@ -301,7 +301,7 @@ func TestWalletService_processIncomingBlock(t *testing.T) {
 		t.Error("Returned incorrect number of txs")
 		return
 	}
-	if txns[0].Height != int32(client.MockBlocks[2].Height-14) {
+	if txns[0].Height != int32(mock.MockBlocks[2].Height-14) {
 		t.Error("Returned incorrect transaction height")
 	}
 
@@ -314,12 +314,12 @@ func TestWalletService_processIncomingBlock(t *testing.T) {
 		t.Error("Returned incorrect number of utxos")
 		return
 	}
-	if utxos[0].AtHeight != int32(client.MockBlocks[2].Height-14) {
+	if utxos[0].AtHeight != int32(mock.MockBlocks[2].Height-14) {
 		t.Error("Returned incorrect utxo height")
 	}
 
 	// Test updateState() is called during reorg
-	block := client.MockBlocks[1]
+	block := mock.MockBlocks[1]
 	block.Hash = "0000000000000000003c4b7f56e45567980f02012ea00d8e384267a2d825fcf9"
 	ws.processIncomingBlock(block)
 
@@ -360,9 +360,9 @@ func TestWalletService_listenersFired(t *testing.T) {
 		return
 	}
 	ws.AddTransactionListener(cb)
-	tx := client.MockTransactions[0]
+	tx := mock.MockTransactions[0]
 	tx.Confirmations = 0
-	ws.saveSingleTxToDB(tx, int32(client.MockBlocks[0].Height), ws.getStoredAddresses())
+	ws.saveSingleTxToDB(tx, int32(mock.MockBlocks[0].Height), ws.getStoredAddresses())
 	if nCallbacks != 1 {
 		t.Errorf("expected 1 callback but had %d", nCallbacks)
 	}
@@ -370,8 +370,8 @@ func TestWalletService_listenersFired(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed getting hash from %s: %s", response.Txid, err)
 	}
-	if ch.String() != client.MockTransactions[0].Txid {
-		t.Errorf("expected hash to be %s, but was %s", client.MockTransactions[0].Txid, ch.String())
+	if ch.String() != mock.MockTransactions[0].Txid {
+		t.Errorf("expected hash to be %s, but was %s", mock.MockTransactions[0].Txid, ch.String())
 	}
 	if response.Value != 2717080 {
 		t.Errorf("expected tx value to be 2717080, but was %d", response.Value)
@@ -390,7 +390,7 @@ func TestWalletService_listenersFired(t *testing.T) {
 		return
 	}
 	ws.db.WatchedScripts().Put(script)
-	ws.saveSingleTxToDB(client.MockTransactions[3], int32(client.MockBlocks[0].Height), ws.getStoredAddresses())
+	ws.saveSingleTxToDB(mock.MockTransactions[3], int32(mock.MockBlocks[0].Height), ws.getStoredAddresses())
 	if nCallbacks != 2 {
 		t.Error("Failed to fire transaction callback")
 	}
@@ -398,7 +398,7 @@ func TestWalletService_listenersFired(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if ch.String() != client.MockTransactions[3].Txid {
+	if ch.String() != mock.MockTransactions[3].Txid {
 		t.Error("Returned incorrect txid")
 	}
 	if response.Value != 751918 {
@@ -412,9 +412,9 @@ func TestWalletService_listenersFired(t *testing.T) {
 	}
 
 	// Test fired when height is updated
-	tx = client.MockTransactions[0]
+	tx = mock.MockTransactions[0]
 	tx.Confirmations = 1
-	ws.saveSingleTxToDB(tx, int32(client.MockBlocks[0].Height), ws.getStoredAddresses())
+	ws.saveSingleTxToDB(tx, int32(mock.MockBlocks[0].Height), ws.getStoredAddresses())
 	if nCallbacks != 3 {
 		t.Error("Failed to fire transaction callback")
 	}
@@ -422,13 +422,13 @@ func TestWalletService_listenersFired(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if ch.String() != client.MockTransactions[0].Txid {
+	if ch.String() != mock.MockTransactions[0].Txid {
 		t.Error("Returned incorrect txid")
 	}
 	if response.Value != 2717080 {
 		t.Error("Returned incorrect value")
 	}
-	if response.Height != int32(client.MockBlocks[0].Height) {
+	if response.Height != int32(mock.MockBlocks[0].Height) {
 		t.Error("Returned incorrect height")
 	}
 	if response.WatchOnly {

@@ -83,15 +83,15 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://btc.blockbook.openbazaar.org",
-				//legacy insight servers temporarily disabled
+				"https://btc.blockbook.api.openbazaar.org/",
+				// temporarily deprecated Insight endpoints
 				//"https://btc.bloqapi.net/insight-api",
 				//"https://btc.insight.openbazaar.org/insight-api",
 			}
 		} else {
 			apiEndpoints = []string{
-				"https://tbtc.blockbook.openbazaar.org",
-				//legacy insight servers temporarily disabled
+				"https://tbtc.blockbook.api.openbazaar.org/",
+				// temporarily deprecated Insight endpoints
 				//"https://test-insight.bitpay.com/api",
 			}
 		}
@@ -113,14 +113,14 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://bch.blockbook.openbazaar.org",
-				//legacy insight servers temporarily disabled
+				"https://bch.blockbook.api.openbazaar.org/",
+				// temporarily deprecated Insight endpoints
 				//"https://bitcoincash.blockexplorer.com/api",
 			}
 		} else {
 			apiEndpoints = []string{
-				"https://tbch.blockbook.openbazaar.org",
-				//legacy insight servers temporarily disabled
+				"https://tbch.blockbook.api.openbazaar.org/",
+				// temporarily deprecated Insight endpoints
 				//"https://test-bch-insight.bitpay.com/api",
 			}
 		}
@@ -141,14 +141,14 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://zec.blockbook.openbazaar.org",
-				//legacy insight servers temporarily disabled
+				"https://zec.blockbook.api.openbazaar.org/",
+				// temporarily deprecated Insight endpoints
 				//"https://zcashnetwork.info/api",
 			}
 		} else {
 			apiEndpoints = []string{
-				"https://tzec.blockbook.openbazaar.org",
-				//legacy insight servers temporarily disabled
+				"https://tzec.blockbook.api.openbazaar.org/",
+				// temporarily deprecated Insight endpoints
 				//"https://explorer.testnet.z.cash/api",
 			}
 		}
@@ -169,15 +169,15 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://ltc.blockbook.openbazaar.org",
-				//legacy insight servers temporarily disabled
+				"https://ltc.blockbook.api.openbazaar.org/",
+				// temporarily deprecated Insight endpoints
 				//"https://ltc.coin.space/api",
 				//"https://ltc.insight.openbazaar.org/insight-lite-api",
 			}
 		} else {
 			apiEndpoints = []string{
-				"https://tltc.blockbook.openbazaar.org",
-				//legacy insight servers temporarily disabled
+				"https://tltc.blockbook.api.openbazaar.org/",
+				// temporarily deprecated Insight endpoints
 				//"https://testnet.litecore.io/api",
 			}
 		}
