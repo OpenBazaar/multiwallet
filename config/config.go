@@ -83,12 +83,16 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://btc.bloqapi.net/insight-api",
-				"https://btc.insight.openbazaar.org/insight-api",
+				"https://btc.blockbook.openbazaar.org",
+				//legacy insight servers temporarily disabled
+				//"https://btc.bloqapi.net/insight-api",
+				//"https://btc.insight.openbazaar.org/insight-api",
 			}
 		} else {
 			apiEndpoints = []string{
-				"https://test-insight.bitpay.com/api",
+				"https://tbtc.blockbook.openbazaar.org",
+				//legacy insight servers temporarily disabled
+				//"https://test-insight.bitpay.com/api",
 			}
 		}
 		feeApi := "https://btc.fees.openbazaar.org"
@@ -109,11 +113,15 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://bitcoincash.blockexplorer.com/api",
+				"https://bch.blockbook.openbazaar.org",
+				//legacy insight servers temporarily disabled
+				//"https://bitcoincash.blockexplorer.com/api",
 			}
 		} else {
 			apiEndpoints = []string{
-				"https://test-bch-insight.bitpay.com/api",
+				"https://tbch.blockbook.openbazaar.org",
+				//legacy insight servers temporarily disabled
+				//"https://test-bch-insight.bitpay.com/api",
 			}
 		}
 		db, _ := mockDB.GetDatastoreForWallet(wallet.BitcoinCash)
@@ -133,11 +141,15 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://zcashnetwork.info/api",
+				"https://zec.blockbook.openbazaar.org",
+				//legacy insight servers temporarily disabled
+				//"https://zcashnetwork.info/api",
 			}
 		} else {
 			apiEndpoints = []string{
-				"https://explorer.testnet.z.cash/api",
+				"https://tzec.blockbook.openbazaar.org",
+				//legacy insight servers temporarily disabled
+				//"https://explorer.testnet.z.cash/api",
 			}
 		}
 		db, _ := mockDB.GetDatastoreForWallet(wallet.Zcash)
@@ -157,12 +169,16 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://ltc.coin.space/api",
-				"https://ltc.insight.openbazaar.org/insight-lite-api",
+				"https://ltc.blockbook.openbazaar.org",
+				//legacy insight servers temporarily disabled
+				//"https://ltc.coin.space/api",
+				//"https://ltc.insight.openbazaar.org/insight-lite-api",
 			}
 		} else {
 			apiEndpoints = []string{
-				"https://testnet.litecore.io/api",
+				"https://tltc.blockbook.openbazaar.org",
+				//legacy insight servers temporarily disabled
+				//"https://testnet.litecore.io/api",
 			}
 		}
 		db, _ := mockDB.GetDatastoreForWallet(wallet.Litecoin)
