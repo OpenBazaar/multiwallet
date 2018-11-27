@@ -72,7 +72,7 @@ func (s *server) CurrentAddress(ctx context.Context, in *pb.KeySelection) (*pb.A
 		return nil, err
 	}
 	addr := wal.CurrentAddress(purpose)
-	return &pb.Address{in.Coin, addr.String()}, nil
+	return &pb.Address{Coin: in.Coin, Addr: addr.String()}, nil
 }
 
 func (s *server) NewAddress(ctx context.Context, in *pb.KeySelection) (*pb.Address, error) {
@@ -85,12 +85,12 @@ func (s *server) NewAddress(ctx context.Context, in *pb.KeySelection) (*pb.Addre
 		return nil, errors.New("Unknown key purpose")
 	}
 	addr := s.w[coinType(in.Coin)].NewAddress(purpose)
-	return &pb.Address{in.Coin, addr.String()}, nil
+	return &pb.Address{Coin: in.Coin, Addr: addr.String()}, nil
 }
 
 func (s *server) ChainTip(ctx context.Context, in *pb.CoinSelection) (*pb.Height, error) {
 	h, _ := s.w[coinType(in.Coin)].ChainTip()
-	return &pb.Height{h}, nil
+	return &pb.Height{Height: h}, nil
 }
 
 func (s *server) Balance(ctx context.Context, in *pb.CoinSelection) (*pb.Balances, error) {
@@ -100,33 +100,33 @@ func (s *server) Balance(ctx context.Context, in *pb.CoinSelection) (*pb.Balance
 		return nil, err
 	}
 	c, u := wal.Balance()
-	return &pb.Balances{uint64(c), uint64(u)}, nil
+	return &pb.Balances{Confirmed: uint64(c), Unconfirmed: uint64(u)}, nil
 }
 
 func (s *server) MasterPrivateKey(ctx context.Context, in *pb.CoinSelection) (*pb.Key, error) {
 	// Stub
-	return &pb.Key{""}, nil
+	return &pb.Key{Key: ""}, nil
 }
 
 func (s *server) MasterPublicKey(ctx context.Context, in *pb.CoinSelection) (*pb.Key, error) {
 	// Stub
-	return &pb.Key{""}, nil
+	return &pb.Key{Key: ""}, nil
 }
 
 func (s *server) Params(ctx context.Context, in *pb.Empty) (*pb.NetParams, error) {
 	// Stub
-	return &pb.NetParams{""}, nil
+	return &pb.NetParams{Name: ""}, nil
 }
 
 func (s *server) HasKey(ctx context.Context, in *pb.Address) (*pb.BoolResponse, error) {
 	// Stub
-	return &pb.BoolResponse{false}, nil
+	return &pb.BoolResponse{Bool: false}, nil
 }
 
 func (s *server) Transactions(ctx context.Context, in *pb.CoinSelection) (*pb.TransactionList, error) {
 	// Stub
 	var list []*pb.Tx
-	return &pb.TransactionList{list}, nil
+	return &pb.TransactionList{Transactions: list}, nil
 }
 
 func (s *server) GetTransaction(ctx context.Context, in *pb.Txid) (*pb.Tx, error) {
@@ -137,7 +137,7 @@ func (s *server) GetTransaction(ctx context.Context, in *pb.Txid) (*pb.Tx, error
 
 func (s *server) GetFeePerByte(ctx context.Context, in *pb.FeeLevelSelection) (*pb.FeePerByte, error) {
 	// Stub
-	return &pb.FeePerByte{0}, nil
+	return &pb.FeePerByte{Fee: 0}, nil
 }
 
 func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) {
@@ -169,12 +169,12 @@ func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &pb.Txid{in.Coin, txid.String()}, nil
+	return &pb.Txid{Coin: in.Coin, Hash: txid.String()}, nil
 }
 
 func (s *server) BumpFee(ctx context.Context, in *pb.Txid) (*pb.Txid, error) {
 	// Stub
-	return &pb.Txid{in.Coin, ""}, nil
+	return &pb.Txid{Coin: in.Coin, Hash: ""}, nil
 }
 
 func (s *server) AddWatchedScript(ctx context.Context, in *pb.Address) (*pb.Empty, error) {
@@ -183,27 +183,27 @@ func (s *server) AddWatchedScript(ctx context.Context, in *pb.Address) (*pb.Empt
 
 func (s *server) GetConfirmations(ctx context.Context, in *pb.Txid) (*pb.Confirmations, error) {
 	// Stub
-	return &pb.Confirmations{0}, nil
+	return &pb.Confirmations{Confirmations: 0}, nil
 }
 
 func (s *server) SweepAddress(ctx context.Context, in *pb.SweepInfo) (*pb.Txid, error) {
 	// Stub
-	return &pb.Txid{in.Coin, ""}, nil
+	return &pb.Txid{Coin: in.Coin, Hash: ""}, nil
 }
 
 func (s *server) CreateMultisigSignature(ctx context.Context, in *pb.CreateMultisigInfo) (*pb.SignatureList, error) {
 	var retSigs []*pb.Signature
-	return &pb.SignatureList{retSigs}, nil
+	return &pb.SignatureList{Sigs: retSigs}, nil
 }
 
 func (s *server) Multisign(ctx context.Context, in *pb.MultisignInfo) (*pb.RawTx, error) {
 	// Stub
-	return &pb.RawTx{[]byte{}}, nil
+	return &pb.RawTx{Tx: []byte{}}, nil
 }
 
 func (s *server) EstimateFee(ctx context.Context, in *pb.EstimateFeeData) (*pb.Fee, error) {
 	// Stub
-	return &pb.Fee{0}, nil
+	return &pb.Fee{Fee: 0}, nil
 }
 
 func (s *server) WalletNotify(in *pb.CoinSelection, stream pb.API_WalletNotifyServer) error {
@@ -213,19 +213,19 @@ func (s *server) WalletNotify(in *pb.CoinSelection, stream pb.API_WalletNotifySe
 
 func (s *server) GetKey(ctx context.Context, in *pb.Address) (*pb.Key, error) {
 	// Stub
-	return &pb.Key{""}, nil
+	return &pb.Key{Key: ""}, nil
 }
 
 func (s *server) ListAddresses(ctx context.Context, in *pb.CoinSelection) (*pb.Addresses, error) {
 	// Stub
 	var list []*pb.Address
-	return &pb.Addresses{list}, nil
+	return &pb.Addresses{Addresses: list}, nil
 }
 
 func (s *server) ListKeys(ctx context.Context, in *pb.CoinSelection) (*pb.Keys, error) {
 	// Stub
 	var list []*pb.Key
-	return &pb.Keys{list}, nil
+	return &pb.Keys{Keys: list}, nil
 }
 
 type HeaderWriter struct {
@@ -233,7 +233,7 @@ type HeaderWriter struct {
 }
 
 func (h *HeaderWriter) Write(p []byte) (n int, err error) {
-	hdr := &pb.Row{string(p)}
+	hdr := &pb.Row{Data: string(p)}
 	if err := h.stream.Send(hdr); err != nil {
 		return 0, err
 	}
