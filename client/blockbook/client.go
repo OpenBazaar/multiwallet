@@ -89,7 +89,7 @@ func validateScheme(target *url.URL) error {
 func (i *BlockBookClient) doRequest(endpoint, method string, body []byte, query url.Values) (*http.Response, error) {
 	requestUrl := i.apiUrl
 	requestUrl.Path = path.Join(i.apiUrl.Path, endpoint)
-	req, err := http.NewRequest(method, requestUrl.String(), bytes.NewReader(body))
+	req, err := http.NewRequest(method, requestUrl.String() + "/", bytes.NewReader(body))
 	if query != nil {
 		req.URL.RawQuery = query.Encode()
 	}
@@ -473,7 +473,7 @@ func hasImpliedURLSecurity(u url.URL) bool { return u.Scheme == "https" }
 
 func (i *BlockBookClient) Broadcast(tx []byte) (string, error) {
 	txHex := hex.EncodeToString(tx)
-	resp, err := i.doRequest("sendtx/"+txHex, http.MethodGet, nil, nil)
+	resp, err := i.doRequest("sendtx", http.MethodPost, []byte(txHex), nil)
 	if err != nil {
 		return "", fmt.Errorf("error broadcasting tx: %s", err)
 	}
