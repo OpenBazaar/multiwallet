@@ -83,14 +83,14 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://btc.blockbook.api.openbazaar.org/",
+				"https://btc.blockbook.api.openbazaar.org/api",
 				// temporarily deprecated Insight endpoints
 				//"https://btc.bloqapi.net/insight-api",
 				//"https://btc.insight.openbazaar.org/insight-api",
 			}
 		} else {
 			apiEndpoints = []string{
-				"https://tbtc.blockbook.api.openbazaar.org/",
+				"https://tbtc.blockbook.api.openbazaar.org/api",
 				// temporarily deprecated Insight endpoints
 				//"https://test-insight.bitpay.com/api",
 			}
@@ -113,13 +113,13 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://bch.blockbook.api.openbazaar.org/",
+				"https://bch.blockbook.api.openbazaar.org/api",
 				// temporarily deprecated Insight endpoints
 				//"https://bitcoincash.blockexplorer.com/api",
 			}
 		} else {
 			apiEndpoints = []string{
-				"https://tbch.blockbook.api.openbazaar.org/",
+				"https://tbch.blockbook.api.openbazaar.org/api",
 				// temporarily deprecated Insight endpoints
 				//"https://test-bch-insight.bitpay.com/api",
 			}
@@ -141,13 +141,13 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://zec.blockbook.api.openbazaar.org/",
+				"https://zec.blockbook.api.openbazaar.org/api",
 				// temporarily deprecated Insight endpoints
 				//"https://zcashnetwork.info/api",
 			}
 		} else {
 			apiEndpoints = []string{
-				"https://tzec.blockbook.api.openbazaar.org/",
+				"https://tzec.blockbook.api.openbazaar.org/api",
 				// temporarily deprecated Insight endpoints
 				//"https://explorer.testnet.z.cash/api",
 			}
@@ -169,14 +169,14 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://ltc.blockbook.api.openbazaar.org/",
+				"https://ltc.blockbook.api.openbazaar.org/api",
 				// temporarily deprecated Insight endpoints
 				//"https://ltc.coin.space/api",
 				//"https://ltc.insight.openbazaar.org/insight-lite-api",
 			}
 		} else {
 			apiEndpoints = []string{
-				"https://tltc.blockbook.api.openbazaar.org/",
+				"https://tltc.blockbook.api.openbazaar.org/api",
 				// temporarily deprecated Insight endpoints
 				//"https://testnet.litecore.io/api",
 			}
