@@ -173,6 +173,19 @@ func (w *BitcoinCashWallet) Balance() (confirmed, unconfirmed int64) {
 	return util.CalcBalance(utxos, txns)
 }
 
+func (w *BitcoinCashWallet) AddressBalance(addr btcutil.Address) (confirmed, unconfirmed int64) {
+	utxos, _ := w.db.Utxos().GetAll()
+	var filteredUtxos []wi.Utxo
+	for _, utxo := range utxos {
+		utxoAddr, _ := w.ScriptToAddress(utxo.ScriptPubkey)
+		if addr.String() == utxoAddr.String() {
+			filteredUtxos = append(filteredUtxos, utxo)
+		}
+	}
+	txns, _ := w.db.Txns().GetAll(false)
+	return util.CalcBalance(filteredUtxos, txns)
+}
+
 func (w *BitcoinCashWallet) Transactions() ([]wi.Txn, error) {
 	height, _ := w.ChainTip()
 	txns, err := w.db.Txns().GetAll(false)

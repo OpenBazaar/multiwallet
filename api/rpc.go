@@ -103,6 +103,20 @@ func (s *server) Balance(ctx context.Context, in *pb.CoinSelection) (*pb.Balance
 	return &pb.Balances{Confirmed: uint64(c), Unconfirmed: uint64(u)}, nil
 }
 
+func (s *server) AddressBalance(ctx context.Context, in *pb.Address) (*pb.Balances, error) {
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
+	if err != nil {
+		return nil, err
+	}
+	addr, err := wal.DecodeAddress(in.Addr)
+	if err != nil {
+		return nil, err
+	}
+	c, u := wal.AddressBalance(addr)
+	return &pb.Balances{Confirmed: uint64(c), Unconfirmed: uint64(u)}, nil
+}
+
 func (s *server) MasterPrivateKey(ctx context.Context, in *pb.CoinSelection) (*pb.Key, error) {
 	// Stub
 	return &pb.Key{Key: ""}, nil

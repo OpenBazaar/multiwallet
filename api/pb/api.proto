@@ -10,6 +10,7 @@ service API {
   rpc NewAddress (KeySelection) returns (Address) {}
   rpc ChainTip (CoinSelection) returns (Height) {}
   rpc Balance (CoinSelection) returns (Balances) {}
+  rpc AddressBalance(Address) returns (Balances) {}
   rpc MasterPrivateKey (CoinSelection) returns (Key) {}
   rpc MasterPublicKey (CoinSelection) returns (Key) {}
   rpc HasKey (Address) returns (BoolResponse) {}

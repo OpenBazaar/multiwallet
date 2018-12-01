@@ -70,6 +70,10 @@ func SetupCli(parser *flags.Parser) {
 		"get the wallet's balances",
 		"Returns the confirmed and unconfirmed balances for the specified coin",
 		&balance)
+	parser.AddCommand("addressbalance",
+		"get the address's balance",
+		"Returns the confirmed and unconfirmed balances for the specified coin and address",
+		&addressBalance)
 }
 
 func coinType(args []string) pb.CoinType {
@@ -315,6 +319,28 @@ func (x *Balance) Execute(args []string) error {
 	}
 	t := coinType(args)
 	resp, err := client.Balance(context.Background(), &pb.CoinSelection{Coin: t})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Confirmed: %d, Unconfirmed: %d\n", resp.Confirmed, resp.Unconfirmed)
+	return nil
+}
+
+type AddressBalance struct{}
+
+var addressBalance AddressBalance
+
+func (x *AddressBalance) Execute(args []string) error {
+	client, conn, err := newGRPCClient()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if len(args) < 2 {
+		return errors.New("Coin type and address are required")
+	}
+	t := coinType(args)
+	resp, err := client.AddressBalance(context.Background(), &pb.Address{Addr: args[1], Coin: t})
 	if err != nil {
 		return err
 	}
