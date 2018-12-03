@@ -391,7 +391,7 @@ func (ws *WalletService) saveSingleTxToDB(u model.Transaction, chainHeight int32
 		return
 	}
 	var relevant bool
-	cb := wallet.TransactionCallback{Txid: txHash.String(), Height: height}
+	cb := wallet.TransactionCallback{Txid: txHash.String(), Height: height, Timestamp: time.Unix(u.Time, 0)}
 	for _, in := range u.Inputs {
 		ch, err := chainhash.NewHashFromStr(in.Txid)
 		if err != nil {
