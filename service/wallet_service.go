@@ -416,11 +416,12 @@ func (ws *WalletService) saveSingleTxToDB(u model.Transaction, chainHeight int32
 			Log.Errorf("error converting outpoint hash for %s: %s", ws.coinType.String(), err.Error())
 			return
 		}
+		v := int64(math.Round(in.Value * float64(util.SatoshisPerCoin(ws.coinType))))
 		cbin := wallet.TransactionInput{
 			OutpointHash:  h,
 			OutpointIndex: op.Index,
 			LinkedAddress: addr,
-			Value:         in.Satoshis,
+			Value:         v,
 		}
 		cb.Inputs = append(cb.Inputs, cbin)
 
@@ -429,7 +430,6 @@ func (ws *WalletService) saveSingleTxToDB(u model.Transaction, chainHeight int32
 			continue
 		}
 		if !sa.WatchOnly {
-			v := int64(math.Round(in.Value * float64(util.SatoshisPerCoin(ws.coinType))))
 			value -= v
 			hits++
 		}

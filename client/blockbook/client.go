@@ -457,6 +457,7 @@ func (i *BlockBookClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 					Log.Errorf("Error downloading tx after socket notification: %s", err.Error())
 					return
 				}
+				tx.Time = time.Now().Unix()
 				i.txNotifyChan <- *tx
 			}
 		}
