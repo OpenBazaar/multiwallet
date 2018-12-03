@@ -428,9 +428,9 @@ func (ws *WalletService) saveSingleTxToDB(u model.Transaction, chainHeight int32
 		if !ok {
 			continue
 		}
-		v := int64(math.Round(in.Value * float64(util.SatoshisPerCoin(ws.coinType))))
-		value -= v
 		if !sa.WatchOnly {
+			v := int64(math.Round(in.Value * float64(util.SatoshisPerCoin(ws.coinType))))
+			value -= v
 			hits++
 		}
 		relevant = true
@@ -463,8 +463,8 @@ func (ws *WalletService) saveSingleTxToDB(u model.Transaction, chainHeight int32
 		if !ok {
 			continue
 		}
-		value += v
 		if !sa.WatchOnly {
+			value += v
 			hits++
 			// Mark the key we received coins to as used
 			ws.km.MarkKeyAsUsed(sa.Addr.ScriptAddress())
