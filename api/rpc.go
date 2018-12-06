@@ -84,12 +84,22 @@ func (s *server) NewAddress(ctx context.Context, in *pb.KeySelection) (*pb.Addre
 	} else {
 		return nil, errors.New("Unknown key purpose")
 	}
-	addr := s.w[coinType(in.Coin)].NewAddress(purpose)
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
+	if err != nil {
+		return nil, err
+	}
+	addr := wal.NewAddress(purpose)
 	return &pb.Address{Coin: in.Coin, Addr: addr.String()}, nil
 }
 
 func (s *server) ChainTip(ctx context.Context, in *pb.CoinSelection) (*pb.Height, error) {
-	h, _ := s.w[coinType(in.Coin)].ChainTip()
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
+	if err != nil {
+		return nil, err
+	}
+	h, _ := wal.ChainTip()
 	return &pb.Height{Height: h}, nil
 }
 
