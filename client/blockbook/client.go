@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -205,7 +206,7 @@ func (i *BlockBookClient) GetTransaction(txid string) (*model.Transaction, error
 			Vout:      i.Vout,
 		}
 		if len(i.Addresses) > 0 {
-			newIn.Addr = i.Addresses[0]
+			newIn.Addr = maybeTrimCashAddrPrefix(i.Addresses[0])
 		}
 		ctx.Inputs = append(ctx.Inputs, newIn)
 	}
@@ -214,6 +215,9 @@ func (i *BlockBookClient) GetTransaction(txid string) (*model.Transaction, error
 			Value:        tx.Vout[n].Value,
 			N:            o.N,
 			ScriptPubKey: o.ScriptPubKey,
+		}
+		for i, addr := range newOut.ScriptPubKey.Addresses {
+			newOut.ScriptPubKey.Addresses[i] = maybeTrimCashAddrPrefix(addr)
 		}
 		ctx.Outputs = append(ctx.Outputs, newOut)
 	}
@@ -579,4 +583,8 @@ func maybeConvertCashAddress(addr btcutil.Address) string {
 		}
 	}
 	return addr.String()
+}
+
+func maybeTrimCashAddrPrefix(addr string) string {
+	return strings.TrimPrefix(strings.TrimSuffix(addr, "bchtest:"), "bitcoincash:")
 }
