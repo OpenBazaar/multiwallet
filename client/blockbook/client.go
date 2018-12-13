@@ -363,7 +363,7 @@ func (i *BlockBookClient) GetUtxos(addrs []btcutil.Address) ([]model.Utxo, error
 						}
 						ut.ScriptPubKey = tx.Outputs[ut.Vout].ScriptPubKey.Hex
 						if len(tx.Outputs[ut.Vout].ScriptPubKey.Addresses[0]) > 0 {
-							ut.Address = tx.Outputs[ut.Vout].ScriptPubKey.Addresses[0]
+							ut.Address = maybeTrimCashAddrPrefix(tx.Outputs[ut.Vout].ScriptPubKey.Addresses[0])
 						}
 						utxoChan <- utxoOrError{&ut, nil}
 					}(u)
@@ -586,5 +586,5 @@ func maybeConvertCashAddress(addr btcutil.Address) string {
 }
 
 func maybeTrimCashAddrPrefix(addr string) string {
-	return strings.TrimPrefix(strings.TrimSuffix(addr, "bchtest:"), "bitcoincash:")
+	return strings.TrimPrefix(strings.TrimPrefix(addr, "bchtest:"), "bitcoincash:")
 }
