@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestDecodeLitecoinAddress(t *testing.T) {
+func TestDecodeZcashAddress(t *testing.T) {
 	// Mainnet
 	addr, err := DecodeAddress("t1cQTWs2rPYM5R3zJiLA8MR3nZsXd1p2U6Q", &chaincfg.MainNetParams)
 	if err != nil {
