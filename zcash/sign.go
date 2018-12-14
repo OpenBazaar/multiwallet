@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/btcsuite/btcd/chaincfg"
 	"time"
 
 	"github.com/OpenBazaar/spvwallet"
@@ -502,7 +503,7 @@ func (w *ZCashWallet) generateMultisigScript(keys []hd.ExtendedKey, threshold in
 
 func (w *ZCashWallet) estimateSpendFee(amount int64, feeLevel wi.FeeLevel) (uint64, error) {
 	// Since this is an estimate we can use a dummy output address. Let's use a long one so we don't under estimate.
-	addr, err := zaddr.DecodeAddress("t1hASvMj8e6TXWryuB3L5TKXJB7XfNioZP3", w.params)
+	addr, err := zaddr.DecodeAddress("t1hASvMj8e6TXWryuB3L5TKXJB7XfNioZP3", &chaincfg.MainNetParams)
 	if err != nil {
 		return 0, err
 	}
