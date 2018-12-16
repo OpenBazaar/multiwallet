@@ -1,7 +1,6 @@
 package zcash
 
 import (
-	"bytes"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -343,15 +342,17 @@ func (w *ZCashWallet) DumpTables(wr io.Writer) {
 
 // Build a client.Transaction so we can ingest it into the wallet service then broadcast
 func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) error {
-	var buf bytes.Buffer
-	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.BaseEncoding)
+	txBytes, err := serializeVersion4Transaction(tx, 2^32-1)
+	if err != nil {
+		return err
+	}
 	cTxn := model.Transaction{
 		Txid:          tx.TxHash().String(),
 		Locktime:      int(tx.LockTime),
 		Version:       int(tx.Version),
 		Confirmations: 0,
 		Time:          time.Now().Unix(),
-		RawBytes:      buf.Bytes(),
+		RawBytes:      txBytes,
 	}
 	utxos, err := w.db.Utxos().GetAll()
 	if err != nil {
@@ -400,7 +401,7 @@ func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) error {
 		}
 		cTxn.Outputs = append(cTxn.Outputs, output)
 	}
-	_, err = w.client.Broadcast(buf.Bytes())
+	_, err = w.client.Broadcast(txBytes)
 	if err != nil {
 		return err
 	}

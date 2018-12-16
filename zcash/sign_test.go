@@ -524,3 +524,55 @@ func TestZCashWallet_estimateSpendFee(t *testing.T) {
 		t.Error("Returned incorrect fee")
 	}
 }
+
+func TestSerializeVersion4Transaction(t *testing.T) {
+	expected, err := hex.DecodeString(`0400008085202f8901a8c685478265f4c14dada651969c45a65e1aeb8cd6791f2f5bb6a1d9952104d9010000006b483045022100a61e5d557568c2ddc1d9b03a7173c6ce7c996c4daecab007ac8f34bee01e6b9702204d38fdc0bcf2728a69fde78462a10fb45a9baa27873e6a5fc45fb5c76764202a01210365ffea3efa3908918a8b8627724af852fc9b86d7375b103ab0543cf418bcaa7ffeffffff02005a6202000000001976a9148132712c3ff19f3a151234616777420a6d7ef22688ac8b959800000000001976a9145453e4698f02a38abdaa521cd1ff2dee6fac187188ac29b0040048b004000000000000000000000000`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tx := wire.NewMsgTx(1)
+
+	inHash, err := hex.DecodeString("a8c685478265f4c14dada651969c45a65e1aeb8cd6791f2f5bb6a1d9952104d9")
+	if err != nil {
+		t.Fatal(err)
+	}
+	prevHash, err := chainhash.NewHash(inHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	op := wire.NewOutPoint(prevHash, 1)
+
+	scriptSig, err := hex.DecodeString("483045022100a61e5d557568c2ddc1d9b03a7173c6ce7c996c4daecab007ac8f34bee01e6b9702204d38fdc0bcf2728a69fde78462a10fb45a9baa27873e6a5fc45fb5c76764202a01210365ffea3efa3908918a8b8627724af852fc9b86d7375b103ab0543cf418bcaa7f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	txIn := wire.NewTxIn(op, scriptSig, nil)
+	txIn.Sequence = 4294967294
+
+	tx.TxIn = []*wire.TxIn{txIn}
+
+	pkScirpt0, err := hex.DecodeString("76a9148132712c3ff19f3a151234616777420a6d7ef22688ac")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out0 := wire.NewTxOut(40000000, pkScirpt0)
+
+	pkScirpt1, err := hex.DecodeString("76a9145453e4698f02a38abdaa521cd1ff2dee6fac187188ac")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out1 := wire.NewTxOut(9999755, pkScirpt1)
+	tx.TxOut = []*wire.TxOut{out0, out1}
+
+	tx.LockTime = 307241
+
+	serialized, err := serializeVersion4Transaction(tx, 307272)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(serialized, expected) {
+		t.Fatal("Failed to serialize transaction correctly")
+	}
+}

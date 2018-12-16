@@ -2,6 +2,7 @@ package zcash
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -23,6 +24,11 @@ import (
 
 	"github.com/OpenBazaar/multiwallet/util"
 	zaddr "github.com/OpenBazaar/multiwallet/zcash/address"
+)
+
+var (
+	txHeaderBytes = []byte{0x04, 0x00, 0x00, 0x80}
+	txNVersionGroupIDBytes = []byte{0x85, 0x20, 0x2f, 0x89}
 )
 
 func (w *ZCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLevel, optionalOutput *wire.TxOut) (*wire.MsgTx, error) {
@@ -532,4 +538,121 @@ func (w *ZCashWallet) estimateSpendFee(amount int64, feeLevel wi.FeeLevel) (uint
 		return 0, errors.New("Error building transaction: inputs less than outputs")
 	}
 	return uint64(inval - outval), err
+}
+
+func calculateSigHash() []byte {
+	return nil
+}
+
+func serializeVersion4Transaction(tx *wire.MsgTx, expiryHeight uint32) ([]byte, error) {
+	var buf bytes.Buffer
+
+	// Write header
+	_, err := buf.Write(txHeaderBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// Write group ID
+	_, err = buf.Write(txNVersionGroupIDBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// Write varint input count
+	count := uint64(len(tx.TxIn))
+	err = wire.WriteVarInt(&buf, wire.ProtocolVersion, count)
+	if err != nil {
+		return nil, err
+	}
+
+	// Write inputs
+	for _, ti := range tx.TxIn {
+		// Write outpoint hash
+		_, err := buf.Write(ti.PreviousOutPoint.Hash[:])
+		if err != nil {
+			return nil, err
+		}
+		// Write outpoint index
+		index := make([]byte, 4)
+		binary.LittleEndian.PutUint32(index, ti.PreviousOutPoint.Index)
+		_, err = buf.Write(index)
+		if err != nil {
+			return nil, err
+		}
+		// Write sigscript
+		err = wire.WriteVarBytes(&buf, wire.ProtocolVersion, ti.SignatureScript)
+		if err != nil {
+			return nil, err
+		}
+		// Write sequence
+		sequence := make([]byte, 4)
+		binary.LittleEndian.PutUint32(sequence, ti.Sequence)
+		_, err = buf.Write(sequence)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// Write varint output count
+	count = uint64(len(tx.TxOut))
+	err = wire.WriteVarInt(&buf, wire.ProtocolVersion, count)
+	if err != nil {
+		return nil, err
+	}
+	// Write outputs
+	for _, to := range tx.TxOut {
+		// Write value
+		val := make([]byte, 8)
+		binary.LittleEndian.PutUint64(val, uint64(to.Value))
+		_, err = buf.Write(val)
+		if err != nil {
+			return nil, err
+		}
+		// Write pkScript
+		err = wire.WriteVarBytes(&buf, wire.ProtocolVersion, to.PkScript)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// Write nLocktime
+	nLockTime := make([]byte, 4)
+	binary.LittleEndian.PutUint32(nLockTime, tx.LockTime)
+	_, err = buf.Write(nLockTime)
+	if err != nil {
+		return nil, err
+	}
+
+	// Write nExpiryHeight
+	expiry := make([]byte, 4)
+	binary.LittleEndian.PutUint32(expiry, expiryHeight)
+	_, err = buf.Write(expiry)
+	if err != nil {
+		return nil, err
+	}
+
+	// Write nil value balance
+	_, err = buf.Write(make([]byte, 8))
+	if err != nil {
+		return nil, err
+	}
+
+	// Write nil value vShieldedSpend
+	_, err = buf.Write(make([]byte, 1))
+	if err != nil {
+		return nil, err
+	}
+
+	// Write nil value vShieldedOutput
+	_, err = buf.Write(make([]byte, 1))
+	if err != nil {
+		return nil, err
+	}
+
+	// Write nil value vJoinSplit
+	_, err = buf.Write(make([]byte, 1))
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
