@@ -28,17 +28,17 @@ import (
 )
 
 var (
-	txHeaderBytes = []byte{0x04, 0x00, 0x00, 0x80}
+	txHeaderBytes          = []byte{0x04, 0x00, 0x00, 0x80}
 	txNVersionGroupIDBytes = []byte{0x85, 0x20, 0x2f, 0x89}
 
-	hashPrevOutPersonalization = []byte("ZcashPrevoutHash")
+	hashPrevOutPersonalization  = []byte("ZcashPrevoutHash")
 	hashSequencePersonalization = []byte("ZcashSequencHash")
-	hashOutputsPersonalization = []byte("ZcashOutputsHash")
-	sigHashPersonalization = []byte("ZcashSigHash")
+	hashOutputsPersonalization  = []byte("ZcashOutputsHash")
+	sigHashPersonalization      = []byte("ZcashSigHash")
 )
 
 const (
-	sigHashMask = 0x1f
+	sigHashMask     = 0x1f
 	saplingBranchID = 1991772603
 )
 
@@ -134,18 +134,25 @@ func (w *ZCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLev
 	})
 	for i, txIn := range authoredTx.Tx.TxIn {
 		prevOutScript := additionalPrevScripts[txIn.PreviousOutPoint]
-		addr, err := zaddr.ExtractPkScriptAddrs(prevOutScript, w.params)
+		_, addrs, _, err := txscript.ExtractPkScriptAddrs(prevOutScript, w.params)
 		if err != nil {
 			return nil, err
 		}
-		key, _, err := getKey(addr)
+		key, _, err := getKey(addrs[0])
 		if err != nil {
 			return nil, err
 		}
 		val := int64(inputValues[i].ToUnit(btc.AmountSatoshi))
-		script, err := rawTxInSignature(authoredTx.Tx, i, prevOutScript, txscript.SigHashAll, key, val)
+		sig, err := rawTxInSignature(authoredTx.Tx, i, prevOutScript, txscript.SigHashAll, key, val)
 		if err != nil {
-			return nil, errors.New("Failed to sign transaction")
+			return nil, errors.New("failed to sign transaction")
+		}
+		builder := txscript.NewScriptBuilder()
+		builder.AddData(sig)
+		builder.AddData(key.PubKey().SerializeCompressed())
+		script, err := builder.Script()
+		if err != nil {
+			return nil, err
 		}
 		txIn.SignatureScript = script
 	}
@@ -349,9 +356,16 @@ func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Addre
 		if err != nil {
 			return nil, err
 		}
-		script, err := rawTxInSignature(tx, i, prevOutScript, txscript.SigHashAll, key, values[i])
+		sig, err := rawTxInSignature(tx, i, prevOutScript, txscript.SigHashAll, key, values[i])
 		if err != nil {
 			return nil, errors.New("failed to sign transaction")
+		}
+		builder := txscript.NewScriptBuilder()
+		builder.AddData(sig)
+		builder.AddData(key.PubKey().SerializeCompressed())
+		script, err := builder.Script()
+		if err != nil {
+			return nil, err
 		}
 		txIn.SignatureScript = script
 	}
@@ -565,7 +579,7 @@ func (w *ZCashWallet) estimateSpendFee(amount int64, feeLevel wi.FeeLevel) (uint
 func rawTxInSignature(tx *wire.MsgTx, idx int, prevScriptBytes []byte,
 	hashType txscript.SigHashType, key *btcec.PrivateKey, amt int64) ([]byte, error) {
 
-	hash, err := calcSignatureHash(prevScriptBytes, hashType, tx, idx, amt, 2^32-1)
+	hash, err := calcSignatureHash(prevScriptBytes, hashType, tx, idx, amt, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -689,14 +703,13 @@ func calcSignatureHash(prevScriptBytes []byte, hashType txscript.SigHashType, tx
 	leBranchID := make([]byte, 4)
 	binary.LittleEndian.PutUint32(leBranchID, saplingBranchID)
 	bl, _ := blake2b.New(&blake2b.Config{
-		Size: 32,
+		Size:   32,
 		Person: append(sigHashPersonalization, leBranchID...),
 	})
 	bl.Write(sigHash.Bytes())
 	h := bl.Sum(nil)
 	return h[:], nil
 }
-
 
 // serializeVersion4Transaction serializes a wire.MsgTx into the zcash version four
 // wire transaction format.
@@ -827,7 +840,7 @@ func calcHashPrevOuts(tx *wire.MsgTx) []byte {
 		b.Write(buf[:])
 	}
 	bl, _ := blake2b.New(&blake2b.Config{
-		Size: 32,
+		Size:   32,
 		Person: hashPrevOutPersonalization,
 	})
 	bl.Write(b.Bytes())
@@ -843,7 +856,7 @@ func calcHashSequence(tx *wire.MsgTx) []byte {
 		b.Write(buf[:])
 	}
 	bl, _ := blake2b.New(&blake2b.Config{
-		Size: 32,
+		Size:   32,
 		Person: hashSequencePersonalization,
 	})
 	bl.Write(b.Bytes())
@@ -857,11 +870,10 @@ func calcHashOutputs(tx *wire.MsgTx) []byte {
 		wire.WriteTxOut(&b, 0, 0, out)
 	}
 	bl, _ := blake2b.New(&blake2b.Config{
-		Size: 32,
+		Size:   32,
 		Person: hashOutputsPersonalization,
 	})
 	bl.Write(b.Bytes())
 	h := bl.Sum(nil)
 	return h[:]
 }
-

@@ -342,7 +342,7 @@ func (w *ZCashWallet) DumpTables(wr io.Writer) {
 
 // Build a client.Transaction so we can ingest it into the wallet service then broadcast
 func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) error {
-	txBytes, err := serializeVersion4Transaction(tx, 2^32-1)
+	txBytes, err := serializeVersion4Transaction(tx, 0)
 	if err != nil {
 		return err
 	}
