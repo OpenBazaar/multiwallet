@@ -332,37 +332,18 @@ func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Addre
 	if err != nil {
 		return nil, err
 	}
-	pk := privKey.PubKey().SerializeCompressed()
-	addressPub, err := btc.NewAddressPubKey(pk, w.params)
-
-	getKey := txscript.KeyClosure(func(addr btc.Address) (*btcec.PrivateKey, bool, error) {
-		if addressPub.EncodeAddress() == addr.EncodeAddress() {
-			wif, err := btc.NewWIF(privKey, w.params, true)
-			if err != nil {
-				return nil, false, err
-			}
-			return wif.PrivKey, wif.CompressPubKey, nil
-		}
-		return nil, false, errors.New("Not found")
-	})
 
 	for i, txIn := range tx.TxIn {
-		prevOutScript := additionalPrevScripts[txIn.PreviousOutPoint]
-		addr, err := zaddr.ExtractPkScriptAddrs(prevOutScript, w.params)
-		if err != nil {
-			return nil, err
-		}
-		key, _, err := getKey(addr)
-		if err != nil {
-			return nil, err
-		}
-		sig, err := rawTxInSignature(tx, i, prevOutScript, txscript.SigHashAll, key, values[i])
+		sig, err := rawTxInSignature(tx, i, *redeemScript, txscript.SigHashAll, privKey, values[i])
 		if err != nil {
 			return nil, errors.New("failed to sign transaction")
 		}
 		builder := txscript.NewScriptBuilder()
+		builder.AddOp(txscript.OP_0)
 		builder.AddData(sig)
-		builder.AddData(key.PubKey().SerializeCompressed())
+		if redeemScript != nil {
+			builder.AddData(*redeemScript)
+		}
 		script, err := builder.Script()
 		if err != nil {
 			return nil, err
