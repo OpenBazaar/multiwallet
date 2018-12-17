@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/gcash/bchd/bchec"
 	"github.com/minio/blake2b-simd"
 	"time"
 
@@ -94,6 +93,7 @@ func (w *ZCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLev
 			}
 			wif, _ := btc.NewWIF(privKey, w.params, true)
 			additionalKeysByAddress[addr.EncodeAddress()] = wif
+			inputValues = append(inputValues, c.Value())
 		}
 		return total, inputs, inputValues, scripts, nil
 	}
@@ -118,7 +118,7 @@ func (w *ZCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLev
 	if optionalOutput != nil {
 		outputs = append(outputs, optionalOutput)
 	}
-	authoredTx, err := newUnsignedTransaction(outputs, btc.Amount(feePerKB), inputSource, changeSource)
+	authoredTx, inputValues, err := newUnsignedTransaction(outputs, btc.Amount(feePerKB), inputSource, changeSource)
 	if err != nil {
 		return nil, err
 	}
@@ -132,15 +132,18 @@ func (w *ZCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLev
 		wif := additionalKeysByAddress[addrStr]
 		return wif.PrivKey, wif.CompressPubKey, nil
 	})
-	getScript := txscript.ScriptClosure(func(
-		addr btc.Address) ([]byte, error) {
-		return []byte{}, nil
-	})
 	for i, txIn := range authoredTx.Tx.TxIn {
 		prevOutScript := additionalPrevScripts[txIn.PreviousOutPoint]
-		script, err := txscript.SignTxOutput(w.params,
-			authoredTx.Tx, i, prevOutScript, txscript.SigHashAll, getKey,
-			getScript, txIn.SignatureScript)
+		addr, err := zaddr.ExtractPkScriptAddrs(prevOutScript, w.params)
+		if err != nil {
+			return nil, err
+		}
+		key, _, err := getKey(addr)
+		if err != nil {
+			return nil, err
+		}
+		val := int64(inputValues[i].ToUnit(btc.AmountSatoshi))
+		script, err := rawTxInSignature(authoredTx.Tx, i, prevOutScript, txscript.SigHashAll, key, val)
 		if err != nil {
 			return nil, errors.New("Failed to sign transaction")
 		}
@@ -149,7 +152,7 @@ func (w *ZCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLev
 	return authoredTx.Tx, nil
 }
 
-func newUnsignedTransaction(outputs []*wire.TxOut, feePerKb btc.Amount, fetchInputs txauthor.InputSource, fetchChange txauthor.ChangeSource) (*txauthor.AuthoredTx, error) {
+func newUnsignedTransaction(outputs []*wire.TxOut, feePerKb btc.Amount, fetchInputs txauthor.InputSource, fetchChange txauthor.ChangeSource) (*txauthor.AuthoredTx, []btc.Amount, error) {
 
 	var targetAmount btc.Amount
 	for _, txOut := range outputs {
@@ -158,14 +161,15 @@ func newUnsignedTransaction(outputs []*wire.TxOut, feePerKb btc.Amount, fetchInp
 
 	estimatedSize := EstimateSerializeSize(1, outputs, true, P2PKH)
 	targetFee := txrules.FeeForSerializeSize(feePerKb, estimatedSize)
-
+	var inputValues []btc.Amount
 	for {
-		inputAmount, inputs, _, scripts, err := fetchInputs(targetAmount + targetFee)
+		inputAmount, inputs, vals, scripts, err := fetchInputs(targetAmount + targetFee)
+		inputValues = vals
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if inputAmount < targetAmount+targetFee {
-			return nil, errors.New("insufficient funds available to construct transaction")
+			return nil, nil, errors.New("insufficient funds available to construct transaction")
 		}
 
 		maxSignedSize := EstimateSerializeSize(len(inputs), outputs, true, P2PKH)
@@ -188,10 +192,10 @@ func newUnsignedTransaction(outputs []*wire.TxOut, feePerKb btc.Amount, fetchInp
 			P2PKHOutputSize, txrules.DefaultRelayFeePerKb) {
 			changeScript, err := fetchChange()
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if len(changeScript) > P2PKHPkScriptSize {
-				return nil, errors.New("fee estimation requires change " +
+				return nil, nil, errors.New("fee estimation requires change " +
 					"scripts no larger than P2PKH output scripts")
 			}
 			change := wire.NewTxOut(int64(changeAmount), changeScript)
@@ -205,7 +209,7 @@ func newUnsignedTransaction(outputs []*wire.TxOut, feePerKb btc.Amount, fetchInp
 			PrevScripts: scripts,
 			TotalInput:  inputAmount,
 			ChangeIndex: changeIndex,
-		}, nil
+		}, inputValues, nil
 	}
 }
 
@@ -267,8 +271,10 @@ func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Addre
 	var val int64
 	var inputs []*wire.TxIn
 	additionalPrevScripts := make(map[wire.OutPoint][]byte)
+	var values []int64
 	for _, in := range ins {
 		val += in.Value
+		values = append(values, in.Value)
 		ch, err := chainhash.NewHashFromStr(hex.EncodeToString(in.OutpointHash))
 		if err != nil {
 			return nil, err
@@ -332,20 +338,20 @@ func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Addre
 		}
 		return nil, false, errors.New("Not found")
 	})
-	getScript := txscript.ScriptClosure(func(addr btc.Address) ([]byte, error) {
-		if redeemScript == nil {
-			return []byte{}, nil
-		}
-		return *redeemScript, nil
-	})
 
 	for i, txIn := range tx.TxIn {
 		prevOutScript := additionalPrevScripts[txIn.PreviousOutPoint]
-		script, err := txscript.SignTxOutput(w.params,
-			tx, i, prevOutScript, txscript.SigHashAll, getKey,
-			getScript, txIn.SignatureScript)
+		addr, err := zaddr.ExtractPkScriptAddrs(prevOutScript, w.params)
 		if err != nil {
-			return nil, errors.New("Failed to sign transaction")
+			return nil, err
+		}
+		key, _, err := getKey(addr)
+		if err != nil {
+			return nil, err
+		}
+		script, err := rawTxInSignature(tx, i, prevOutScript, txscript.SigHashAll, key, values[i])
+		if err != nil {
+			return nil, errors.New("failed to sign transaction")
 		}
 		txIn.SignatureScript = script
 	}
@@ -361,11 +367,13 @@ func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Addre
 func (w *ZCashWallet) createMultisigSignature(ins []wi.TransactionInput, outs []wi.TransactionOutput, key *hd.ExtendedKey, redeemScript []byte, feePerByte uint64) ([]wi.Signature, error) {
 	var sigs []wi.Signature
 	tx := wire.NewMsgTx(1)
+	var values []int64
 	for _, in := range ins {
 		ch, err := chainhash.NewHashFromStr(hex.EncodeToString(in.OutpointHash))
 		if err != nil {
 			return sigs, err
 		}
+		values = append(values, in.Value)
 		outpoint := wire.NewOutPoint(ch, in.OutpointIndex)
 		input := wire.NewTxIn(outpoint, []byte{}, [][]byte{})
 		tx.TxIn = append(tx.TxIn, input)
@@ -398,7 +406,7 @@ func (w *ZCashWallet) createMultisigSignature(ins []wi.TransactionInput, outs []
 	}
 
 	for i := range tx.TxIn {
-		sig, err := txscript.RawTxInSignature(tx, i, redeemScript, txscript.SigHashAll, signingKey)
+		sig, err := rawTxInSignature(tx, i, redeemScript, txscript.SigHashAll, signingKey, values[i])
 		if err != nil {
 			continue
 		}
@@ -555,7 +563,7 @@ func (w *ZCashWallet) estimateSpendFee(amount int64, feeLevel wi.FeeLevel) (uint
 // rawTxInSignature returns the serialized ECDSA signature for the input idx of
 // the given transaction, with hashType appended to it.
 func rawTxInSignature(tx *wire.MsgTx, idx int, prevScriptBytes []byte,
-	hashType txscript.SigHashType, key *bchec.PrivateKey, amt int64) ([]byte, error) {
+	hashType txscript.SigHashType, key *btcec.PrivateKey, amt int64) ([]byte, error) {
 
 	hash, err := calcSignatureHash(prevScriptBytes, hashType, tx, idx, amt, 2^32-1)
 	if err != nil {

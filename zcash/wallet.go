@@ -401,7 +401,7 @@ func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) error {
 		}
 		cTxn.Outputs = append(cTxn.Outputs, output)
 	}
-	_, err = w.client.Broadcast(txBytes)
+	cTxn.Txid, err = w.client.Broadcast(txBytes)
 	if err != nil {
 		return err
 	}
