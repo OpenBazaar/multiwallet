@@ -228,12 +228,12 @@ func (w *ZCashWallet) Spend(amount int64, addr btcutil.Address, feeLevel wi.FeeL
 		return nil, err
 	}
 	// Broadcast
-	if err := w.Broadcast(tx); err != nil {
+	txid, err := w.Broadcast(tx)
+	if err != nil {
 		return nil, err
 	}
 
-	ch := tx.TxHash()
-	return &ch, nil
+	return chainhash.NewHashFromStr(txid)
 }
 
 func (w *ZCashWallet) BumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
@@ -341,10 +341,10 @@ func (w *ZCashWallet) DumpTables(wr io.Writer) {
 }
 
 // Build a client.Transaction so we can ingest it into the wallet service then broadcast
-func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) error {
+func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) (string, error) {
 	txBytes, err := serializeVersion4Transaction(tx, 0)
 	if err != nil {
-		return err
+		return "", err
 	}
 	cTxn := model.Transaction{
 		Txid:          tx.TxHash().String(),
@@ -356,7 +356,7 @@ func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) error {
 	}
 	utxos, err := w.db.Utxos().GetAll()
 	if err != nil {
-		return err
+		return "", err
 	}
 	for n, in := range tx.TxIn {
 		var u wi.Utxo
@@ -368,7 +368,7 @@ func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) error {
 		}
 		addr, err := w.ScriptToAddress(u.ScriptPubkey)
 		if err != nil {
-			return err
+			return "", err
 		}
 		input := model.Input{
 			Txid: in.PreviousOutPoint.Hash.String(),
@@ -387,7 +387,7 @@ func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) error {
 	for n, out := range tx.TxOut {
 		addr, err := w.ScriptToAddress(out.PkScript)
 		if err != nil {
-			return err
+			return "", err
 		}
 		output := model.Output{
 			N: n,
@@ -403,8 +403,8 @@ func (w *ZCashWallet) Broadcast(tx *wire.MsgTx) error {
 	}
 	cTxn.Txid, err = w.client.Broadcast(txBytes)
 	if err != nil {
-		return err
+		return "", err
 	}
 	w.ws.ProcessIncomingTransaction(cTxn)
-	return nil
+	return cTxn.Txid, nil
 }

@@ -371,11 +371,11 @@ func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Addre
 	}
 
 	// broadcast
-	if err := w.Broadcast(tx); err != nil {
+	txid, err := w.Broadcast(tx)
+	if err != nil {
 		return nil, err
 	}
-	txid := tx.TxHash()
-	return &txid, nil
+	return chainhash.NewHashFromStr(txid)
 }
 
 func (w *ZCashWallet) createMultisigSignature(ins []wi.TransactionInput, outs []wi.TransactionOutput, key *hd.ExtendedKey, redeemScript []byte, feePerByte uint64) ([]wi.Signature, error) {
@@ -492,13 +492,11 @@ func (w *ZCashWallet) multisign(ins []wi.TransactionInput, outs []wi.Transaction
 	}
 	// broadcast
 	if broadcast {
-		if err := w.Broadcast(tx); err != nil {
+		if _, err := w.Broadcast(tx); err != nil {
 			return nil, err
 		}
 	}
-	var buf bytes.Buffer
-	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
-	return buf.Bytes(), nil
+	return serializeVersion4Transaction(tx, 0)
 }
 
 func (w *ZCashWallet) generateMultisigScript(keys []hd.ExtendedKey, threshold int, timeout time.Duration, timeoutKey *hd.ExtendedKey) (addr btc.Address, redeemScript []byte, err error) {
