@@ -424,10 +424,10 @@ func (i *BlockBookClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 
 			// Add logging for disconnections and errors
 			socketClient.On(gosocketio.OnError, func(c *gosocketio.Channel, args interface{}) {
-				Log.Warningf("Socket error:", args)
+				Log.Warningf("Socket error:", u.Host, "-", args)
 			})
 			socketClient.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel) {
-				Log.Warningf("Socket disconnected")
+				Log.Warningf("Socket disconnected:", u.Host)
 			})
 
 			// Wait for socket to be ready or timeout
