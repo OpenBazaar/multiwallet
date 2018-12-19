@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/cpacia/bchutil"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -22,8 +20,10 @@ import (
 	"github.com/OpenBazaar/golang-socketio/protocol"
 	"github.com/OpenBazaar/multiwallet/client/transport"
 	"github.com/OpenBazaar/multiwallet/model"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcutil"
+	"github.com/cpacia/bchutil"
 	"github.com/op/go-logging"
 	"golang.org/x/net/proxy"
 )
@@ -418,6 +418,12 @@ func (i *BlockBookClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) {
 			socketReady := make(chan struct{})
 			socketClient.On(gosocketio.OnConnection, func(h *gosocketio.Channel, args interface{}) {
 				close(socketReady)
+			})
+			socketClient.On(gosocketio.OnDisconnection, func(h *gosocketio.Channel, args interface{}) {
+				Log.Errorf("socket disconnected")
+			})
+			socketClient.On(gosocketio.OnError, func(h *gosocketio.Channel, args interface{}) {
+				Log.Errorf("socket error")
 			})
 			select {
 			case <-time.After(10 * time.Second):
