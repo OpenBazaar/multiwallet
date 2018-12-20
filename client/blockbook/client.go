@@ -40,7 +40,7 @@ func newWebsocketWatchdog(client *BlockBookClient) *wsWatchdog {
 	return &wsWatchdog{
 		client:    client,
 		done:      make(chan struct{}, 0),
-		wsStopped: make(chan struct{}, 5),
+		wsStopped: make(chan struct{}, 1),
 	}
 }
 
@@ -50,36 +50,24 @@ func (w *wsWatchdog) guardWebsocket() {
 		case <-w.wsStopped:
 			time.Sleep(1 * time.Second)
 			Log.Warningf("reconnecting websocket %s...", w.client.apiUrl.Host)
-			w.client.socketMutex.Lock()
-			w.client.SocketClient.Close()
-			w.client.SocketClient = nil
-			w.client.socketMutex.Unlock()
-			w.drainAndRollover()
-			w.client.setupListeners()
+			w.client.stopWebsocket()
+			w.client.startWebsocket()
 		case <-w.done:
 			return
 		}
 	}
 }
 
-func (w *wsWatchdog) drainAndRollover() {
-	for {
-		select {
-		case <-w.wsStopped:
-		default:
-			close(w.wsStopped)
-			w.wsStopped = make(chan struct{}, 5)
-			return
-		}
-	}
-}
-
 func (w *wsWatchdog) bark() {
-	w.wsStopped <- struct{}{}
+	select {
+	case w.wsStopped <- struct{}{}:
+	default:
+	}
 }
 
 func (w *wsWatchdog) putDown() {
 	close(w.done)
+	close(w.wsStopped)
 }
 
 type BlockBookClient struct {
@@ -123,6 +111,7 @@ func NewBlockBookClient(apiUrl string, proxyDialer proxy.Dialer) (*BlockBookClie
 		txNotifyChan:    tch,
 		listenLock:      sync.Mutex{},
 	}
+	ic.socketMutex.Lock()
 	ic.RequestFunc = ic.doRequest
 	return ic, nil
 }
@@ -140,18 +129,12 @@ func (i *BlockBookClient) EndpointURL() url.URL {
 }
 
 func (i *BlockBookClient) Start() error {
-	go i.setupListeners()
+	i.startWebsocket()
 	return nil
 }
 
 func (i *BlockBookClient) Close() {
-	if i.SocketClient != nil {
-		i.socketMutex.Lock()
-		defer i.socketMutex.Unlock()
-		i.websocketWatchdog.putDown()
-		i.SocketClient.Close()
-		i.SocketClient = nil
-	}
+	i.stopWebsocket()
 }
 
 func validateScheme(target *url.URL) error {
@@ -489,7 +472,16 @@ func connectSocket(u url.URL, proxyDialer proxy.Dialer) (model.SocketClient, err
 	return socketClient, nil
 }
 
-func (i *BlockBookClient) setupListeners() {
+func (i *BlockBookClient) stopWebsocket() {
+	if i.SocketClient != nil {
+		i.socketMutex.Lock()
+		i.SocketClient.Close()
+		i.SocketClient = nil
+		i.websocketWatchdog.putDown()
+	}
+}
+
+func (i *BlockBookClient) startWebsocket() {
 	i.listenLock.Lock()
 	defer i.listenLock.Unlock()
 	for {
@@ -503,7 +495,6 @@ func (i *BlockBookClient) setupListeners() {
 			time.Sleep(5 * time.Second)
 			continue
 		}
-		i.socketMutex.Lock()
 		i.SocketClient = client
 		i.websocketWatchdog = newWebsocketWatchdog(i)
 		go i.websocketWatchdog.guardWebsocket()
