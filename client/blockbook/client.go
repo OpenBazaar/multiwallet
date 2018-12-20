@@ -40,7 +40,7 @@ func newWebsocketWatchdog(client *BlockBookClient) *wsWatchdog {
 	return &wsWatchdog{
 		client:    client,
 		done:      make(chan struct{}, 0),
-		wsStopped: make(chan struct{}, 0),
+		wsStopped: make(chan struct{}, 5),
 	}
 }
 
@@ -49,11 +49,15 @@ func (w *wsWatchdog) guardWebsocket() {
 		select {
 		case <-w.wsStopped:
 			time.Sleep(1 * time.Second)
-			Log.Warningf("websocket restarting")
+			Log.Warningf("reconnecting websocket...")
 			w.client.SocketClient.Close()
 			w.client.SocketClient = nil
+			for len(w.wsStopped) > 0 {
+				<-w.wsStopped
+			}
+			close(w.wsStopped)
+			w.wsStopped = make(chan struct{}, 5)
 			w.client.setupListeners()
-			w.wsStopped = make(chan struct{}, 0)
 		case <-w.done:
 			return
 		}
@@ -61,7 +65,7 @@ func (w *wsWatchdog) guardWebsocket() {
 }
 
 func (w *wsWatchdog) bark() {
-	close(w.wsStopped)
+	w.wsStopped <- struct{}{}
 }
 
 func (w *wsWatchdog) stop() {
