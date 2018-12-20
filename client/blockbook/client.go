@@ -49,9 +49,11 @@ func (w *wsWatchdog) guardWebsocket() {
 		select {
 		case <-w.wsStopped:
 			time.Sleep(1 * time.Second)
-			Log.Warningf("reconnecting websocket...")
+			Log.Warningf("reconnecting websocket %s...", w.client.apiUrl.Host)
+			w.client.socketMutex.Lock()
 			w.client.SocketClient.Close()
 			w.client.SocketClient = nil
+			w.client.socketMutex.Unlock()
 			for len(w.wsStopped) > 0 {
 				<-w.wsStopped
 			}
@@ -84,6 +86,7 @@ type BlockBookClient struct {
 	HTTPClient   http.Client
 	RequestFunc  func(endpoint, method string, body []byte, query url.Values) (*http.Response, error)
 	SocketClient model.SocketClient
+	socketMutex  sync.RWMutex
 }
 
 func NewBlockBookClient(apiUrl string, proxyDialer proxy.Dialer) (*BlockBookClient, error) {
@@ -135,8 +138,11 @@ func (i *BlockBookClient) Start() error {
 
 func (i *BlockBookClient) Close() {
 	if i.SocketClient != nil {
+		i.socketMutex.Lock()
+		defer i.socketMutex.Unlock()
 		i.websocketWatchdog.stop()
 		i.SocketClient.Close()
+		i.SocketClient = nil
 	}
 }
 
@@ -442,7 +448,9 @@ func (i *BlockBookClient) ListenAddress(addr btcutil.Address) {
 	args = append(args, "bitcoind/addresstxid")
 	args = append(args, []string{maybeConvertCashAddress(addr)})
 	if i.SocketClient != nil {
+		i.socketMutex.RLock()
 		i.SocketClient.Emit("subscribe", args)
+		i.socketMutex.RUnlock()
 	} else {
 		i.listenQueue = append(i.listenQueue, maybeConvertCashAddress(addr))
 	}
@@ -483,23 +491,27 @@ func (i *BlockBookClient) setupListeners() {
 
 		client, err := connectSocket(i.apiUrl, i.proxyDialer)
 		if err != nil {
-			Log.Errorf("%s", err.Error())
-			time.Sleep(1 * time.Second)
+			Log.Errorf("reconnect websocket: %s", err.Error())
+			time.Sleep(5 * time.Second)
 			continue
 		}
+		i.socketMutex.Lock()
 		i.SocketClient = client
 		i.websocketWatchdog = newWebsocketWatchdog(i)
 		go i.websocketWatchdog.guardWebsocket()
+		i.socketMutex.Unlock()
 		break
 	}
 
+	i.socketMutex.RLock()
+	defer i.socketMutex.RUnlock()
 	// Add logging for disconnections and errors
 	i.SocketClient.On(gosocketio.OnError, func(c *gosocketio.Channel, args interface{}) {
-		Log.Warningf("Socket error:", i.apiUrl.Host, "-", args)
+		Log.Warningf("websocket error: %s - %+v", i.apiUrl.Host, "-", args)
 		i.websocketWatchdog.bark()
 	})
 	i.SocketClient.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel) {
-		Log.Warningf("Socket disconnected:", i.apiUrl.Host)
+		Log.Warningf("websocket disconnected: %s", i.apiUrl.Host)
 		i.websocketWatchdog.bark()
 	})
 
