@@ -54,13 +54,21 @@ func (w *wsWatchdog) guardWebsocket() {
 			w.client.SocketClient.Close()
 			w.client.SocketClient = nil
 			w.client.socketMutex.Unlock()
-			for len(w.wsStopped) > 0 {
-				<-w.wsStopped
-			}
-			close(w.wsStopped)
-			w.wsStopped = make(chan struct{}, 5)
+			w.drainAndRollover()
 			w.client.setupListeners()
 		case <-w.done:
+			return
+		}
+	}
+}
+
+func (w *wsWatchdog) drainAndRollover() {
+	for {
+		select {
+		case <-w.wsStopped:
+		default:
+			close(w.wsStopped)
+			w.wsStopped = make(chan struct{}, 5)
 			return
 		}
 	}
@@ -70,7 +78,7 @@ func (w *wsWatchdog) bark() {
 	w.wsStopped <- struct{}{}
 }
 
-func (w *wsWatchdog) stop() {
+func (w *wsWatchdog) putDown() {
 	close(w.done)
 }
 
@@ -140,7 +148,7 @@ func (i *BlockBookClient) Close() {
 	if i.SocketClient != nil {
 		i.socketMutex.Lock()
 		defer i.socketMutex.Unlock()
-		i.websocketWatchdog.stop()
+		i.websocketWatchdog.putDown()
 		i.SocketClient.Close()
 		i.SocketClient = nil
 	}
