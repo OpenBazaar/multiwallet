@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"sync"
 
 	"github.com/OpenBazaar/multiwallet/client/blockbook"
 	"github.com/OpenBazaar/multiwallet/model"
@@ -28,8 +27,8 @@ type ClientPool struct {
 	cancelListenChan context.CancelFunc
 	clientEndpoints  []string
 	proxyDialer      proxy.Dialer
-	rotationMutex    sync.RWMutex
 	txChan           chan model.Transaction
+	poolManager      *rotator
 
 	HTTPClient  http.Client
 	ClientCache []*blockbook.BlockBookClient
@@ -48,8 +47,8 @@ func (m *maxTryEnum) next() bool {
 }
 
 func (p *ClientPool) CurrentClient() *blockbook.BlockBookClient {
-	p.rotationMutex.RLock()
-	defer p.rotationMutex.RUnlock()
+	p.poolManager.RLock()
+	defer p.poolManager.RUnlock()
 	return p.ClientCache[p.activeServer]
 }
 
@@ -66,6 +65,7 @@ func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, e
 			clientEndpoints: endpoints,
 			proxyDialer:     proxyDialer,
 			txChan:          make(chan model.Transaction),
+			poolManager:     &rotationManager{},
 		}
 	)
 	for i, apiUrl := range endpoints {
@@ -99,8 +99,8 @@ func (p *ClientPool) Start() error {
 // method should track the retry attempts so as to not repeat indefinitely.
 func (p *ClientPool) RotateAndStartNextClient() error {
 	// Signal rotation and wait for connections to drain
-	p.rotationMutex.Lock()
-	defer p.rotationMutex.Unlock()
+	p.poolManager.Lock()
+	defer p.poolManager.Unlock()
 
 	if p.cancelListenChan != nil {
 		p.cancelListenChan()
@@ -140,7 +140,7 @@ func (p *ClientPool) listenChans(ctx context.Context) {
 // error will this method return an error.
 func (p *ClientPool) doRequest(endpoint, method string, body []byte, query url.Values) (*http.Response, error) {
 	for e := p.newMaximumTryEnumerator(); e.next(); {
-		p.rotationMutex.RLock()
+		p.poolManager.RLock()
 		requestUrl := p.CurrentClient().EndpointURL()
 		requestUrl.Path = path.Join(p.CurrentClient().EndpointURL().Path, endpoint)
 		req, err := http.NewRequest(method, requestUrl.String(), bytes.NewReader(body))
@@ -148,14 +148,14 @@ func (p *ClientPool) doRequest(endpoint, method string, body []byte, query url.V
 			req.URL.RawQuery = query.Encode()
 		}
 		if err != nil {
-			p.rotationMutex.RUnlock()
+			p.poolManager.RUnlock()
 			return nil, fmt.Errorf("invalid request: %s", err)
 		}
 		req.Header.Add("Content-Type", "application/json")
 
 		resp, err := p.HTTPClient.Do(req)
 		if err != nil {
-			p.rotationMutex.RUnlock()
+			p.poolManager.RUnlock()
 			p.RotateAndStartNextClient()
 			continue
 		}
@@ -165,17 +165,17 @@ func (p *ClientPool) doRequest(endpoint, method string, body []byte, query url.V
 			req.Body = ioutil.NopCloser(bytes.NewReader(body))
 			resp, err = p.HTTPClient.Do(req)
 			if err != nil {
-				p.rotationMutex.RUnlock()
+				p.poolManager.RUnlock()
 				p.RotateAndStartNextClient()
 				continue
 			}
 		}
 		if resp.StatusCode != http.StatusOK {
-			p.rotationMutex.RUnlock()
+			p.poolManager.RUnlock()
 			p.RotateAndStartNextClient()
 			continue
 		}
-		p.rotationMutex.RUnlock()
+		p.poolManager.RUnlock()
 		return resp, nil
 	}
 	return nil, errors.New("all insight servers return invalid response")
