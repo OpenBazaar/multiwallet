@@ -52,6 +52,7 @@ func (w *wsWatchdog) guardWebsocket() {
 			Log.Warningf("reconnecting websocket %s...", w.client.apiUrl.Host)
 			w.client.stopWebsocket()
 			w.client.startWebsocket()
+			return
 		case <-w.done:
 			return
 		}
@@ -478,6 +479,7 @@ func (i *BlockBookClient) stopWebsocket() {
 		i.SocketClient.Close()
 		i.SocketClient = nil
 		i.websocketWatchdog.putDown()
+		i.websocketWatchdog = nil
 	}
 }
 
@@ -498,12 +500,10 @@ func (i *BlockBookClient) startWebsocket() {
 		i.SocketClient = client
 		i.websocketWatchdog = newWebsocketWatchdog(i)
 		go i.websocketWatchdog.guardWebsocket()
-		i.socketMutex.Unlock()
+		defer i.socketMutex.Unlock()
 		break
 	}
 
-	i.socketMutex.RLock()
-	defer i.socketMutex.RUnlock()
 	// Add logging for disconnections and errors
 	i.SocketClient.On(gosocketio.OnError, func(c *gosocketio.Channel, args interface{}) {
 		Log.Warningf("websocket error: %s - %+v", i.apiUrl.Host, "-", args)
