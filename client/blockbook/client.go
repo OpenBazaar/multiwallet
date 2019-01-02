@@ -140,6 +140,7 @@ func (i *BlockBookClient) EndpointURL() url.URL {
 }
 
 func (i *BlockBookClient) Start() error {
+	// TODO: Make startWebsocket return error so it can be rotated
 	go i.setupListeners()
 	return nil
 }
