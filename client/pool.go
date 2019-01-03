@@ -24,7 +24,6 @@ var Log = logging.MustGetLogger("pool")
 type ClientPool struct {
 	blockChan        chan model.Block
 	cancelListenChan context.CancelFunc
-	clientEndpoints  []string
 	proxyDialer      proxy.Dialer
 	txChan           chan model.Transaction
 	poolManager      *rotationManager
@@ -35,7 +34,7 @@ type ClientPool struct {
 }
 
 func (p *ClientPool) newMaximumTryEnumerator() *maxTryEnum {
-	return &maxTryEnum{max: len(p.clientEndpoints), attempts: 0}
+	return &maxTryEnum{max: 3, attempts: 0}
 }
 
 type maxTryEnum struct{ max, attempts int }
@@ -43,7 +42,7 @@ type maxTryEnum struct{ max, attempts int }
 func (m *maxTryEnum) next() bool {
 	var now = m.attempts
 	m.attempts++
-	return now <= m.max
+	return now < m.max
 }
 
 // NewClientPool instantiates a new ClientPool object with the given server APIs
@@ -55,12 +54,11 @@ func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, e
 	var (
 		clientCache = make([]*blockbook.BlockBookClient, len(endpoints))
 		pool        = &ClientPool{
-			blockChan:       make(chan model.Block),
-			ClientCache:     clientCache,
-			clientEndpoints: endpoints,
-			txChan:          make(chan model.Transaction),
-			poolManager:     &rotationManager{},
-			unblockStart:    make(chan struct{}, 1),
+			blockChan:    make(chan model.Block),
+			ClientCache:  clientCache,
+			txChan:       make(chan model.Transaction),
+			poolManager:  &rotationManager{},
+			unblockStart: make(chan struct{}, 1),
 		}
 		manager, err = newRotationManager(endpoints, proxyDialer, pool.doRequest)
 	)
