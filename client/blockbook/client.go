@@ -140,8 +140,9 @@ func (i *BlockBookClient) EndpointURL() url.URL {
 }
 
 func (i *BlockBookClient) Start() error {
-	// TODO: Make startWebsocket return error so it can be rotated
-	go i.setupListeners()
+	if err := i.setupListeners(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -490,10 +491,18 @@ func connectSocket(u url.URL, proxyDialer proxy.Dialer) (model.SocketClient, err
 	return socketClient, nil
 }
 
-func (i *BlockBookClient) setupListeners() {
+func (i *BlockBookClient) setupListeners() error {
 	i.listenLock.Lock()
 	defer i.listenLock.Unlock()
-	for {
+
+	var (
+		setupTimeoutAt = time.Now().Add(10 * time.Second)
+		t              = time.NewTicker(2 * time.Second)
+	)
+	for range t.C {
+		if time.Now().After(setupTimeoutAt) {
+			return fmt.Errorf("unable to connect websocket to setup listeners")
+		}
 		if i.SocketClient != nil {
 			break
 		}
@@ -501,7 +510,6 @@ func (i *BlockBookClient) setupListeners() {
 		client, err := connectSocket(i.apiUrl, i.proxyDialer)
 		if err != nil {
 			Log.Errorf("reconnect websocket: %s", err.Error())
-			time.Sleep(5 * time.Second)
 			continue
 		}
 		i.socketMutex.Lock()
@@ -514,7 +522,6 @@ func (i *BlockBookClient) setupListeners() {
 
 	i.socketMutex.RLock()
 	defer i.socketMutex.RUnlock()
-	// Add logging for disconnections and errors
 	i.SocketClient.On(gosocketio.OnError, func(c *gosocketio.Channel, args interface{}) {
 		Log.Warningf("websocket error: %s - %+v", i.apiUrl.Host, "-", args)
 		i.websocketWatchdog.bark()
@@ -566,6 +573,7 @@ func (i *BlockBookClient) setupListeners() {
 	}
 	i.listenQueue = []string{}
 	Log.Infof("Connected to websocket endpoint %s", i.apiUrl.Host)
+	return nil
 }
 
 func (i *BlockBookClient) Broadcast(tx []byte) (string, error) {

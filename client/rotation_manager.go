@@ -34,13 +34,13 @@ func newRotationManager(targets []string, proxyDialer proxy.Dialer, doReq reqFun
 		clients[RotationTarget(apiUrl)] = c
 		targetHealth[RotationTarget(apiUrl)] = struct{}{}
 	}
-	mgr := &rotationManager{
+	m := &rotationManager{
 		clientCache:   clients,
 		currentTarget: nilTarget,
 		targetHealth:  targetHealth,
 	}
-	mgr.rotateLock.Lock()
-	return mgr, nil
+	m.Lock()
+	return m, nil
 }
 
 func (r *rotationManager) AcquireCurrent() *blockbook.BlockBookClient {
@@ -70,6 +70,7 @@ func (r *rotationManager) StartCurrent() error {
 
 func (r *rotationManager) FailCurrent() {
 	// TODO: Update health state
+	r.currentTarget = nilTarget
 }
 
 func (r *rotationManager) SelectNext() {
