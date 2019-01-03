@@ -28,6 +28,7 @@ type ClientPool struct {
 	proxyDialer      proxy.Dialer
 	txChan           chan model.Transaction
 	poolManager      *rotationManager
+	unblockStart     chan struct{}
 
 	HTTPClient  http.Client
 	ClientCache []*blockbook.BlockBookClient
@@ -59,6 +60,7 @@ func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, e
 			clientEndpoints: endpoints,
 			txChan:          make(chan model.Transaction),
 			poolManager:     &rotationManager{},
+			unblockStart:    make(chan struct{}, 1),
 		}
 		manager, err = newRotationManager(endpoints, proxyDialer, pool.doRequest)
 	)
@@ -69,24 +71,33 @@ func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, e
 	return pool, nil
 }
 
-// Start will attempt to connect to the first insight server. If it fails to
+// Start will attempt to connect to the first available server. If it fails to
 // connect it will rotate through the servers to try to find one that works.
 func (p *ClientPool) Start() error {
-	for e := p.newMaximumTryEnumerator(); e.next(); {
-		p.poolManager.SelectNext()
-		if err := p.poolManager.StartCurrent(); err != nil {
-			Log.Errorf("failed start: %s", err)
-			p.poolManager.FailCurrent()
-			continue
+	go p.run()
+	return nil
+}
+
+func (p *ClientPool) run() {
+	for {
+		select {
+		case <-p.unblockStart:
+			return
+		default:
+			p.poolManager.SelectNext()
+			if err := p.poolManager.StartCurrent(); err != nil {
+				Log.Errorf("failed start: %s", err)
+				p.poolManager.FailCurrent()
+				continue
+			}
+			p.poolManager.WaitUntilClosed()
 		}
-		return nil
 	}
-	Log.Errorf("all servers failed to start")
-	return errors.New("all insight servers failed to start")
 }
 
 // Close proxies the same request to the active InsightClient
 func (p *ClientPool) Close() {
+	p.unblockStart <- struct{}{}
 	p.poolManager.CloseCurrent()
 }
 

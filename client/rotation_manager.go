@@ -17,6 +17,7 @@ type rotationManager struct {
 	targetHealth  map[RotationTarget]struct{}
 	clientCache   map[RotationTarget]*blockbook.BlockBookClient
 	rotateLock    sync.RWMutex
+	waiter        sync.WaitGroup
 }
 type reqFunc func(string, string, []byte, url.Values) (*http.Response, error)
 
@@ -39,7 +40,7 @@ func newRotationManager(targets []string, proxyDialer proxy.Dialer, doReq reqFun
 		currentTarget: nilTarget,
 		targetHealth:  targetHealth,
 	}
-	m.Lock()
+	m.rotateLock.Lock()
 	return m, nil
 }
 
@@ -57,6 +58,7 @@ func (r *rotationManager) CloseCurrent() {
 		r.rotateLock.Lock()
 		r.clientCache[r.currentTarget].Close()
 		r.currentTarget = nilTarget
+		r.waiter.Done()
 	}
 }
 
@@ -68,6 +70,8 @@ func (r *rotationManager) StartCurrent() error {
 	return nil
 }
 
+func (r *rotationManager) WaitUntilClosed() { r.waiter.Wait() }
+
 func (r *rotationManager) FailCurrent() {
 	// TODO: Update health state
 	r.currentTarget = nilTarget
@@ -78,6 +82,7 @@ func (r *rotationManager) SelectNext() {
 	if r.currentTarget == nilTarget {
 		for target := range r.targetHealth {
 			r.currentTarget = target
+			r.waiter.Add(1)
 			break
 		}
 	}
