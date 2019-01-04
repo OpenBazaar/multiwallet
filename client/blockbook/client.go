@@ -40,7 +40,7 @@ func newWebsocketWatchdog(client *BlockBookClient) *wsWatchdog {
 	return &wsWatchdog{
 		client:    client,
 		done:      make(chan struct{}, 0),
-		wsStopped: make(chan struct{}, 20),
+		wsStopped: make(chan struct{}, 1),
 	}
 }
 
@@ -78,11 +78,15 @@ func (w *wsWatchdog) drainAndRollover() {
 }
 
 func (w *wsWatchdog) bark() {
-	w.wsStopped <- struct{}{}
+	select {
+	case w.wsStopped <- struct{}{}:
+	default:
+	}
 }
 
 func (w *wsWatchdog) putDown() {
 	close(w.done)
+	close(w.wsStopped)
 }
 
 type BlockBookClient struct {

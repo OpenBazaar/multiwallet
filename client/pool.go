@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sync"
 
 	"github.com/OpenBazaar/multiwallet/client/blockbook"
 	"github.com/OpenBazaar/multiwallet/model"
@@ -25,6 +26,7 @@ type ClientPool struct {
 	blockChan        chan model.Block
 	cancelListenChan context.CancelFunc
 	listenAddrs      []btcutil.Address
+	listenAddrsLock  sync.Mutex
 	poolManager      *rotationManager
 	proxyDialer      proxy.Dialer
 	txChan           chan model.Transaction
@@ -264,6 +266,8 @@ func (p *ClientPool) GetUtxos(addrs []btcutil.Address) ([]model.Utxo, error) {
 
 // ListenAddress proxies the same request to the active InsightClient
 func (p *ClientPool) ListenAddress(addr btcutil.Address) {
+	p.listenAddrsLock.Lock()
+	defer p.listenAddrsLock.Unlock()
 	var client = p.poolManager.AcquireCurrent()
 	defer p.poolManager.ReleaseCurrent()
 	p.listenAddrs = append(p.listenAddrs, addr)
@@ -271,6 +275,8 @@ func (p *ClientPool) ListenAddress(addr btcutil.Address) {
 }
 
 func (p *ClientPool) replayListenAddresses() {
+	p.listenAddrsLock.Lock()
+	defer p.listenAddrsLock.Unlock()
 	var client = p.poolManager.AcquireCurrent()
 	defer p.poolManager.ReleaseCurrent()
 	for _, addr := range p.listenAddrs {
