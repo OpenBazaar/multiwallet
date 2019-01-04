@@ -10,7 +10,7 @@ import (
 	"golang.org/x/net/proxy"
 )
 
-var maximumBackoff = 30 * time.Second
+var maximumBackoff = 60 * time.Second
 
 type healthState struct {
 	lastFailedAt    time.Time
@@ -52,7 +52,6 @@ type (
 		targetHealth  map[RotationTarget]*healthState
 		rotateLock    sync.RWMutex
 		started       bool
-		waiter        sync.WaitGroup
 	}
 	reqFunc func(string, string, []byte, url.Values) (*http.Response, error)
 )
@@ -96,23 +95,16 @@ func (r *rotationManager) CloseCurrent() {
 			r.clientCache[r.currentTarget].Close()
 		}
 		r.currentTarget = nilTarget
-		r.waiter.Done()
 	}
 }
 
-func (r *rotationManager) StartCurrent() error {
-	if err := r.clientCache[r.currentTarget].Start(); err != nil {
+func (r *rotationManager) StartCurrent(done chan<- bool) error {
+	if err := r.clientCache[r.currentTarget].Start(done); err != nil {
 		return err
 	}
 	r.started = true
 	r.Unlock()
 	return nil
-}
-
-func (r *rotationManager) WaitUntilClosed() {
-	if r.started {
-		r.waiter.Wait()
-	}
 }
 
 func (r *rotationManager) FailCurrent() {
@@ -130,7 +122,6 @@ func (r *rotationManager) SelectNext() {
 			for target, health := range r.targetHealth {
 				if health.isHealthy() {
 					r.currentTarget = target
-					r.waiter.Add(1)
 					return
 				}
 				if health.nextAvailable().After(nextAvailableAt) {

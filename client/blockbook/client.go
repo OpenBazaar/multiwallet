@@ -55,7 +55,9 @@ func (w *wsWatchdog) guardWebsocket() {
 			w.client.SocketClient = nil
 			w.client.socketMutex.Unlock()
 			w.drainAndRollover()
-			w.client.setupListeners()
+			if err := w.client.setupListeners(); err != nil {
+				w.client.Close()
+			}
 		case <-w.done:
 			return
 		}
@@ -85,6 +87,7 @@ func (w *wsWatchdog) putDown() {
 type BlockBookClient struct {
 	apiUrl            url.URL
 	blockNotifyChan   chan model.Block
+	closeChan         chan<- bool
 	listenLock        sync.Mutex
 	listenQueue       []string
 	proxyDialer       proxy.Dialer
@@ -139,10 +142,11 @@ func (i *BlockBookClient) EndpointURL() url.URL {
 	return i.apiUrl
 }
 
-func (i *BlockBookClient) Start() error {
+func (i *BlockBookClient) Start(closeChan chan<- bool) error {
 	if err := i.setupListeners(); err != nil {
 		return err
 	}
+	i.closeChan = closeChan
 	return nil
 }
 
@@ -154,6 +158,8 @@ func (i *BlockBookClient) Close() {
 		i.SocketClient.Close()
 		i.SocketClient = nil
 	}
+	i.closeChan <- true
+	close(i.closeChan)
 }
 
 func validateScheme(target *url.URL) error {

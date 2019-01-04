@@ -89,7 +89,8 @@ func (p *ClientPool) run() {
 
 func (p *ClientPool) runLoop() error {
 	p.poolManager.SelectNext()
-	if err := p.poolManager.StartCurrent(); err != nil {
+	var closeChan = make(chan bool, 0)
+	if err := p.poolManager.StartCurrent(closeChan); err != nil {
 		Log.Errorf("error starting %s: %s", p.poolManager.currentTarget, err.Error())
 		p.poolManager.FailCurrent()
 		p.poolManager.CloseCurrent()
@@ -98,7 +99,7 @@ func (p *ClientPool) runLoop() error {
 	var ctx context.Context
 	ctx, p.cancelListenChan = context.WithCancel(context.Background())
 	go p.listenChans(ctx)
-	p.poolManager.WaitUntilClosed()
+	<-closeChan
 	return nil
 }
 
