@@ -19,7 +19,7 @@ type healthState struct {
 
 func (h *healthState) markUnhealthy() {
 	var now = time.Now()
-	if now.Before(h.nextAvilable()) {
+	if now.Before(h.nextAvailable()) {
 		// can't be unhealthy before it's available
 		return
 	}
@@ -47,10 +47,11 @@ const nilTarget = RotationTarget("")
 type (
 	RotationTarget  string
 	rotationManager struct {
+		clientCache   map[RotationTarget]*blockbook.BlockBookClient
 		currentTarget RotationTarget
 		targetHealth  map[RotationTarget]*healthState
-		clientCache   map[RotationTarget]*blockbook.BlockBookClient
 		rotateLock    sync.RWMutex
+		started       bool
 		waiter        sync.WaitGroup
 	}
 	reqFunc func(string, string, []byte, url.Values) (*http.Response, error)
@@ -75,23 +76,25 @@ func newRotationManager(targets []string, proxyDialer proxy.Dialer, doReq reqFun
 		currentTarget: nilTarget,
 		targetHealth:  targetHealth,
 	}
-	m.rotateLock.Lock()
+	m.Lock()
 	return m, nil
 }
 
 func (r *rotationManager) AcquireCurrent() *blockbook.BlockBookClient {
-	r.rotateLock.RLock()
+	r.RLock()
 	return r.clientCache[r.currentTarget]
 }
 
 func (r *rotationManager) ReleaseCurrent() {
-	r.rotateLock.RUnlock()
+	r.RUnlock()
 }
 
 func (r *rotationManager) CloseCurrent() {
 	if r.currentTarget != nilTarget {
-		r.rotateLock.Lock()
-		r.clientCache[r.currentTarget].Close()
+		if r.started {
+			r.Lock()
+			r.clientCache[r.currentTarget].Close()
+		}
 		r.currentTarget = nilTarget
 		r.waiter.Done()
 	}
@@ -101,15 +104,20 @@ func (r *rotationManager) StartCurrent() error {
 	if err := r.clientCache[r.currentTarget].Start(); err != nil {
 		return err
 	}
-	r.rotateLock.Unlock()
+	r.started = true
+	r.Unlock()
 	return nil
 }
 
-func (r *rotationManager) WaitUntilClosed() { r.waiter.Wait() }
+func (r *rotationManager) WaitUntilClosed() {
+	if r.started {
+		r.waiter.Wait()
+	}
+}
 
 func (r *rotationManager) FailCurrent() {
+	r.started = false
 	r.targetHealth[r.currentTarget].markUnhealthy()
-	r.currentTarget = nilTarget
 }
 
 func (r *rotationManager) SelectNext() {

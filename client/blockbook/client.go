@@ -492,33 +492,37 @@ func connectSocket(u url.URL, proxyDialer proxy.Dialer) (model.SocketClient, err
 }
 
 func (i *BlockBookClient) setupListeners() error {
+	if i.SocketClient != nil {
+		return nil
+	}
+
 	i.listenLock.Lock()
 	defer i.listenLock.Unlock()
 
-	var (
-		setupTimeoutAt = time.Now().Add(10 * time.Second)
-		t              = time.NewTicker(2 * time.Second)
-	)
-	for range t.C {
-		if time.Now().After(setupTimeoutAt) {
-			return fmt.Errorf("unable to connect websocket to setup listeners")
-		}
-		if i.SocketClient != nil {
+	client, err := connectSocket(i.apiUrl, i.proxyDialer)
+	if err != nil {
+		Log.Errorf("reconnect websocket: %s", err.Error())
+		var (
+			setupTimeoutAt = time.Now().Add(10 * time.Second)
+			t              = time.NewTicker(2 * time.Second)
+		)
+		for range t.C {
+			if time.Now().After(setupTimeoutAt) {
+				return fmt.Errorf("unable to connect websocket to setup listeners")
+			}
+			client, err = connectSocket(i.apiUrl, i.proxyDialer)
+			if err != nil {
+				Log.Errorf("reconnect websocket: %s", err.Error())
+				continue
+			}
 			break
 		}
-
-		client, err := connectSocket(i.apiUrl, i.proxyDialer)
-		if err != nil {
-			Log.Errorf("reconnect websocket: %s", err.Error())
-			continue
-		}
-		i.socketMutex.Lock()
-		i.SocketClient = client
-		i.websocketWatchdog = newWebsocketWatchdog(i)
-		go i.websocketWatchdog.guardWebsocket()
-		i.socketMutex.Unlock()
-		break
 	}
+	i.socketMutex.Lock()
+	i.SocketClient = client
+	i.websocketWatchdog = newWebsocketWatchdog(i)
+	go i.websocketWatchdog.guardWebsocket()
+	i.socketMutex.Unlock()
 
 	i.socketMutex.RLock()
 	defer i.socketMutex.RUnlock()

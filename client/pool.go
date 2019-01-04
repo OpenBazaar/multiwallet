@@ -82,15 +82,24 @@ func (p *ClientPool) run() {
 		case <-p.unblockStart:
 			return
 		default:
-			p.poolManager.SelectNext()
-			if err := p.poolManager.StartCurrent(); err != nil {
-				Log.Errorf("failed start: %s", err)
-				p.poolManager.FailCurrent()
-				continue
-			}
-			p.poolManager.WaitUntilClosed()
+			p.runLoop()
 		}
 	}
+}
+
+func (p *ClientPool) runLoop() error {
+	p.poolManager.SelectNext()
+	if err := p.poolManager.StartCurrent(); err != nil {
+		Log.Errorf("error starting %s: %s", p.poolManager.currentTarget, err.Error())
+		p.poolManager.FailCurrent()
+		p.poolManager.CloseCurrent()
+		return err
+	}
+	var ctx context.Context
+	ctx, p.cancelListenChan = context.WithCancel(context.Background())
+	go p.listenChans(ctx)
+	p.poolManager.WaitUntilClosed()
+	return nil
 }
 
 // Close proxies the same request to the active InsightClient
@@ -99,31 +108,16 @@ func (p *ClientPool) Close() {
 	p.poolManager.CloseCurrent()
 }
 
-// FailRotateAndStartNextClient cleans up the active client's connections, and
-// attempts to start the next available client's connection.
-func (p *ClientPool) FailRotateAndStartNextClient() error {
+// FailAndCloseCurrentClient cleans up the active client's connections, and
+// signals to the rotation manager that it is unhealthy. The internal runLoop
+// will detect the client's closing and attempt to start the next available.
+func (p *ClientPool) FailAndCloseCurrentClient() {
 	if p.cancelListenChan != nil {
 		p.cancelListenChan()
 		p.cancelListenChan = nil
 	}
 	p.poolManager.FailCurrent()
 	p.poolManager.CloseCurrent()
-	p.poolManager.SelectNext()
-
-	for e := p.newMaximumTryEnumerator(); e.next(); {
-		startErr := p.poolManager.StartCurrent()
-		if startErr == nil {
-			var ctx context.Context
-			ctx, p.cancelListenChan = context.WithCancel(context.Background())
-			go p.listenChans(ctx)
-			return nil
-		}
-		Log.Errorf("error starting %s: %s", p.poolManager.currentTarget, startErr.Error())
-		p.poolManager.FailCurrent()
-		p.poolManager.SelectNext()
-		continue
-	}
-	return fmt.Errorf("unable to find an available server")
 }
 
 // listenChans proxies the block and tx chans from the InsightClient to the ClientPool's channels
@@ -166,9 +160,7 @@ func (p *ClientPool) doRequest(endpoint, method string, body []byte, query url.V
 			Log.Errorf("error making request (%s %s)", method, requestUrl.String())
 			Log.Errorf("\terror continued: %s", err.Error())
 			p.poolManager.ReleaseCurrent()
-			if err := p.FailRotateAndStartNextClient(); err != nil {
-				return nil, err
-			}
+			p.FailAndCloseCurrentClient()
 			continue
 		}
 		// Try again if for some reason it returned a bad request
@@ -180,17 +172,13 @@ func (p *ClientPool) doRequest(endpoint, method string, body []byte, query url.V
 				Log.Errorf("error making request (%s %s)", method, requestUrl.String())
 				Log.Errorf("\terror continued: %s", err.Error())
 				p.poolManager.ReleaseCurrent()
-				if err := p.FailRotateAndStartNextClient(); err != nil {
-					return nil, err
-				}
+				p.FailAndCloseCurrentClient()
 				continue
 			}
 		}
 		if resp.StatusCode != http.StatusOK {
 			p.poolManager.ReleaseCurrent()
-			if err := p.FailRotateAndStartNextClient(); err != nil {
-				return nil, err
-			}
+			p.FailAndCloseCurrentClient()
 			continue
 		}
 		p.poolManager.ReleaseCurrent()
