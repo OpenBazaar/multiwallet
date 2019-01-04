@@ -49,14 +49,15 @@ func (w *wsWatchdog) guardWebsocket() {
 		select {
 		case <-w.wsStopped:
 			time.Sleep(1 * time.Second)
-			Log.Warningf("reconnecting websocket %s...", w.client.apiUrl.Host)
+			Log.Warningf("reconnecting stopped websocket (%s)", w.client.apiUrl.Host)
 			w.client.socketMutex.Lock()
 			w.client.SocketClient.Close()
 			w.client.SocketClient = nil
 			w.client.socketMutex.Unlock()
 			w.drainAndRollover()
 			if err := w.client.setupListeners(); err != nil {
-				w.client.Close()
+				Log.Warningf("failed reconnecting websocket (%s)", w.client.apiUrl.Host)
+				w.client.closeWithWebsocketFailure()
 			}
 		case <-w.done:
 			return
@@ -87,7 +88,7 @@ func (w *wsWatchdog) putDown() {
 type BlockBookClient struct {
 	apiUrl            url.URL
 	blockNotifyChan   chan model.Block
-	closeChan         chan<- bool
+	closeChan         chan<- error
 	listenLock        sync.Mutex
 	listenQueue       []string
 	proxyDialer       proxy.Dialer
@@ -142,7 +143,7 @@ func (i *BlockBookClient) EndpointURL() url.URL {
 	return i.apiUrl
 }
 
-func (i *BlockBookClient) Start(closeChan chan<- bool) error {
+func (i *BlockBookClient) Start(closeChan chan<- error) error {
 	if err := i.setupListeners(); err != nil {
 		return err
 	}
@@ -151,6 +152,18 @@ func (i *BlockBookClient) Start(closeChan chan<- bool) error {
 }
 
 func (i *BlockBookClient) Close() {
+	i.shutdownWebsocket()
+	i.closeChan <- nil
+	close(i.closeChan)
+}
+
+func (i *BlockBookClient) closeWithWebsocketFailure() {
+	i.shutdownWebsocket()
+	i.closeChan <- fmt.Errorf("websocket unavailable")
+	close(i.closeChan)
+}
+
+func (i *BlockBookClient) shutdownWebsocket() {
 	if i.SocketClient != nil {
 		i.socketMutex.Lock()
 		defer i.socketMutex.Unlock()
@@ -158,8 +171,6 @@ func (i *BlockBookClient) Close() {
 		i.SocketClient.Close()
 		i.SocketClient = nil
 	}
-	i.closeChan <- true
-	close(i.closeChan)
 }
 
 func validateScheme(target *url.URL) error {

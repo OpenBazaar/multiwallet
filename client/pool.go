@@ -91,7 +91,7 @@ func (p *ClientPool) run() {
 
 func (p *ClientPool) runLoop() error {
 	p.poolManager.SelectNext()
-	var closeChan = make(chan bool, 0)
+	var closeChan = make(chan error, 0)
 	if err := p.poolManager.StartCurrent(closeChan); err != nil {
 		Log.Errorf("error starting %s: %s", p.poolManager.currentTarget, err.Error())
 		p.poolManager.FailCurrent()
@@ -102,7 +102,11 @@ func (p *ClientPool) runLoop() error {
 	ctx, p.cancelListenChan = context.WithCancel(context.Background())
 	go p.listenChans(ctx)
 	p.replayListenAddresses()
-	<-closeChan
+	if err := <-closeChan; err != nil {
+		p.poolManager.FailCurrent()
+		p.poolManager.CloseCurrent()
+		p.poolManager.Lock()
+	}
 	return nil
 }
 
@@ -126,18 +130,24 @@ func (p *ClientPool) FailAndCloseCurrentClient() {
 
 // listenChans proxies the block and tx chans from the InsightClient to the ClientPool's channels
 func (p *ClientPool) listenChans(ctx context.Context) {
-	var client = p.poolManager.AcquireCurrent()
+	var (
+		client    = p.poolManager.AcquireCurrent()
+		blockChan = client.BlockChannel()
+		txChan    = client.TxChannel()
+	)
 	defer p.poolManager.ReleaseCurrent()
-	for {
-		select {
-		case block := <-client.BlockChannel():
-			p.blockChan <- block
-		case tx := <-client.TxChannel():
-			p.txChan <- tx
-		case <-ctx.Done():
-			return
+	go func() {
+		for {
+			select {
+			case block := <-blockChan:
+				p.blockChan <- block
+			case tx := <-txChan:
+				p.txChan <- tx
+			case <-ctx.Done():
+				return
+			}
 		}
-	}
+	}()
 }
 
 // doRequest handles making the HTTP request with server rotation and retires. Only if all servers return an

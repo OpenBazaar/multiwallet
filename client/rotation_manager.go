@@ -98,7 +98,7 @@ func (r *rotationManager) CloseCurrent() {
 	}
 }
 
-func (r *rotationManager) StartCurrent(done chan<- bool) error {
+func (r *rotationManager) StartCurrent(done chan<- error) error {
 	if err := r.clientCache[r.currentTarget].Start(done); err != nil {
 		return err
 	}
