@@ -24,9 +24,10 @@ var Log = logging.MustGetLogger("pool")
 type ClientPool struct {
 	blockChan        chan model.Block
 	cancelListenChan context.CancelFunc
+	listenAddrs      []btcutil.Address
+	poolManager      *rotationManager
 	proxyDialer      proxy.Dialer
 	txChan           chan model.Transaction
-	poolManager      *rotationManager
 	unblockStart     chan struct{}
 
 	HTTPClient  http.Client
@@ -55,10 +56,11 @@ func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, e
 		clientCache = make([]*blockbook.BlockBookClient, len(endpoints))
 		pool        = &ClientPool{
 			blockChan:    make(chan model.Block),
-			ClientCache:  clientCache,
-			txChan:       make(chan model.Transaction),
 			poolManager:  &rotationManager{},
+			listenAddrs:  make([]btcutil.Address, 0),
+			txChan:       make(chan model.Transaction),
 			unblockStart: make(chan struct{}, 1),
+			ClientCache:  clientCache,
 		}
 		manager, err = newRotationManager(endpoints, proxyDialer, pool.doRequest)
 	)
@@ -99,6 +101,7 @@ func (p *ClientPool) runLoop() error {
 	var ctx context.Context
 	ctx, p.cancelListenChan = context.WithCancel(context.Background())
 	go p.listenChans(ctx)
+	p.replayListenAddresses()
 	<-closeChan
 	return nil
 }
@@ -253,7 +256,16 @@ func (p *ClientPool) GetUtxos(addrs []btcutil.Address) ([]model.Utxo, error) {
 func (p *ClientPool) ListenAddress(addr btcutil.Address) {
 	var client = p.poolManager.AcquireCurrent()
 	defer p.poolManager.ReleaseCurrent()
+	p.listenAddrs = append(p.listenAddrs, addr)
 	client.ListenAddress(addr)
+}
+
+func (p *ClientPool) replayListenAddresses() {
+	var client = p.poolManager.AcquireCurrent()
+	defer p.poolManager.ReleaseCurrent()
+	for _, addr := range p.listenAddrs {
+		client.ListenAddress(addr)
+	}
 }
 
 // TransactionNotify proxies the active InsightClient's tx channel
