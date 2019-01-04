@@ -89,7 +89,6 @@ func NewDefaultConfig(coinTypes map[wallet.CoinType]bool, params *chaincfg.Param
 		var apiEndpoints []string
 		if !testnet {
 			apiEndpoints = []string{
-				"https://btc.fake.blockbook.api.openbazaar.org/api",
 				"https://btc.blockbook.api.openbazaar.org/api",
 				// temporarily deprecated Insight endpoints
 				//"https://btc.bloqapi.net/insight-api",
