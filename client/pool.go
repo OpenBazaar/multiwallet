@@ -113,6 +113,10 @@ func (p *ClientPool) runLoop() error {
 
 // Close proxies the same request to the active InsightClient
 func (p *ClientPool) Close() {
+	if p.cancelListenChan != nil {
+		p.cancelListenChan()
+		p.cancelListenChan = nil
+	}
 	p.unblockStart <- struct{}{}
 	p.poolManager.CloseCurrent()
 }
