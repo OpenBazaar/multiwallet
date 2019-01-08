@@ -56,6 +56,7 @@ func (w *wsWatchdog) guardWebsocket() {
 			w.drainAndRollover()
 			if err := w.client.setupListeners(); err != nil {
 				Log.Warningf("failed reconnecting websocket (%s)", w.client.apiUrl.Host)
+				w.client.socketMutex.Unlock()
 				w.client.closeChan <- fmt.Errorf("websocket unavailable")
 				close(w.client.closeChan)
 				w.putDown()
@@ -473,10 +474,10 @@ func (i *BlockBookClient) ListenAddress(addr btcutil.Address) {
 	var args []interface{}
 	args = append(args, "bitcoind/addresstxid")
 	args = append(args, []string{maybeConvertCashAddress(addr)})
+	i.socketMutex.RLock()
+	defer i.socketMutex.RUnlock()
 	if i.SocketClient != nil {
-		i.socketMutex.RLock()
 		i.SocketClient.Emit("subscribe", args)
-		i.socketMutex.RUnlock()
 	} else {
 		i.listenQueue = append(i.listenQueue, maybeConvertCashAddress(addr))
 	}
