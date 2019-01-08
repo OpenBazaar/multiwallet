@@ -523,6 +523,7 @@ func (i *BlockBookClient) setupListeners() error {
 			setupTimeoutAt = time.Now().Add(10 * time.Second)
 			t              = time.NewTicker(2 * time.Second)
 		)
+		defer t.Stop()
 		for range t.C {
 			if time.Now().After(setupTimeoutAt) {
 				return fmt.Errorf("unable to connect websocket to setup listeners")
