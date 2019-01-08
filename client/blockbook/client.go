@@ -59,7 +59,7 @@ func (w *wsWatchdog) guardWebsocket() {
 				w.client.socketMutex.Unlock()
 				w.client.closeChan <- fmt.Errorf("websocket unavailable")
 				close(w.client.closeChan)
-				w.putDown()
+				go w.putDown()
 				return
 			}
 			w.client.socketMutex.Unlock()
@@ -87,7 +87,6 @@ func (w *wsWatchdog) bark() {
 }
 
 func (w *wsWatchdog) putDown() {
-	close(w.wsStopped)
 	w.done <- struct{}{}
 	close(w.done)
 }
