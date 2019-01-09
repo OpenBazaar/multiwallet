@@ -154,7 +154,7 @@ func (p *ClientPool) listenChans(ctx context.Context) {
 // error will this method return an error.
 func (p *ClientPool) executeRequest(queryFunc func(c *blockbook.BlockBookClient) error) error {
 	for e := p.newMaximumTryEnumerator(); e.next(); {
-		var client = p.poolManager.AcquireCurrent()
+		var client = p.poolManager.AcquireCurrentWhenReady()
 		if err := queryFunc(client); err != nil {
 			Log.Infof("error executing wallet client request: %s", err.Error())
 			p.poolManager.ReleaseCurrent()
