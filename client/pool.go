@@ -1,21 +1,15 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"fmt"
-	"io/ioutil"
-	"net/http"
-	"net/url"
-	"path"
-	"sync"
-
 	"github.com/OpenBazaar/multiwallet/client/blockbook"
 	"github.com/OpenBazaar/multiwallet/model"
 	"github.com/btcsuite/btcutil"
-	logging "github.com/op/go-logging"
+	"github.com/op/go-logging"
 	"golang.org/x/net/proxy"
+	"net/http"
+	"sync"
 )
 
 var Log = logging.MustGetLogger("pool")
@@ -64,7 +58,7 @@ func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, e
 			unblockStart: make(chan struct{}, 1),
 			ClientCache:  clientCache,
 		}
-		manager, err = newRotationManager(endpoints, proxyDialer, pool.doRequest)
+		manager, err = newRotationManager(endpoints, proxyDialer)
 	)
 	if err != nil {
 		return nil, err
@@ -155,55 +149,19 @@ func (p *ClientPool) listenChans(ctx context.Context) {
 	}()
 }
 
-// doRequest handles making the HTTP request with server rotation and retires. Only if all servers return an
+// executeRequest handles making the HTTP request with server rotation and retires. Only if all servers return an
 // error will this method return an error.
-func (p *ClientPool) doRequest(endpoint, method string, body []byte, query url.Values) (*http.Response, error) {
+func (p *ClientPool) executeRequest(client *blockbook.BlockBookClient, queryFunc func(c *blockbook.BlockBookClient) error) error {
 	for e := p.newMaximumTryEnumerator(); e.next(); {
-		var client = p.poolManager.AcquireCurrentWhenReady()
-		requestUrl := client.EndpointURL()
-		requestUrl.Path = path.Join(client.EndpointURL().Path, endpoint)
-		req, err := http.NewRequest(method, requestUrl.String(), bytes.NewReader(body))
-		if query != nil {
-			req.URL.RawQuery = query.Encode()
-		}
-		if err != nil {
-			Log.Errorf("error preparing request (%s %s)", method, requestUrl.String())
-			Log.Errorf("\terror continued: %s", err.Error())
-			p.poolManager.ReleaseCurrent()
-			return nil, fmt.Errorf("invalid request: %s", err)
-		}
-		req.Header.Add("Content-Type", "application/json")
-
-		resp, err := p.HTTPClient.Do(req)
-		if err != nil {
-			Log.Errorf("error making request (%s %s)", method, requestUrl.String())
-			Log.Errorf("\terror continued: %s", err.Error())
+		if err := queryFunc(client); err != nil {
 			p.poolManager.ReleaseCurrent()
 			p.FailAndCloseCurrentClient()
-			continue
+			client = p.poolManager.AcquireCurrent()
+		} else {
+			return nil
 		}
-		// Try again if for some reason it returned a bad request
-		if resp.StatusCode == http.StatusBadRequest {
-			// Reset the body so we can read it again.
-			req.Body = ioutil.NopCloser(bytes.NewReader(body))
-			resp, err = p.HTTPClient.Do(req)
-			if err != nil {
-				Log.Errorf("error making request (%s %s)", method, requestUrl.String())
-				Log.Errorf("\terror continued: %s", err.Error())
-				p.poolManager.ReleaseCurrent()
-				p.FailAndCloseCurrentClient()
-				continue
-			}
-		}
-		if resp.StatusCode != http.StatusOK {
-			p.poolManager.ReleaseCurrent()
-			p.FailAndCloseCurrentClient()
-			continue
-		}
-		p.poolManager.ReleaseCurrent()
-		return resp, nil
 	}
-	return nil, errors.New("exhausted maximum attempts for request")
+	return errors.New("exhausted maximum attempts for request")
 }
 
 // BlockNofity proxies the active InsightClient's block channel
@@ -215,56 +173,112 @@ func (p *ClientPool) BlockNotify() <-chan model.Block {
 func (p *ClientPool) Broadcast(tx []byte) (string, error) {
 	var client = p.poolManager.AcquireCurrentWhenReady()
 	defer p.poolManager.ReleaseCurrent()
-	return client.Broadcast(tx)
+	var txid string
+	var err error
+	queryFunc := func(c *blockbook.BlockBookClient) error {
+		txid, err = c.Broadcast(tx)
+		return err
+	}
+	err = p.executeRequest(client, queryFunc)
+	return txid, err
 }
 
 // EstimateFee proxies the same request to the active InsightClient
 func (p *ClientPool) EstimateFee(nBlocks int) (int, error) {
 	var client = p.poolManager.AcquireCurrentWhenReady()
 	defer p.poolManager.ReleaseCurrent()
-	return client.EstimateFee(nBlocks)
+	var fee int
+	var err error
+	queryFunc := func(c *blockbook.BlockBookClient) error {
+		fee, err = c.EstimateFee(nBlocks)
+		return err
+	}
+	err = p.executeRequest(client, queryFunc)
+	return fee, err
 }
 
 // GetBestBlock proxies the same request to the active InsightClient
 func (p *ClientPool) GetBestBlock() (*model.Block, error) {
 	var client = p.poolManager.AcquireCurrentWhenReady()
 	defer p.poolManager.ReleaseCurrent()
-	return client.GetBestBlock()
+	var block *model.Block
+	var err error
+	queryFunc := func(c *blockbook.BlockBookClient) error {
+		block, err = c.GetBestBlock()
+		return err
+	}
+	err = p.executeRequest(client, queryFunc)
+	return block, err
 }
 
 // GetInfo proxies the same request to the active InsightClient
 func (p *ClientPool) GetInfo() (*model.Info, error) {
 	var client = p.poolManager.AcquireCurrentWhenReady()
 	defer p.poolManager.ReleaseCurrent()
-	return client.GetInfo()
+	var info *model.Info
+	var err error
+	queryFunc := func(c *blockbook.BlockBookClient) error {
+		info, err = c.GetInfo()
+		return err
+	}
+	err = p.executeRequest(client, queryFunc)
+	return info, err
 }
 
 // GetRawTransaction proxies the same request to the active InsightClient
 func (p *ClientPool) GetRawTransaction(txid string) ([]byte, error) {
 	var client = p.poolManager.AcquireCurrentWhenReady()
 	defer p.poolManager.ReleaseCurrent()
-	return client.GetRawTransaction(txid)
+	var tx []byte
+	var err error
+	queryFunc := func(c *blockbook.BlockBookClient) error {
+		tx, err = c.GetRawTransaction(txid)
+		return err
+	}
+	err = p.executeRequest(client, queryFunc)
+	return tx, err
 }
 
 // GetTransactions proxies the same request to the active InsightClient
 func (p *ClientPool) GetTransactions(addrs []btcutil.Address) ([]model.Transaction, error) {
 	var client = p.poolManager.AcquireCurrentWhenReady()
 	defer p.poolManager.ReleaseCurrent()
-	return client.GetTransactions(addrs)
+	var txs []model.Transaction
+	var err error
+	queryFunc := func(c *blockbook.BlockBookClient) error {
+		txs, err = c.GetTransactions(addrs)
+		return err
+	}
+	err = p.executeRequest(client, queryFunc)
+	return txs, err
 }
 
 // GetTransaction proxies the same request to the active InsightClient
 func (p *ClientPool) GetTransaction(txid string) (*model.Transaction, error) {
 	var client = p.poolManager.AcquireCurrentWhenReady()
 	defer p.poolManager.ReleaseCurrent()
-	return client.GetTransaction(txid)
+	var tx *model.Transaction
+	var err error
+	queryFunc := func(c *blockbook.BlockBookClient) error {
+		tx, err = c.GetTransaction(txid)
+		return err
+	}
+	err = p.executeRequest(client, queryFunc)
+	return tx, err
 }
 
 // GetUtxos proxies the same request to the active InsightClient
 func (p *ClientPool) GetUtxos(addrs []btcutil.Address) ([]model.Utxo, error) {
 	var client = p.poolManager.AcquireCurrentWhenReady()
 	defer p.poolManager.ReleaseCurrent()
-	return client.GetUtxos(addrs)
+	var utxos []model.Utxo
+	var err error
+	queryFunc := func(c *blockbook.BlockBookClient) error {
+		utxos, err = c.GetUtxos(addrs)
+		return err
+	}
+	err = p.executeRequest(client, queryFunc)
+	return utxos, err
 }
 
 // ListenAddress proxies the same request to the active InsightClient

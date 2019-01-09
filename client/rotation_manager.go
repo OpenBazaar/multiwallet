@@ -56,7 +56,7 @@ type (
 	reqFunc func(string, string, []byte, url.Values) (*http.Response, error)
 )
 
-func newRotationManager(targets []string, proxyDialer proxy.Dialer, doReq reqFunc) (*rotationManager, error) {
+func newRotationManager(targets []string, proxyDialer proxy.Dialer) (*rotationManager, error) {
 	var (
 		targetHealth = make(map[RotationTarget]*healthState)
 		clients      = make(map[RotationTarget]*blockbook.BlockBookClient)
@@ -66,7 +66,6 @@ func newRotationManager(targets []string, proxyDialer proxy.Dialer, doReq reqFun
 		if err != nil {
 			return nil, err
 		}
-		c.RequestFunc = doReq
 		clients[RotationTarget(apiUrl)] = c
 		targetHealth[RotationTarget(apiUrl)] = &healthState{}
 	}
