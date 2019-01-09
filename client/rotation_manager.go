@@ -1,8 +1,6 @@
 package client
 
 import (
-	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
@@ -53,7 +51,6 @@ type (
 		rotateLock    sync.RWMutex
 		started       bool
 	}
-	reqFunc func(string, string, []byte, url.Values) (*http.Response, error)
 )
 
 func newRotationManager(targets []string, proxyDialer proxy.Dialer) (*rotationManager, error) {
