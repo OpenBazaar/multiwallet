@@ -2,17 +2,15 @@ package client_test
 
 import (
 	"fmt"
-	"net/http"
-	"sync"
-	"testing"
-	"time"
-
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/model"
 	"github.com/OpenBazaar/multiwallet/model/mock"
 	"github.com/OpenBazaar/multiwallet/test"
 	"github.com/OpenBazaar/multiwallet/test/factory"
-	httpmock "gopkg.in/jarcoal/httpmock.v1"
+	"gopkg.in/jarcoal/httpmock.v1"
+	"net/http"
+	"testing"
+	"time"
 )
 
 func TestServerRotation(t *testing.T) {
@@ -31,7 +29,7 @@ func TestServerRotation(t *testing.T) {
 	mockedHTTPClient := http.Client{}
 	httpmock.ActivateNonDefault(&mockedHTTPClient)
 	defer httpmock.DeactivateAndReset()
-	for _, c := range p.ClientCache {
+	for _, c := range p.Clients() {
 		c.HTTPClient = mockedHTTPClient
 	}
 	p.HTTPClient = mockedHTTPClient
@@ -44,7 +42,11 @@ func TestServerRotation(t *testing.T) {
 		},
 	)
 
-	tx, err := p.CurrentClient().GetTransaction(txid)
+	err = p.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := p.GetTransaction(txid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +66,7 @@ func TestServerRotation(t *testing.T) {
 		},
 	)
 
-	tx, err = p.CurrentClient().GetTransaction(txid)
+	tx, err = p.GetTransaction(txid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +75,7 @@ func TestServerRotation(t *testing.T) {
 
 func TestClientPool_BlockNotify(t *testing.T) {
 	var (
-		p, err   = client.NewClientPool([]string{"http://localhost:8332", "http://localhost:8336"}, nil)
+		p, err   = client.NewClientPool([]string{"http://localhost:8332"}, nil)
 		testHash = "0000000000000000003f1fb88ac3dab0e607e87def0e9031f7bea02cb464a04f"
 	)
 	if err != nil {
@@ -81,19 +83,20 @@ func TestClientPool_BlockNotify(t *testing.T) {
 	}
 
 	mock.MockWebsocketClientOnClientPool(p)
-	// Rotate the server to make sure we can still send through the new client connect
-	// to the pool chans
-	p.RotateAndStartNextClient()
+	err = p.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	go func() {
-		p.CurrentClient().BlockChannel() <- model.Block{Hash: testHash}
+		p.Clients()[0].BlockChannel() <- model.Block{Hash: testHash}
 	}()
 
 	ticker := time.NewTicker(time.Second)
 	select {
 	case <-ticker.C:
 		t.Error("Timed out waiting for block")
-	case b := <-p.CurrentClient().BlockNotify():
+	case b := <-p.BlockNotify():
 		if b.Hash != testHash {
 			t.Error("Returned incorrect block hash")
 		}
@@ -102,7 +105,7 @@ func TestClientPool_BlockNotify(t *testing.T) {
 
 func TestClientPool_TransactionNotify(t *testing.T) {
 	var (
-		p, err     = client.NewClientPool([]string{"http://localhost:8332", "http://localhost:8336"}, nil)
+		p, err     = client.NewClientPool([]string{"http://localhost:8332"}, nil)
 		txChan     = p.TransactionNotify()
 		expectedTx = factory.NewTransaction()
 	)
@@ -114,12 +117,8 @@ func TestClientPool_TransactionNotify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Rotate the server to make sure we can still send through the new
-	// client connect to the pool chans
-	p.RotateAndStartNextClient()
-
 	go func() {
-		p.CurrentClient().TxChannel() <- expectedTx
+		p.Clients()[0].TxChannel() <- expectedTx
 	}()
 
 	ticker := time.NewTicker(1 * time.Second)
@@ -143,47 +142,4 @@ func TestClientPool_TransactionNotify(t *testing.T) {
 		}
 		test.ValidateTransaction(b, expectedTx, t)
 	}
-}
-
-func TestClientPoolDoesntRaceWaitGroups(t *testing.T) {
-	httpmock.Activate()
-	defer httpmock.DeactivateAndReset()
-
-	var p, err = client.NewClientPool([]string{"http://localhost:1111", "http://localhost:2222"}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mock.MockWebsocketClientOnClientPool(p)
-	if err := p.Start(); err != nil {
-		t.Fatal(err)
-	}
-
-	httpmock.RegisterNoResponder(func(req *http.Request) (*http.Response, error) {
-		time.Sleep(500 * time.Millisecond)
-		return httpmock.NewJsonResponse(http.StatusOK, `{}`)
-	})
-
-	var wait sync.WaitGroup
-	wait.Add(4)
-	go func() {
-		defer wait.Done()
-		p.GetBestBlock()
-	}()
-	go func() {
-		defer wait.Done()
-		if err := p.RotateAndStartNextClient(); err != nil {
-			t.Errorf("failed rotating client: %s", err)
-		}
-	}()
-	go func() {
-		defer wait.Done()
-		p.GetBestBlock()
-	}()
-	go func() {
-		defer wait.Done()
-		if err := p.RotateAndStartNextClient(); err != nil {
-			t.Errorf("failed rotating client: %s", err)
-		}
-	}()
-	wait.Wait()
 }

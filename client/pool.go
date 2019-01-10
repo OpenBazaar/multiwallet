@@ -27,8 +27,7 @@ type ClientPool struct {
 	txChan           chan model.Transaction
 	unblockStart     chan struct{}
 
-	HTTPClient  http.Client
-	ClientCache []*blockbook.BlockBookClient
+	HTTPClient http.Client
 }
 
 func (p *ClientPool) newMaximumTryEnumerator() *maxTryEnum {
@@ -50,14 +49,12 @@ func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, e
 	}
 
 	var (
-		clientCache = make([]*blockbook.BlockBookClient, len(endpoints))
-		pool        = &ClientPool{
+		pool = &ClientPool{
 			blockChan:    make(chan model.Block),
 			poolManager:  &rotationManager{},
 			listenAddrs:  make([]btcutil.Address, 0),
 			txChan:       make(chan model.Transaction),
 			unblockStart: make(chan struct{}, 1),
-			ClientCache:  clientCache,
 		}
 		manager, err = newRotationManager(endpoints, proxyDialer)
 	)
@@ -73,6 +70,14 @@ func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, e
 func (p *ClientPool) Start() error {
 	go p.run()
 	return nil
+}
+
+func (p *ClientPool) Clients() []*blockbook.BlockBookClient {
+	var clients []*blockbook.BlockBookClient
+	for _, c := range p.poolManager.clientCache {
+		clients = append(clients, c)
+	}
+	return clients
 }
 
 func (p *ClientPool) run() {
@@ -153,12 +158,13 @@ func (p *ClientPool) listenChans(ctx context.Context) {
 // executeRequest handles making the HTTP request with server rotation and retires. Only if all servers return an
 // error will this method return an error.
 func (p *ClientPool) executeRequest(queryFunc func(c *blockbook.BlockBookClient) error) error {
+	var client = p.poolManager.AcquireCurrentWhenReady()
 	for e := p.newMaximumTryEnumerator(); e.next(); {
-		var client = p.poolManager.AcquireCurrentWhenReady()
 		if err := queryFunc(client); err != nil {
 			Log.Infof("error executing wallet client request: %s", err.Error())
 			p.poolManager.ReleaseCurrent()
 			p.FailAndCloseCurrentClient()
+			client = p.poolManager.AcquireCurrent()
 		} else {
 			p.poolManager.ReleaseCurrent()
 			return nil
@@ -286,7 +292,7 @@ func (p *ClientPool) GetTransaction(txid string) (*model.Transaction, error) {
 		queryFunc = func(c *blockbook.BlockBookClient) error {
 			r, err := c.GetTransaction(txid)
 			if err != nil {
-				return nil
+				return err
 			}
 			tx = r
 			return nil

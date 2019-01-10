@@ -114,7 +114,7 @@ func MockWebsocketClientOnClientPool(p *client.ClientPool) *MockSocketClient {
 			listeningAddresses: []string{},
 		}
 	)
-	for _, c := range p.ClientCache {
+	for _, c := range p.Clients() {
 		c.SocketClient = mockSocketClient
 	}
 	return mockSocketClient
