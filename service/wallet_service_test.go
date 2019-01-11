@@ -423,9 +423,6 @@ func TestWalletService_listenersFired(t *testing.T) {
 	if ch.String() != mock.MockTransactions[3].Txid {
 		t.Error("Returned incorrect txid")
 	}
-	if response.Value != 751918 {
-		t.Error("Returned incorrect value")
-	}
 	if response.Height != 1289594-1 {
 		t.Error("Returned incorrect height")
 	}
