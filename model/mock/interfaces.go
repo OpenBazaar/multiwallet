@@ -93,7 +93,7 @@ func (m *MockAPIClient) ListenAddress(addr btcutil.Address) {
 }
 
 func (m *MockAPIClient) Broadcast(tx []byte) (string, error) {
-	return "txid", nil
+	return "a8c685478265f4c14dada651969c45a65e1aeb8cd6791f2f5bb6a1d9952104d9", nil
 }
 
 func (m *MockAPIClient) GetBestBlock() (*model.Block, error) {

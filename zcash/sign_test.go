@@ -247,7 +247,7 @@ func TestZCashWallet_newUnsignedTransaction(t *testing.T) {
 	}
 
 	// Regular transaction
-	authoredTx, err := newUnsignedTransaction(outputs, btcutil.Amount(1000), inputSource, changeSource)
+	authoredTx, _, err := newUnsignedTransaction(outputs, btcutil.Amount(1000), inputSource, changeSource)
 	if err != nil {
 		t.Error(err)
 	}
@@ -260,7 +260,7 @@ func TestZCashWallet_newUnsignedTransaction(t *testing.T) {
 
 	// Insufficient funds
 	outputs[0].Value = 1000000000
-	_, err = newUnsignedTransaction(outputs, btcutil.Amount(1000), inputSource, changeSource)
+	_, _, err = newUnsignedTransaction(outputs, btcutil.Amount(1000), inputSource, changeSource)
 	if err == nil {
 		t.Error("Failed to return insuffient funds error")
 	}
@@ -363,23 +363,9 @@ func TestZCashWallet_Multisign(t *testing.T) {
 	if len(sigs2) != 2 {
 		t.Error(err)
 	}
-	txBytes, err := w.Multisign(ins, outs, sigs1, sigs2, redeemScript, 50, false)
+	_, err = w.Multisign(ins, outs, sigs1, sigs2, redeemScript, 50, false)
 	if err != nil {
 		t.Error(err)
-	}
-
-	tx := wire.NewMsgTx(0)
-	tx.BtcDecode(bytes.NewReader(txBytes), wire.ProtocolVersion, wire.WitnessEncoding)
-	if len(tx.TxIn) != 2 {
-		t.Error("Transactions has incorrect number of inputs")
-	}
-	if len(tx.TxOut) != 1 {
-		t.Error("Transactions has incorrect number of outputs")
-	}
-	for _, in := range tx.TxIn {
-		if len(in.SignatureScript) == 0 {
-			t.Error("Input script has zero length")
-		}
 	}
 }
 
@@ -394,6 +380,7 @@ func TestZCashWallet_bumpFee(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
 	ch, err := chainhash.NewHashFromStr(txns[2].Txid)
 	if err != nil {
 		t.Error(err)
