@@ -89,6 +89,7 @@ func (p *ClientPool) run() {
 func (p *ClientPool) runLoop() error {
 	p.poolManager.SelectNext()
 	var closeChan = make(chan error, 0)
+	defer close(closeChan)
 	if err := p.poolManager.StartCurrent(closeChan); err != nil {
 		Log.Errorf("error starting %s: %s", p.poolManager.currentTarget, err.Error())
 		p.poolManager.FailCurrent()
@@ -98,6 +99,7 @@ func (p *ClientPool) runLoop() error {
 	var ctx context.Context
 	ctx, p.cancelListenChan = context.WithCancel(context.Background())
 	go p.listenChans(ctx)
+	defer p.stopWebsocketListening()
 	p.replayListenAddresses()
 	if err := <-closeChan; err != nil {
 		p.poolManager.FailCurrent()
@@ -108,10 +110,7 @@ func (p *ClientPool) runLoop() error {
 
 // Close proxies the same request to the active client
 func (p *ClientPool) Close() {
-	if p.cancelListenChan != nil {
-		p.cancelListenChan()
-		p.cancelListenChan = nil
-	}
+	p.stopWebsocketListening()
 	p.unblockStart <- struct{}{}
 	p.poolManager.CloseCurrent()
 }
@@ -120,12 +119,16 @@ func (p *ClientPool) Close() {
 // signals to the rotation manager that it is unhealthy. The internal runLoop
 // will detect the client's closing and attempt to start the next available.
 func (p *ClientPool) FailAndCloseCurrentClient() {
+	p.stopWebsocketListening()
+	p.poolManager.FailCurrent()
+	p.poolManager.CloseCurrent()
+}
+
+func (p *ClientPool) stopWebsocketListening() {
 	if p.cancelListenChan != nil {
 		p.cancelListenChan()
 		p.cancelListenChan = nil
 	}
-	p.poolManager.FailCurrent()
-	p.poolManager.CloseCurrent()
 }
 
 // listenChans proxies the block and tx chans from the client to the ClientPool's channels
