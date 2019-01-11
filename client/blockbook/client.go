@@ -164,7 +164,9 @@ func (i *BlockBookClient) Close() {
 	i.socketMutex.Lock()
 	defer i.socketMutex.Unlock()
 	if i.SocketClient != nil {
-		go i.websocketWatchdog.putDown()
+		if i.websocketWatchdog != nil {
+			go i.websocketWatchdog.putDown()
+		}
 		i.SocketClient.Close()
 		i.SocketClient = nil
 	}

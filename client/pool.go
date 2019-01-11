@@ -121,6 +121,13 @@ func (p *ClientPool) Close() {
 	p.poolManager.CloseCurrent()
 }
 
+// CurrentClient returns the active client
+func (p *ClientPool) CurrentClient() *blockbook.BlockBookClient {
+	client := p.poolManager.AcquireCurrentWhenReady()
+	defer p.poolManager.ReleaseCurrent()
+	return client
+}
+
 // FailAndCloseCurrentClient cleans up the active client's connections, and
 // signals to the rotation manager that it is unhealthy. The internal runLoop
 // will detect the client's closing and attempt to start the next available.
@@ -158,13 +165,12 @@ func (p *ClientPool) listenChans(ctx context.Context) {
 // executeRequest handles making the HTTP request with server rotation and retires. Only if all servers return an
 // error will this method return an error.
 func (p *ClientPool) executeRequest(queryFunc func(c *blockbook.BlockBookClient) error) error {
-	var client = p.poolManager.AcquireCurrentWhenReady()
 	for e := p.newMaximumTryEnumerator(); e.next(); {
+		var client = p.poolManager.AcquireCurrentWhenReady()
 		if err := queryFunc(client); err != nil {
 			Log.Infof("error executing wallet client request: %s", err.Error())
 			p.poolManager.ReleaseCurrent()
 			p.FailAndCloseCurrentClient()
-			client = p.poolManager.AcquireCurrent()
 		} else {
 			p.poolManager.ReleaseCurrent()
 			return nil
