@@ -103,7 +103,8 @@ func TestClientPool_BlockNotify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	client := p.CurrentClient()
+	client := p.PoolManager().AcquireCurrent()
+	p.PoolManager().ReleaseCurrent()
 	var p1, p2 string
 	if client.EndpointURL().Host == "localhost:8332" {
 		p1 = endpointOne
@@ -142,7 +143,8 @@ func TestClientPool_BlockNotify(t *testing.T) {
 
 	p.GetTransaction(txid)
 
-	client = p.CurrentClient()
+	client = p.PoolManager().AcquireCurrent()
+	p.PoolManager().ReleaseCurrent()
 
 	go func() {
 		client.BlockChannel() <- model.Block{Hash: testHash}
@@ -188,7 +190,8 @@ func TestClientPool_TransactionNotify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	client := p.CurrentClient()
+	client := p.PoolManager().AcquireCurrent()
+	p.PoolManager().ReleaseCurrent()
 	var p1, p2 string
 	if client.EndpointURL().Host == "localhost:8332" {
 		p1 = endpointOne
@@ -227,7 +230,8 @@ func TestClientPool_TransactionNotify(t *testing.T) {
 
 	p.GetTransaction(txid)
 
-	client = p.CurrentClient()
+	client = p.PoolManager().AcquireCurrent()
+	p.PoolManager().ReleaseCurrent()
 
 	go func() {
 		client.TxChannel() <- expectedTx

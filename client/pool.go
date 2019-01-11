@@ -121,11 +121,9 @@ func (p *ClientPool) Close() {
 	p.poolManager.CloseCurrent()
 }
 
-// CurrentClient returns the active client
-func (p *ClientPool) CurrentClient() *blockbook.BlockBookClient {
-	client := p.poolManager.AcquireCurrentWhenReady()
-	defer p.poolManager.ReleaseCurrent()
-	return client
+// PoolManager returns the pool manager object
+func (p *ClientPool) PoolManager() *rotationManager {
+	return p.poolManager
 }
 
 // FailAndCloseCurrentClient cleans up the active client's connections, and
