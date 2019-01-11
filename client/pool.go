@@ -27,8 +27,7 @@ type ClientPool struct {
 	txChan           chan model.Transaction
 	unblockStart     chan struct{}
 
-	HTTPClient  http.Client
-	ClientCache []*blockbook.BlockBookClient
+	HTTPClient http.Client
 }
 
 func (p *ClientPool) newMaximumTryEnumerator() *maxTryEnum {
@@ -50,14 +49,12 @@ func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, e
 	}
 
 	var (
-		clientCache = make([]*blockbook.BlockBookClient, len(endpoints))
-		pool        = &ClientPool{
+		pool = &ClientPool{
 			blockChan:    make(chan model.Block),
 			poolManager:  &rotationManager{},
 			listenAddrs:  make([]btcutil.Address, 0),
 			txChan:       make(chan model.Transaction),
 			unblockStart: make(chan struct{}, 1),
-			ClientCache:  clientCache,
 		}
 		manager, err = newRotationManager(endpoints, proxyDialer)
 	)
@@ -73,6 +70,14 @@ func NewClientPool(endpoints []string, proxyDialer proxy.Dialer) (*ClientPool, e
 func (p *ClientPool) Start() error {
 	go p.run()
 	return nil
+}
+
+func (p *ClientPool) Clients() []*blockbook.BlockBookClient {
+	var clients []*blockbook.BlockBookClient
+	for _, c := range p.poolManager.clientCache {
+		clients = append(clients, c)
+	}
+	return clients
 }
 
 func (p *ClientPool) run() {
@@ -113,6 +118,11 @@ func (p *ClientPool) Close() {
 	p.stopWebsocketListening()
 	p.unblockStart <- struct{}{}
 	p.poolManager.CloseCurrent()
+}
+
+// PoolManager returns the pool manager object
+func (p *ClientPool) PoolManager() *rotationManager {
+	return p.poolManager
 }
 
 // FailAndCloseCurrentClient cleans up the active client's connections, and
@@ -289,7 +299,7 @@ func (p *ClientPool) GetTransaction(txid string) (*model.Transaction, error) {
 		queryFunc = func(c *blockbook.BlockBookClient) error {
 			r, err := c.GetTransaction(txid)
 			if err != nil {
-				return nil
+				return err
 			}
 			tx = r
 			return nil

@@ -2,17 +2,15 @@ package client_test
 
 import (
 	"fmt"
-	"net/http"
-	"sync"
-	"testing"
-	"time"
-
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/model"
 	"github.com/OpenBazaar/multiwallet/model/mock"
 	"github.com/OpenBazaar/multiwallet/test"
 	"github.com/OpenBazaar/multiwallet/test/factory"
-	httpmock "gopkg.in/jarcoal/httpmock.v1"
+	"gopkg.in/jarcoal/httpmock.v1"
+	"net/http"
+	"testing"
+	"time"
 )
 
 func TestServerRotation(t *testing.T) {
@@ -31,7 +29,7 @@ func TestServerRotation(t *testing.T) {
 	mockedHTTPClient := http.Client{}
 	httpmock.ActivateNonDefault(&mockedHTTPClient)
 	defer httpmock.DeactivateAndReset()
-	for _, c := range p.ClientCache {
+	for _, c := range p.Clients() {
 		c.HTTPClient = mockedHTTPClient
 	}
 	p.HTTPClient = mockedHTTPClient
@@ -44,7 +42,11 @@ func TestServerRotation(t *testing.T) {
 		},
 	)
 
-	tx, err := p.CurrentClient().GetTransaction(txid)
+	err = p.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := p.GetTransaction(txid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +66,7 @@ func TestServerRotation(t *testing.T) {
 		},
 	)
 
-	tx, err = p.CurrentClient().GetTransaction(txid)
+	tx, err = p.GetTransaction(txid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,27 +75,86 @@ func TestServerRotation(t *testing.T) {
 
 func TestClientPool_BlockNotify(t *testing.T) {
 	var (
-		p, err   = client.NewClientPool([]string{"http://localhost:8332", "http://localhost:8336"}, nil)
-		testHash = "0000000000000000003f1fb88ac3dab0e607e87def0e9031f7bea02cb464a04f"
+		endpointOne = "http://localhost:8332"
+		endpointTwo = "http://localhost:8336"
+		p, err      = client.NewClientPool([]string{endpointOne, endpointTwo}, nil)
+		testHash    = "0000000000000000003f1fb88ac3dab0e607e87def0e9031f7bea02cb464a04f"
+		txid        = "1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"
+		testPath    = func(host string) string { return fmt.Sprintf("%s/tx/%s", host, txid) }
+		expectedTx  = factory.NewTransaction()
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	mock.MockWebsocketClientOnClientPool(p)
-	// Rotate the server to make sure we can still send through the new client connect
-	// to the pool chans
-	p.RotateAndStartNextClient()
+	mockedHTTPClient := http.Client{}
+	httpmock.ActivateNonDefault(&mockedHTTPClient)
+	defer httpmock.DeactivateAndReset()
+	for _, c := range p.Clients() {
+		c.HTTPClient = mockedHTTPClient
+	}
+	p.HTTPClient = mockedHTTPClient
+
+	mock.MockWebsocketClientOnClientPool(p)
+
+	err = p.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client := p.PoolManager().AcquireCurrent()
+	p.PoolManager().ReleaseCurrent()
+	var p1, p2 string
+	if client.EndpointURL().Host == "localhost:8332" {
+		p1 = endpointOne
+		p2 = endpointTwo
+	} else {
+		p1 = endpointTwo
+		p2 = endpointOne
+	}
+
+	// GetTransaction should fail for endpoint one and succeed for endpoint two
+	httpmock.RegisterResponder(http.MethodGet, testPath(p1),
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(http.StatusBadRequest, nil)
+		},
+	)
+
+	httpmock.RegisterResponder(http.MethodGet, testPath(p2),
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(http.StatusOK, expectedTx)
+		},
+	)
 
 	go func() {
-		p.CurrentClient().BlockChannel() <- model.Block{Hash: testHash}
+		client.BlockChannel() <- model.Block{Hash: testHash}
 	}()
 
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(time.Second * 2)
 	select {
 	case <-ticker.C:
 		t.Error("Timed out waiting for block")
-	case b := <-p.CurrentClient().BlockNotify():
+	case b := <-p.BlockNotify():
+		if b.Hash != testHash {
+			t.Error("Returned incorrect block hash")
+		}
+	}
+
+	p.GetTransaction(txid)
+
+	client = p.PoolManager().AcquireCurrent()
+	p.PoolManager().ReleaseCurrent()
+
+	go func() {
+		client.BlockChannel() <- model.Block{Hash: testHash}
+	}()
+
+	ticker = time.NewTicker(time.Second * 2)
+	select {
+	case <-ticker.C:
+		t.Error("Timed out waiting for block")
+	case b := <-p.BlockNotify():
 		if b.Hash != testHash {
 			t.Error("Returned incorrect block hash")
 		}
@@ -102,88 +163,87 @@ func TestClientPool_BlockNotify(t *testing.T) {
 
 func TestClientPool_TransactionNotify(t *testing.T) {
 	var (
-		p, err     = client.NewClientPool([]string{"http://localhost:8332", "http://localhost:8336"}, nil)
-		txChan     = p.TransactionNotify()
-		expectedTx = factory.NewTransaction()
+		endpointOne = "http://localhost:8332"
+		endpointTwo = "http://localhost:8336"
+		p, err      = client.NewClientPool([]string{endpointOne, endpointTwo}, nil)
+		txid        = "1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"
+		testPath    = func(host string) string { return fmt.Sprintf("%s/tx/%s", host, txid) }
+		expectedTx  = factory.NewTransaction()
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	mock.MockWebsocketClientOnClientPool(p)
-	if err := p.Start(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Rotate the server to make sure we can still send through the new
-	// client connect to the pool chans
-	p.RotateAndStartNextClient()
-
-	go func() {
-		p.CurrentClient().TxChannel() <- expectedTx
-	}()
-
-	ticker := time.NewTicker(1 * time.Second)
-	select {
-	case <-ticker.C:
-		t.Error("Timed out waiting for tx")
-	case b := <-txChan:
-		for n, in := range b.Inputs {
-			f, err := model.ToFloat(in.ValueIface)
-			if err != nil {
-				t.Error(err)
-			}
-			b.Inputs[n].Value = f
-		}
-		for n, out := range b.Outputs {
-			f, err := model.ToFloat(out.ValueIface)
-			if err != nil {
-				t.Error(err)
-			}
-			b.Outputs[n].Value = f
-		}
-		test.ValidateTransaction(b, expectedTx, t)
-	}
-}
-
-func TestClientPoolDoesntRaceWaitGroups(t *testing.T) {
-	httpmock.Activate()
+	mockedHTTPClient := http.Client{}
+	httpmock.ActivateNonDefault(&mockedHTTPClient)
 	defer httpmock.DeactivateAndReset()
+	for _, c := range p.Clients() {
+		c.HTTPClient = mockedHTTPClient
+	}
+	p.HTTPClient = mockedHTTPClient
 
-	var p, err = client.NewClientPool([]string{"http://localhost:1111", "http://localhost:2222"}, nil)
+	mock.MockWebsocketClientOnClientPool(p)
+
+	err = p.Start()
 	if err != nil {
 		t.Fatal(err)
 	}
-	mock.MockWebsocketClientOnClientPool(p)
-	if err := p.Start(); err != nil {
-		t.Fatal(err)
+
+	client := p.PoolManager().AcquireCurrent()
+	p.PoolManager().ReleaseCurrent()
+	var p1, p2 string
+	if client.EndpointURL().Host == "localhost:8332" {
+		p1 = endpointOne
+		p2 = endpointTwo
+	} else {
+		p1 = endpointTwo
+		p2 = endpointOne
 	}
 
-	httpmock.RegisterNoResponder(func(req *http.Request) (*http.Response, error) {
-		time.Sleep(500 * time.Millisecond)
-		return httpmock.NewJsonResponse(http.StatusOK, `{}`)
-	})
+	// GetTransaction should fail for endpoint one and succeed for endpoint two
+	httpmock.RegisterResponder(http.MethodGet, testPath(p1),
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(http.StatusBadRequest, nil)
+		},
+	)
 
-	var wait sync.WaitGroup
-	wait.Add(4)
+	httpmock.RegisterResponder(http.MethodGet, testPath(p2),
+		func(req *http.Request) (*http.Response, error) {
+			return httpmock.NewJsonResponse(http.StatusOK, expectedTx)
+		},
+	)
+
 	go func() {
-		defer wait.Done()
-		p.GetBestBlock()
+		client.TxChannel() <- expectedTx
 	}()
-	go func() {
-		defer wait.Done()
-		if err := p.RotateAndStartNextClient(); err != nil {
-			t.Errorf("failed rotating client: %s", err)
+
+	ticker := time.NewTicker(time.Second * 2)
+	select {
+	case <-ticker.C:
+		t.Error("Timed out waiting for tx")
+	case b := <-p.TransactionNotify():
+		if b.Txid != expectedTx.Txid {
+			t.Error("Returned incorrect tx hash")
 		}
-	}()
+	}
+
+	p.GetTransaction(txid)
+
+	client = p.PoolManager().AcquireCurrent()
+	p.PoolManager().ReleaseCurrent()
+
 	go func() {
-		defer wait.Done()
-		p.GetBestBlock()
+		client.TxChannel() <- expectedTx
 	}()
-	go func() {
-		defer wait.Done()
-		if err := p.RotateAndStartNextClient(); err != nil {
-			t.Errorf("failed rotating client: %s", err)
+
+	ticker = time.NewTicker(time.Second * 2)
+	select {
+	case <-ticker.C:
+		t.Error("Timed out waiting for tx")
+	case b := <-p.TransactionNotify():
+		if b.Txid != expectedTx.Txid {
+			t.Error("Returned incorrect tx hash")
 		}
-	}()
-	wait.Wait()
+	}
 }
