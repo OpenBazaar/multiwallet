@@ -171,6 +171,7 @@ func TestWalletService_TestSyncWatchOnly(t *testing.T) {
 	}
 	ws.db.WatchedScripts().Put(script)
 	ws.syncTxs(ws.getStoredAddresses())
+	ws.syncUtxos(ws.getStoredAddresses())
 
 	txns, err := ws.db.Txns().GetAll(true)
 	if err != nil {
@@ -189,8 +190,29 @@ func TestWalletService_TestSyncWatchOnly(t *testing.T) {
 		t.Error("Failed to return correct transaction")
 		return
 	}
-	if tx.Value != 751918 || !tx.WatchOnly {
+	if !tx.WatchOnly {
 		t.Error("Failed to return correct value for tx")
+	}
+
+	utxos, err := ws.db.Utxos().GetAll()
+	if err != nil {
+		t.Error(err)
+	}
+	if len(utxos) != 3 {
+		t.Error("Failed to update state correctly")
+	}
+	utxoMap := make(map[string]wallet.Utxo)
+	for _, u := range utxos {
+		utxoMap[u.Op.String()] = u
+	}
+
+	utxo, ok := utxoMap["830bf683ab8eec1a75d891689e2989f846508bc7d500cb026ef671c2d1dce20c:1"]
+	if !ok {
+		t.Error("Failed to return correct utxo")
+		return
+	}
+	if !utxo.WatchOnly {
+		t.Error("Failed to return correct value for utxo")
 	}
 }
 
