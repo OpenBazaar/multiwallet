@@ -558,12 +558,13 @@ type storedAddress struct {
 }
 
 func (ws *WalletService) getStoredAddresses() map[string]storedAddress {
+	Log.Debugf("preparing stored addresses")
 	keys := ws.km.GetKeys()
 	addrs := make(map[string]storedAddress)
 	for _, key := range keys {
 		addr, err := ws.km.KeyToAddress(key)
 		if err != nil {
-			Log.Errorf("error getting %s address for key: %s", ws.coinType.String(), err.Error())
+			Log.Warningf("error getting %s address for key: %s", ws.coinType.String(), err.Error())
 			continue
 		}
 		addrs[addr.String()] = storedAddress{addr, false}
@@ -580,32 +581,32 @@ func (ws *WalletService) getStoredAddresses() map[string]storedAddress {
 		case wallet.Bitcoin:
 			_, addrSlice, _, err := txscript.ExtractPkScriptAddrs(script, ws.params)
 			if err != nil {
-				Log.Errorf("error serializing %s script: %s", ws.coinType.String(), err.Error())
+				Log.Warningf("error serializing %s script: %s", ws.coinType.String(), err.Error())
 				continue
 			}
 			if len(addrs) == 0 {
-				Log.Errorf("error serializing %s script: %s", ws.coinType.String(), "Unknown script")
+				Log.Warningf("error serializing %s script: %s", ws.coinType.String(), "Unknown script")
 				continue
 			}
 			addr = addrSlice[0]
 		case wallet.BitcoinCash:
 			cashAddr, err := bchutil.ExtractPkScriptAddrs(script, ws.params)
 			if err != nil {
-				Log.Errorf("error serializing %s script: %s", ws.coinType.String(), err.Error())
+				Log.Warningf("error serializing %s script: %s", ws.coinType.String(), err.Error())
 				continue
 			}
 			addr = cashAddr
 		case wallet.Zcash:
 			zAddr, err := zaddr.ExtractPkScriptAddrs(script, ws.params)
 			if err != nil {
-				Log.Errorf("error serializing %s script: %s", ws.coinType.String(), err.Error())
+				Log.Warningf("error serializing %s script: %s", ws.coinType.String(), err.Error())
 				continue
 			}
 			addr = zAddr
 		case wallet.Litecoin:
 			ltcAddr, err := laddr.ExtractPkScriptAddrs(script, ws.params)
 			if err != nil {
-				Log.Errorf("error serializing %s script: %s", ws.coinType.String(), err.Error())
+				Log.Warningf("error serializing %s script: %s", ws.coinType.String(), err.Error())
 				continue
 			}
 			addr = ltcAddr
