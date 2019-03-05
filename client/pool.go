@@ -169,7 +169,7 @@ func (p *ClientPool) executeRequest(queryFunc func(c *blockbook.BlockBookClient)
 	for e := p.newMaximumTryEnumerator(); e.next(); {
 		var client = p.poolManager.AcquireCurrentWhenReady()
 		if err := queryFunc(client); err != nil {
-			Log.Infof("error executing wallet client request: %s", err.Error())
+			Log.Errorf("client request: %s", err.Error())
 			p.poolManager.ReleaseCurrent()
 			p.FailAndCloseCurrentClient()
 		} else {

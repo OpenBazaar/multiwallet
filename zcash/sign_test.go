@@ -371,28 +371,31 @@ func TestZCashWallet_Multisign(t *testing.T) {
 
 func TestZCashWallet_bumpFee(t *testing.T) {
 	w, err := newMockWallet()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	w.ws.Start()
 	time.Sleep(time.Second / 2)
-	if err != nil {
-		t.Error(err)
-	}
 	txns, err := w.db.Txns().GetAll(false)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	ch, err := chainhash.NewHashFromStr(txns[2].Txid)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	utxos, err := w.db.Utxos().GetAll()
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	for _, u := range utxos {
 		if u.Op.Hash.IsEqual(ch) {
 			u.AtHeight = 0
-			w.db.Utxos().Put(u)
+			if err := w.db.Utxos().Put(u); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 
