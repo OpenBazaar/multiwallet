@@ -356,7 +356,10 @@ func (ws *WalletService) saveSingleUtxoToDB(u model.Utxo, addrs map[string]store
 		AtHeight:     height,
 	}
 
-	ws.db.Utxos().Put(newU)
+	if err := ws.db.Utxos().Put(newU); err != nil {
+		Log.Errorf("putting utxo (%s): %s", u.Txid, err.Error())
+		return
+	}
 }
 
 // For use as a map key
