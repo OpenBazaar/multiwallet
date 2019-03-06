@@ -656,7 +656,7 @@ func TestDefaultPort(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		port := model.DefaultPort(*u)
+		port := model.DefaultPort(u)
 		if port != s.port {
 			t.Error("Returned incorrect port")
 		}

@@ -27,7 +27,7 @@ import (
 var Log = logging.MustGetLogger("client")
 
 type InsightClient struct {
-	apiUrl          url.URL
+	apiUrl          *url.URL
 	blockNotifyChan chan model.Block
 	txNotifyChan    chan model.Transaction
 	proxyDialer     proxy.Dialer
@@ -60,7 +60,7 @@ func NewInsightClient(apiUrl string, proxyDialer proxy.Dialer) (*InsightClient, 
 	tbTransport := &http.Transport{Dial: dial}
 	ic := &InsightClient{
 		HTTPClient:      http.Client{Timeout: time.Second * 30, Transport: tbTransport},
-		apiUrl:          *u,
+		apiUrl:          u,
 		proxyDialer:     proxyDialer,
 		blockNotifyChan: bch,
 		txNotifyChan:    tch,
@@ -324,7 +324,7 @@ func (i *InsightClient) ListenAddress(addr btcutil.Address) {
 	}
 }
 
-func (i *InsightClient) setupListeners(u url.URL, proxyDialer proxy.Dialer) error {
+func (i *InsightClient) setupListeners(u *url.URL, proxyDialer proxy.Dialer) error {
 	i.listenLock.Lock()
 	defer i.listenLock.Unlock()
 	if i.SocketClient == nil {
