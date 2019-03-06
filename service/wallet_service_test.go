@@ -52,24 +52,22 @@ func bitcoinAddress(key *hdkeychain.ExtendedKey, params *chaincfg.Params) (btcut
 func TestWalletService_ChainTip(t *testing.T) {
 	ws, err := mockWalletService()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	ws.UpdateState()
 	height, hash := ws.ChainTip()
 	if height != 1289594 {
-		t.Error("Returned incorrect height")
+		t.Error("returned incorrect height")
 	}
 	if hash.String() != "000000000000004c68a477283a8db18c1d1c2155b03d9bc23d587ac5e1c4d1af" {
-		t.Error("Returned incorrect best hash")
+		t.Error("returned incorrect best hash")
 	}
 }
 
 func TestWalletService_syncTxs(t *testing.T) {
 	ws, err := mockWalletService()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	ws.syncTxs(ws.getStoredAddresses())
 
@@ -78,7 +76,7 @@ func TestWalletService_syncTxs(t *testing.T) {
 		t.Error(err)
 	}
 	if len(txns) != 3 {
-		t.Error("Failed to update state correctly")
+		t.Error("failed to update state correctly")
 	}
 	txMap := make(map[string]wallet.Txn)
 	for _, tx := range txns {
@@ -87,39 +85,39 @@ func TestWalletService_syncTxs(t *testing.T) {
 
 	tx, ok := txMap["54ebaa07c42216393b9d5816e40dd608593b92c42e2d6525f45bdd36bce8fe4d"]
 	if !ok {
-		t.Error("Failed to return tx")
+		t.Error("failed to return tx")
 	}
 	if tx.Value != 2717080 || tx.WatchOnly {
-		t.Error("Failed to return incorrect value for tx")
+		t.Error("failed to return incorrect value for tx")
 	}
 	tx, ok = txMap["ff2b865c3b73439912eebf4cce9a15b12c7d7bcdd14ae1110a90541426c4e7c5"]
 	if !ok {
-		t.Error("Failed to return tx")
+		t.Error("failed to return tx")
 	}
 	if tx.Value != -1717080 || tx.WatchOnly {
-		t.Error("Failed to return incorrect value for tx")
+		t.Error("failed to return incorrect value for tx")
 	}
 	tx, ok = txMap["1d4288fa682fa376fbae73dbd74ea04b9ea33011d63315ca9d2d50d081e671d5"]
 	if !ok {
-		t.Error("Failed to return tx")
+		t.Error("failed to return tx")
 	}
 	if tx.Value != 10000000 || tx.WatchOnly {
-		t.Error("Failed to return incorrect value for tx")
+		t.Error("failed to return incorrect value for tx")
 	}
 }
 
 func TestWalletService_syncUtxos(t *testing.T) {
 	ws, err := mockWalletService()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	script, err := hex.DecodeString("a91457fc729da2a83dc8cd3c1835351c4a813c2ae8ba87")
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
-	ws.db.WatchedScripts().Put(script)
+	if err := ws.db.WatchedScripts().Put(script); err != nil {
+		t.Fatal(err)
+	}
 	ws.syncUtxos(ws.getStoredAddresses())
 
 	utxos, err := ws.db.Utxos().GetAll()
@@ -127,7 +125,7 @@ func TestWalletService_syncUtxos(t *testing.T) {
 		t.Error(err)
 	}
 	if len(utxos) != 3 {
-		t.Error("Failed to update state correctly")
+		t.Error("failed to update state correctly")
 	}
 
 	utxoMap := make(map[string]wallet.Utxo)
@@ -137,39 +135,39 @@ func TestWalletService_syncUtxos(t *testing.T) {
 
 	u, ok := utxoMap["ff2b865c3b73439912eebf4cce9a15b12c7d7bcdd14ae1110a90541426c4e7c5:1"]
 	if !ok {
-		t.Error("Failed to return correct utxo")
+		t.Error("failed to return correct utxo")
 	}
 	if u.Value != 1000000 || u.WatchOnly {
-		t.Error("Returned incorrect value")
+		t.Error("returned incorrect value")
 	}
 	u, ok = utxoMap["1d4288fa682fa376fbae73dbd74ea04b9ea33011d63315ca9d2d50d081e671d5:1"]
 	if !ok {
-		t.Error("Failed to return correct utxo")
+		t.Error("failed to return correct utxo")
 	}
 	if u.Value != 10000000 || u.WatchOnly {
-		t.Error("Returned incorrect value")
+		t.Error("returned incorrect value")
 	}
 	u, ok = utxoMap["830bf683ab8eec1a75d891689e2989f846508bc7d500cb026ef671c2d1dce20c:1"]
 	if !ok {
-		t.Error("Failed to return correct utxo")
+		t.Error("failed to return correct utxo")
 	}
 	if u.Value != 751918 || !u.WatchOnly {
-		t.Error("Returned incorrect value")
+		t.Error("returned incorrect value")
 	}
 }
 
 func TestWalletService_TestSyncWatchOnly(t *testing.T) {
 	ws, err := mockWalletService()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	script, err := hex.DecodeString("a91457fc729da2a83dc8cd3c1835351c4a813c2ae8ba87")
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
-	ws.db.WatchedScripts().Put(script)
+	if err := ws.db.WatchedScripts().Put(script); err != nil {
+		t.Fatal(err)
+	}
 	ws.syncTxs(ws.getStoredAddresses())
 	ws.syncUtxos(ws.getStoredAddresses())
 
@@ -178,7 +176,7 @@ func TestWalletService_TestSyncWatchOnly(t *testing.T) {
 		t.Error(err)
 	}
 	if len(txns) != 4 {
-		t.Error("Failed to update state correctly")
+		t.Error("failed to update state correctly")
 	}
 	txMap := make(map[string]wallet.Txn)
 	for _, tx := range txns {
@@ -187,11 +185,10 @@ func TestWalletService_TestSyncWatchOnly(t *testing.T) {
 
 	tx, ok := txMap["830bf683ab8eec1a75d891689e2989f846508bc7d500cb026ef671c2d1dce20c"]
 	if !ok {
-		t.Error("Failed to return correct transaction")
-		return
+		t.Fatal("Failed to return correct transaction")
 	}
 	if !tx.WatchOnly {
-		t.Error("Failed to return correct value for tx")
+		t.Error("failed to return correct value for tx")
 	}
 
 	utxos, err := ws.db.Utxos().GetAll()
@@ -199,7 +196,7 @@ func TestWalletService_TestSyncWatchOnly(t *testing.T) {
 		t.Error(err)
 	}
 	if len(utxos) != 3 {
-		t.Error("Failed to update state correctly")
+		t.Error("failed to update state correctly")
 	}
 	utxoMap := make(map[string]wallet.Utxo)
 	for _, u := range utxos {
@@ -208,19 +205,17 @@ func TestWalletService_TestSyncWatchOnly(t *testing.T) {
 
 	utxo, ok := utxoMap["830bf683ab8eec1a75d891689e2989f846508bc7d500cb026ef671c2d1dce20c:1"]
 	if !ok {
-		t.Error("Failed to return correct utxo")
-		return
+		t.Fatal("Failed to return correct utxo")
 	}
 	if !utxo.WatchOnly {
-		t.Error("Failed to return correct value for utxo")
+		t.Error("failed to return correct value for utxo")
 	}
 }
 
 func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 	ws, err := mockWalletService()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
 	// Process an incoming transaction
@@ -230,16 +225,16 @@ func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 		t.Error(err)
 	}
 	if len(txns) != 1 {
-		t.Error("Failed to update state correctly")
+		t.Error("failed to update state correctly")
 	}
 	if txns[0].Txid != mock.MockTransactions[0].Txid {
-		t.Error("Saved incorrect transaction")
+		t.Error("saved incorrect transaction")
 	}
 	if txns[0].Value != 2717080 {
-		t.Error("Saved incorrect value")
+		t.Error("saved incorrect value")
 	}
 	if txns[0].WatchOnly {
-		t.Error("Saved incorrect watch only")
+		t.Error("saved incorrect watch only")
 	}
 
 	utxos, err := ws.db.Utxos().GetAll()
@@ -247,19 +242,19 @@ func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 		t.Error(err)
 	}
 	if len(utxos) != 1 {
-		t.Error("Failed to update state correctly")
+		t.Error("failed to update state correctly")
 	}
 	if utxos[0].WatchOnly {
-		t.Error("Saved incorrect watch only")
+		t.Error("saved incorrect watch only")
 	}
 	if utxos[0].Op.Hash.String() != mock.MockTransactions[0].Txid {
-		t.Error("Saved incorrect transaction ID")
+		t.Error("saved incorrect transaction ID")
 	}
 	if utxos[0].Op.Index != 1 {
-		t.Error("Saved incorrect outpoint index")
+		t.Error("saved incorrect outpoint index")
 	}
 	if utxos[0].Value != 2717080 {
-		t.Error("Saved incorrect value")
+		t.Error("saved incorrect value")
 	}
 
 	// Process an outgoing transaction. Make sure it deletes the utxo
@@ -269,7 +264,7 @@ func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 		t.Error(err)
 	}
 	if len(txns) != 2 {
-		t.Error("Failed to update state correctly")
+		t.Error("failed to update state correctly")
 	}
 
 	utxos, err = ws.db.Utxos().GetAll()
@@ -277,21 +272,20 @@ func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 		t.Error(err)
 	}
 	if len(utxos) != 1 {
-		t.Error("Failed to update state correctly")
+		t.Error("failed to update state correctly")
 	}
 	if utxos[0].Op.Hash.String() != mock.MockTransactions[1].Txid {
-		t.Error("Failed to save correct utxo")
+		t.Error("failed to save correct utxo")
 	}
 	if utxos[0].Op.Index != 1 {
-		t.Error("Failed to save correct utxo")
+		t.Error("failed to save correct utxo")
 	}
 }
 
 func TestWalletService_processIncomingBlock(t *testing.T) {
 	ws, err := mockWalletService()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	ws.chainHeight = uint32(mock.MockBlocks[0].Height)
 	ws.bestBlock = mock.MockBlocks[0].Hash
@@ -300,10 +294,10 @@ func TestWalletService_processIncomingBlock(t *testing.T) {
 	ws.processIncomingBlock(mock.MockBlocks[1])
 	height, hash := ws.ChainTip()
 	if height != uint32(mock.MockBlocks[1].Height) {
-		t.Error("Failed to update height")
+		t.Error("failed to update height")
 	}
 	if hash.String() != mock.MockBlocks[1].Hash {
-		t.Error("Failed to update hash")
+		t.Error("failed to update hash")
 	}
 
 	// Check update height of unconfirmed txs and utxos
@@ -316,28 +310,24 @@ func TestWalletService_processIncomingBlock(t *testing.T) {
 
 	txns, err := ws.db.Txns().GetAll(true)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	if len(txns) != 1 {
-		t.Error("Returned incorrect number of txs")
-		return
+		t.Fatal("Returned incorrect number of txs")
 	}
 	if txns[0].Height != int32(mock.MockBlocks[2].Height-14) {
-		t.Error("Returned incorrect transaction height")
+		t.Error("returned incorrect transaction height")
 	}
 
 	utxos, err := ws.db.Utxos().GetAll()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	if len(utxos) != 1 {
-		t.Error("Returned incorrect number of utxos")
-		return
+		t.Fatal("Returned incorrect number of utxos")
 	}
 	if utxos[0].AtHeight != int32(mock.MockBlocks[2].Height-14) {
-		t.Error("Returned incorrect utxo height")
+		t.Error("returned incorrect utxo height")
 	}
 
 	// Test updateState() is called during reorg
@@ -349,23 +339,19 @@ func TestWalletService_processIncomingBlock(t *testing.T) {
 
 	txns, err = ws.db.Txns().GetAll(true)
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	if len(txns) != 3 {
-		t.Error("Returned incorrect number of txs")
-		return
+		t.Fatal("Returned incorrect number of txs")
 	}
 
 	utxos, err = ws.db.Utxos().GetAll()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
 	if len(utxos) != 3 {
-		t.Error("Returned incorrect number of utxos")
-		return
+		t.Fatal("Returned incorrect number of utxos")
 	}
 }
 
@@ -378,8 +364,7 @@ func TestWalletService_listenersFired(t *testing.T) {
 	}
 	ws, err := mockWalletService()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 	ws.AddTransactionListener(cb)
 	tx := mock.MockTransactions[0]
@@ -399,35 +384,36 @@ func TestWalletService_listenersFired(t *testing.T) {
 		t.Errorf("expected tx value to be 2717080, but was %d", response.Value)
 	}
 	if response.Height != 0 {
-		t.Error("Returned incorrect height")
+		t.Error("returned incorrect height")
 	}
 	if response.WatchOnly {
-		t.Error("Returned incorrect watch only")
+		t.Error("returned incorrect watch only")
 	}
 
 	// Test watch only
 	script, err := hex.DecodeString("a91457fc729da2a83dc8cd3c1835351c4a813c2ae8ba87")
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
-	ws.db.WatchedScripts().Put(script)
+	if err := ws.db.WatchedScripts().Put(script); err != nil {
+		t.Fatal(err)
+	}
 	ws.saveSingleTxToDB(mock.MockTransactions[3], int32(mock.MockBlocks[0].Height), ws.getStoredAddresses())
 	if nCallbacks != 2 {
-		t.Error("Failed to fire transaction callback")
+		t.Error("failed to fire transaction callback")
 	}
 	ch, err = chainhash.NewHashFromStr(response.Txid)
 	if err != nil {
 		t.Error(err)
 	}
 	if ch.String() != mock.MockTransactions[3].Txid {
-		t.Error("Returned incorrect txid")
+		t.Error("returned incorrect txid")
 	}
 	if response.Height != 1289594-1 {
-		t.Error("Returned incorrect height")
+		t.Error("returned incorrect height")
 	}
 	if !response.WatchOnly {
-		t.Error("Returned incorrect watch only")
+		t.Error("returned incorrect watch only")
 	}
 
 	// Test fired when height is updated
@@ -435,31 +421,30 @@ func TestWalletService_listenersFired(t *testing.T) {
 	tx.Confirmations = 1
 	ws.saveSingleTxToDB(tx, int32(mock.MockBlocks[0].Height), ws.getStoredAddresses())
 	if nCallbacks != 3 {
-		t.Error("Failed to fire transaction callback")
+		t.Error("failed to fire transaction callback")
 	}
 	ch, err = chainhash.NewHashFromStr(response.Txid)
 	if err != nil {
 		t.Error(err)
 	}
 	if ch.String() != mock.MockTransactions[0].Txid {
-		t.Error("Returned incorrect txid")
+		t.Error("returned incorrect txid")
 	}
 	if response.Value != 2717080 {
-		t.Error("Returned incorrect value")
+		t.Error("returned incorrect value")
 	}
 	if response.Height != int32(mock.MockBlocks[0].Height) {
-		t.Error("Returned incorrect height")
+		t.Error("returned incorrect height")
 	}
 	if response.WatchOnly {
-		t.Error("Returned incorrect watch only")
+		t.Error("returned incorrect watch only")
 	}
 }
 
 func TestWalletService_getStoredAddresses(t *testing.T) {
 	ws, err := mockWalletService()
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
 
 	types := []wallet.CoinType{
@@ -471,37 +456,38 @@ func TestWalletService_getStoredAddresses(t *testing.T) {
 
 	script, err := hex.DecodeString("a91457fc729da2a83dc8cd3c1835351c4a813c2ae8ba87")
 	if err != nil {
-		t.Error(err)
-		return
+		t.Fatal(err)
 	}
-	ws.db.WatchedScripts().Put(script)
+	if err := ws.db.WatchedScripts().Put(script); err != nil {
+		t.Fatal(err)
+	}
 
 	for _, ty := range types {
 		ws.coinType = ty
 		addrs := ws.getStoredAddresses()
 		if len(addrs) != 41 {
-			t.Error("Returned incorrect number of addresses")
+			t.Error("returned incorrect number of addresses")
 		}
 		switch ty {
 		case wallet.Bitcoin:
 			sa, ok := addrs["39iF8cDMhctrPVoPbi2Vb1NnErg6CEB7BZ"]
 			if !sa.WatchOnly || !ok {
-				t.Error("Returned incorrect watch only address")
+				t.Error("returned incorrect watch only address")
 			}
 		case wallet.BitcoinCash:
 			sa, ok := addrs["pptlcu5a525rmjxd8svr2dguf2qnc2hghgln5xu4l7"]
 			if !sa.WatchOnly || !ok {
-				t.Error("Returned incorrect watch only address")
+				t.Error("returned incorrect watch only address")
 			}
 		case wallet.Zcash:
 			sa, ok := addrs["t3Sar8wdVfwgSz8rHY8qcipUhVWsB2x2xxa"]
 			if !sa.WatchOnly || !ok {
-				t.Error("Returned incorrect watch only address")
+				t.Error("returned incorrect watch only address")
 			}
 		case wallet.Litecoin:
 			sa, ok := addrs["39iF8cDMhctrPVoPbi2Vb1NnErg6CEB7BZ"]
 			if !sa.WatchOnly || !ok {
-				t.Error("Returned incorrect watch only address")
+				t.Error("returned incorrect watch only address")
 			}
 		}
 	}
