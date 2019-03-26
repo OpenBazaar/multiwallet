@@ -214,6 +214,7 @@ func (ws *WalletService) processIncomingBlock(block model.Block) {
 	addrs := ws.getStoredAddresses()
 	for _, tx := range txs {
 		if tx.Height == 0 {
+			Log.Debugf("broadcasting unconfirmed txid %s", tx.Txid)
 			go func(txn wallet.Txn) {
 				ret, err := ws.client.GetTransaction(txn.Txid)
 				if err != nil {
