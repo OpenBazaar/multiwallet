@@ -209,20 +209,27 @@ func (i *BlockBookClient) doRequest(endpoint, method string, body []byte, query 
 
 	resp, err := i.HTTPClient.Do(req)
 	if err != nil {
-		Log.Errorf("executing request (%s): %s", requestUrl.String(), err.Error())
-		return nil, err
+		errStr := fmt.Sprintf("executing (%s %s): %s", method, requestUrl.String(), err.Error())
+		Log.Errorf(errStr)
+		return nil, errors.New(errStr)
 	}
-	// Try again if for some reason it returned a bad request
-	if resp.StatusCode == http.StatusBadRequest {
-		// Reset the body so we can read it again.
-		req.Body = ioutil.NopCloser(bytes.NewReader(body))
-		resp, err = i.HTTPClient.Do(req)
-		if err != nil {
-			Log.Errorf("retry request (%s): %s", requestUrl.String(), err.Error())
-			return nil, err
-		}
-	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		errStr := fmt.Sprintf("not ok (%s %s): responded %d - %s", method, requestUrl.String(), resp.StatusCode, resp.Status)
+		Log.Errorf(errStr)
+
+		// log body
+		if body, err := ioutil.ReadAll(resp.Body); err != nil {
+			Log.Warningf("reading body (%s %s): %s", method, requestUrl.String(), err.Error())
+		} else {
+			if len(body) > 0 {
+				Log.Debugf("not ok response body (%s %s):\nstring: %s\nhexencoded: %s\n", method, requestUrl.String(), string(body), hex.EncodeToString(body))
+			}
+		}
+
+		if resp.StatusCode >= 500 {
+			return nil, fmt.Errorf("wallet server internal error (%s %s)", method, requestUrl.String())
+		}
 		return nil, fmt.Errorf("status not ok: %s", resp.Status)
 	}
 	return resp, nil
