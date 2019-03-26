@@ -213,7 +213,6 @@ func (i *BlockBookClient) doRequest(endpoint, method string, body []byte, query 
 		Log.Errorf(errStr)
 		return nil, errors.New(errStr)
 	}
-	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		errStr := fmt.Sprintf("not ok (%s %s): responded %d - %s", method, requestUrl.String(), resp.StatusCode, resp.Status)
 		Log.Errorf(errStr)
@@ -259,9 +258,9 @@ func (i *BlockBookClient) GetTransaction(txid string) (*model.Transaction, error
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 	tx := new(resTx)
 	decoder := json.NewDecoder(resp.Body)
-	defer resp.Body.Close()
 	if err = decoder.Decode(tx); err != nil {
 		return nil, fmt.Errorf("error decoding transactions: %s", err)
 	}
@@ -378,9 +377,9 @@ func (i *BlockBookClient) getTransactions(addr string) ([]model.Transaction, err
 		if err != nil {
 			return nil, err
 		}
+		defer resp.Body.Close()
 		res := new(resAddr)
 		decoder := json.NewDecoder(resp.Body)
-		defer resp.Body.Close()
 		if err = decoder.Decode(res); err != nil {
 			return nil, fmt.Errorf("error decoding addrs response: %s", err)
 		}
@@ -432,9 +431,9 @@ func (i *BlockBookClient) GetUtxos(addrs []btcutil.Address) ([]model.Utxo, error
 					utxoChan <- utxoOrError{nil, err}
 					return
 				}
+				defer resp.Body.Close()
 				var utxos []model.Utxo
 				decoder := json.NewDecoder(resp.Body)
-				defer resp.Body.Close()
 				if err = decoder.Decode(&utxos); err != nil {
 					utxoChan <- utxoOrError{nil, err}
 					return
@@ -691,9 +690,9 @@ func (i *BlockBookClient) GetBlocksBefore(to time.Time, limit int) (*model.Block
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 	list := new(model.BlockList)
 	decoder := json.NewDecoder(resp.Body)
-	defer resp.Body.Close()
 	if err = decoder.Decode(list); err != nil {
 		return nil, fmt.Errorf("error decoding block list: %s", err)
 	}
@@ -705,8 +704,8 @@ func (i *BlockBookClient) EstimateFee(nbBlocks int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	data := map[int]float64{}
 	defer resp.Body.Close()
+	data := map[int]float64{}
 	if err = json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return 0, fmt.Errorf("error decoding fee estimate: %s", err)
 	}
