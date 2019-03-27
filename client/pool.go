@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -167,6 +168,7 @@ func (p *ClientPool) listenChans(ctx context.Context) {
 // executeRequest handles making the HTTP request with server rotation and retires. Only if all servers return an
 // error will this method return an error.
 func (p *ClientPool) executeRequest(queryFunc func(c *blockbook.BlockBookClient) error) error {
+	var err error
 	for e := p.newMaximumTryEnumerator(); e.next(); {
 		var client = p.poolManager.AcquireCurrentWhenReady()
 		if err := queryFunc(client); err != nil {
@@ -178,7 +180,8 @@ func (p *ClientPool) executeRequest(queryFunc func(c *blockbook.BlockBookClient)
 			return nil
 		}
 	}
-	return errors.New("exhausted maximum request attempts")
+	Log.Errorf("maximum retry attempts exhausted, returning error: %s", err.Error())
+	return fmt.Errorf("request failed: %s", err.Error())
 }
 
 // BlockNofity proxies the active client's block channel

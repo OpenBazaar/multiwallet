@@ -50,7 +50,7 @@ func (w *wsWatchdog) guardWebsocket() {
 	for range t.C {
 		select {
 		case <-w.wsStopped:
-			Log.Warningf("reconnecting stopped websocket (%s)", w.client.apiUrl.Host)
+			Log.Warningf("reconnecting stopped websocket (%s)", w.client.String())
 			w.client.socketMutex.Lock()
 			if w.client.SocketClient != nil {
 				w.client.SocketClient.Close()
@@ -58,9 +58,9 @@ func (w *wsWatchdog) guardWebsocket() {
 			}
 			w.drainAndRollover()
 			if err := w.client.setupListeners(); err != nil {
-				Log.Warningf("failed reconnecting websocket (%s)", w.client.apiUrl.Host)
+				Log.Warningf("failed reconnecting websocket (%s)", w.client.String())
 				w.client.socketMutex.Unlock()
-				w.client.sendAndDiscardCloseChan(fmt.Errorf("websocket unavailable: %s", err.Error()))
+				w.client.sendAndDiscardCloseChan(fmt.Errorf("websocket unavailable (%s): %s", w.client.String(), err.Error()))
 				go w.putAway()
 				return
 			}
@@ -142,6 +142,10 @@ func NewBlockBookClient(apiUrl string, proxyDialer proxy.Dialer) (*BlockBookClie
 	return ic, nil
 }
 
+func (i *BlockBookClient) String() string {
+	return i.apiUrl.Host
+}
+
 func (i *BlockBookClient) BlockChannel() chan model.Block {
 	return i.blockNotifyChan
 }
@@ -166,7 +170,7 @@ func (i *BlockBookClient) Start(closeChan chan<- error) error {
 }
 
 func (i *BlockBookClient) Close() {
-	Log.Infof("closing client (%s)...", i.apiUrl.Host)
+	Log.Infof("closing client (%s)...", i.String())
 	i.socketMutex.Lock()
 	defer i.socketMutex.Unlock()
 	if i.SocketClient != nil {
@@ -202,8 +206,8 @@ func (i *BlockBookClient) doRequest(endpoint, method string, body []byte, query 
 		req.URL.RawQuery = query.Encode()
 	}
 	if err != nil {
-		Log.Errorf("creating request (%s): %s", requestUrl.String(), err.Error())
-		return nil, fmt.Errorf("creating request: %s", err)
+		Log.Errorf("creating: %s", err.Error())
+		return nil, fmt.Errorf("creating: %s", err.Error())
 	}
 	req.Header.Add("Content-Type", "application/json")
 
@@ -214,7 +218,7 @@ func (i *BlockBookClient) doRequest(endpoint, method string, body []byte, query 
 		return nil, errors.New(errStr)
 	}
 	if resp.StatusCode != http.StatusOK {
-		errStr := fmt.Sprintf("not ok (%s %s): responded %d - %s", method, requestUrl.String(), resp.StatusCode, resp.Status)
+		errStr := fmt.Sprintf("not ok (%s %s): responded %s", method, requestUrl.String(), resp.Status)
 		Log.Errorf(errStr)
 
 		// log body
@@ -222,7 +226,7 @@ func (i *BlockBookClient) doRequest(endpoint, method string, body []byte, query 
 			Log.Warningf("reading body (%s %s): %s", method, requestUrl.String(), err.Error())
 		} else {
 			if len(body) > 0 {
-				Log.Debugf("not ok response body (%s %s):\nstring: %s\nhexencoded: %s\n", method, requestUrl.String(), string(body), hex.EncodeToString(body))
+				Log.Debugf("not ok response body (%s %s):\n\tstring: %s\n\thexencoded: %s", method, requestUrl.String(), string(body), hex.EncodeToString(body))
 			}
 		}
 
@@ -526,7 +530,7 @@ func connectSocket(u *url.URL, proxyDialer proxy.Dialer) (model.SocketClient, er
 	// Wait for socket to be ready or timeout
 	select {
 	case <-time.After(10 * time.Second):
-		return nil, fmt.Errorf("timeout connecting to websocket endpoint %s", u.Host)
+		return nil, fmt.Errorf("websocket connection timeout (%s)", u.Host)
 	case <-socketReady:
 		break
 	}
@@ -543,7 +547,7 @@ func (i *BlockBookClient) setupListeners() error {
 
 	client, err := connectSocket(i.apiUrl, i.proxyDialer)
 	if err != nil {
-		Log.Errorf("reconnect websocket: %s", err.Error())
+		Log.Errorf("reconnect websocket (%s): %s", i.String(), err.Error())
 		var (
 			setupTimeoutAt = time.Now().Add(10 * time.Second)
 			t              = time.NewTicker(2 * time.Second)
@@ -551,11 +555,11 @@ func (i *BlockBookClient) setupListeners() error {
 		defer t.Stop()
 		for range t.C {
 			if time.Now().After(setupTimeoutAt) {
-				return fmt.Errorf("unable to connect websocket to setup listeners")
+				return fmt.Errorf("websocket reconnection timeout (%s)", i.String())
 			}
 			client, err = connectSocket(i.apiUrl, i.proxyDialer)
 			if err != nil {
-				Log.Errorf("reconnect websocket: %s", err.Error())
+				Log.Errorf("reconnect websocket (%s): %s", i.String(), err.Error())
 				continue
 			}
 			break
@@ -565,18 +569,18 @@ func (i *BlockBookClient) setupListeners() error {
 	go i.websocketWatchdog.guardWebsocket()
 
 	i.SocketClient.On(gosocketio.OnError, func(c *gosocketio.Channel, args interface{}) {
-		Log.Warningf("websocket error: %s - %+v", i.apiUrl.Host, "-", args)
+		Log.Warningf("websocket error (%s): %+v", i.String(), "-", args)
 		i.websocketWatchdog.bark()
 	})
 	i.SocketClient.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel) {
-		Log.Warningf("websocket disconnected: %s", i.apiUrl.Host)
+		Log.Warningf("websocket disconnected (%s)", i.String())
 		i.websocketWatchdog.bark()
 	})
 
 	i.SocketClient.On("bitcoind/hashblock", func(h *gosocketio.Channel, arg interface{}) {
 		best, err := i.GetBestBlock()
 		if err != nil {
-			Log.Errorf("Error downloading best block: %s", err.Error())
+			Log.Errorf("error downloading best block: %s", err.Error())
 			return
 		}
 		i.blockNotifyChan <- *best
@@ -586,20 +590,20 @@ func (i *BlockBookClient) setupListeners() error {
 	i.SocketClient.On("bitcoind/addresstxid", func(h *gosocketio.Channel, arg interface{}) {
 		m, ok := arg.(map[string]interface{})
 		if !ok {
-			Log.Errorf("Error checking type after socket notification: %T", arg)
+			Log.Errorf("error checking type after socket notification: %T", arg)
 			return
 		}
 		for _, v := range m {
 			txid, ok := v.(string)
 			if !ok {
-				Log.Errorf("Error checking type after socket notification: %T", arg)
+				Log.Errorf("error checking type after socket notification: %T", arg)
 				return
 			}
 			_, err := chainhash.NewHashFromStr(txid) // Check is 256 bit hash. Might also be address
 			if err == nil {
 				tx, err := i.GetTransaction(txid)
 				if err != nil {
-					Log.Errorf("Error downloading tx after socket notification: %s", err.Error())
+					Log.Errorf("error downloading tx after socket notification: %s", err.Error())
 					return
 				}
 				tx.Time = time.Now().Unix()
@@ -614,7 +618,7 @@ func (i *BlockBookClient) setupListeners() error {
 		i.SocketClient.Emit("subscribe", args)
 	}
 	i.listenQueue = []string{}
-	Log.Infof("Connected to websocket endpoint %s", i.apiUrl.Host)
+	Log.Infof("websocket connected (%s)", i.String())
 	return nil
 }
 
