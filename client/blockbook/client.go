@@ -18,6 +18,7 @@ import (
 
 	gosocketio "github.com/OpenBazaar/golang-socketio"
 	"github.com/OpenBazaar/golang-socketio/protocol"
+	clientErr "github.com/OpenBazaar/multiwallet/client/errors"
 	"github.com/OpenBazaar/multiwallet/client/transport"
 	"github.com/OpenBazaar/multiwallet/model"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -213,9 +214,12 @@ func (i *BlockBookClient) doRequest(endpoint, method string, body []byte, query 
 
 	resp, err := i.HTTPClient.Do(req)
 	if err != nil {
-		errStr := fmt.Sprintf("executing (%s %s): %s", method, requestUrl.String(), err.Error())
-		Log.Errorf(errStr)
-		return nil, errors.New(errStr)
+		if urlErr, ok := err.(*url.Error); ok && urlErr.Timeout() {
+			Log.Errorf("timed out executing: %s", err.Error())
+			return nil, clientErr.MakeRetryable(err)
+		}
+		Log.Errorf("executing: %s", err.Error())
+		return nil, fmt.Errorf("executing: %s", err.Error())
 	}
 	if resp.StatusCode != http.StatusOK {
 		errStr := fmt.Sprintf("not ok (%s %s): responded %s", method, requestUrl.String(), resp.Status)
@@ -230,8 +234,10 @@ func (i *BlockBookClient) doRequest(endpoint, method string, body []byte, query 
 			}
 		}
 
+		// mark 500 errors as fatal
 		if resp.StatusCode >= 500 {
-			return nil, fmt.Errorf("wallet server internal error (%s %s)", method, requestUrl.String())
+			err := fmt.Errorf("wallet server internal error (%s %s)", method, requestUrl.String())
+			return nil, clientErr.MakeRetryable(clientErr.MakeFatal(err))
 		}
 		return nil, fmt.Errorf("status not ok: %s", resp.Status)
 	}
