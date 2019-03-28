@@ -376,7 +376,6 @@ func (p *ClientPool) ListenAddress(addr btcutil.Address) {
 	defer p.listenAddrsLock.Unlock()
 	var client = p.poolManager.AcquireCurrentWhenReady()
 	defer p.poolManager.ReleaseCurrent()
-	Log.Debugf("(%s) listen address %s", client.EndpointURL().String(), addr.String())
 	p.listenAddrs = append(p.listenAddrs, addr)
 	client.ListenAddress(addr)
 }

@@ -233,6 +233,7 @@ func (ws *WalletService) processIncomingBlock(block model.Block) {
 							continue
 						}
 					}
+					return
 				}
 				// Rebroadcast unconfirmed transactions
 				_, err = ws.client.Broadcast(tx.Bytes)
@@ -559,7 +560,6 @@ type storedAddress struct {
 }
 
 func (ws *WalletService) getStoredAddresses() map[string]storedAddress {
-	Log.Debugf("preparing stored addresses")
 	keys := ws.km.GetKeys()
 	addrs := make(map[string]storedAddress)
 	for _, key := range keys {
