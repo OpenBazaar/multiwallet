@@ -2,133 +2,155 @@ package client_test
 
 import (
 	"fmt"
-	"github.com/OpenBazaar/multiwallet/client"
-	"github.com/OpenBazaar/multiwallet/model"
-	"github.com/OpenBazaar/multiwallet/model/mock"
-	"github.com/OpenBazaar/multiwallet/test"
-	"github.com/OpenBazaar/multiwallet/test/factory"
-	"gopkg.in/jarcoal/httpmock.v1"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/OpenBazaar/multiwallet/client"
+	"github.com/OpenBazaar/multiwallet/model"
+	"github.com/OpenBazaar/multiwallet/model/mock"
+	"github.com/OpenBazaar/multiwallet/test/factory"
+	"gopkg.in/jarcoal/httpmock.v1"
 )
 
-func TestServerRotation(t *testing.T) {
-	var (
-		endpointOne = "http://localhost:8332"
-		endpointTwo = "http://localhost:8336"
-		p, err      = client.NewClientPool([]string{endpointOne, endpointTwo}, nil)
-		txid        = "1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"
-		testPath    = func(host string) string { return fmt.Sprintf("%s/tx/%s", host, txid) }
-		expectedTx  = factory.NewTransaction()
-	)
+func replaceHTTPClientOnClientPool(p *client.ClientPool, c http.Client) {
+	for _, cp := range p.Clients() {
+		cp.HTTPClient = c
+	}
+	p.HTTPClient = c
+}
+
+func mustPrepareClientPool(endpoints []string) (*client.ClientPool, func()) {
+	var p, err = client.NewClientPool(endpoints, nil)
 	if err != nil {
-		t.Fatal(err)
+		panic(err.Error())
 	}
 
 	mockedHTTPClient := http.Client{}
 	httpmock.ActivateNonDefault(&mockedHTTPClient)
-	defer httpmock.DeactivateAndReset()
-	for _, c := range p.Clients() {
-		c.HTTPClient = mockedHTTPClient
-	}
-	p.HTTPClient = mockedHTTPClient
+	replaceHTTPClientOnClientPool(p, mockedHTTPClient)
 
 	mock.MockWebsocketClientOnClientPool(p)
-
-	httpmock.RegisterResponder(http.MethodGet, testPath(endpointOne),
-		func(req *http.Request) (*http.Response, error) {
-			return httpmock.NewJsonResponse(http.StatusOK, expectedTx)
-		},
-	)
-
 	err = p.Start()
 	if err != nil {
-		t.Fatal(err)
+		panic(err.Error())
 	}
-	tx, err := p.GetTransaction(txid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	test.ValidateTransaction(*tx, expectedTx, t)
 
-	// Test invalid response, server rotation, then valid response from second server
-	httpmock.Reset()
-	httpmock.RegisterResponder(http.MethodGet, testPath(endpointOne),
+	return p, func() {
+		httpmock.DeactivateAndReset()
+		p.Close()
+	}
+}
+
+func TestRequestRotatesServersOn500(t *testing.T) {
+	var (
+		endpointOne = "http://localhost:8332"
+		endpointTwo = "http://localhost:8336"
+		p, cleanup  = mustPrepareClientPool([]string{endpointOne, endpointTwo})
+		expectedTx  = factory.NewTransaction()
+		txid        = "1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"
+	)
+	defer cleanup()
+
+	httpmock.RegisterResponder(http.MethodGet, fmt.Sprintf("%s/tx/%s", endpointOne, txid),
 		func(req *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(http.StatusInternalServerError, expectedTx)
 		},
 	)
-
-	httpmock.RegisterResponder(http.MethodGet, testPath(endpointTwo),
+	httpmock.RegisterResponder(http.MethodGet, fmt.Sprintf("%s/tx/%s", endpointTwo, txid),
 		func(req *http.Request) (*http.Response, error) {
 			return httpmock.NewJsonResponse(http.StatusOK, expectedTx)
 		},
 	)
 
-	tx, err = p.GetTransaction(txid)
+	_, err := p.GetTransaction(txid)
+	if err != nil {
+		t.Errorf("expected successful transaction, but got error: %s", err.Error())
+	}
+}
+
+func TestRequestRetriesTimeoutsToExhaustionThenRotates(t *testing.T) {
+	var (
+		endpointOne       = "http://localhost:8332"
+		endpointTwo       = "http://localhost:8336"
+		fastTimeoutClient = http.Client{Timeout: 500000 * time.Nanosecond}
+		p, err            = client.NewClientPool([]string{endpointOne, endpointTwo}, nil)
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	test.ValidateTransaction(*tx, expectedTx, t)
+
+	httpmock.DeactivateAndReset()
+	httpmock.ActivateNonDefault(&fastTimeoutClient)
+	replaceHTTPClientOnClientPool(p, fastTimeoutClient)
+	mock.MockWebsocketClientOnClientPool(p)
+	if err = p.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		httpmock.DeactivateAndReset()
+		p.Close()
+	}()
+
+	var (
+		txid             = "1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"
+		expectedAttempts = uint(3)
+		requestAttempts  uint
+		laggyResponse    = func(req *http.Request) (*http.Response, error) {
+			if requestAttempts < expectedAttempts {
+				requestAttempts++
+				time.Sleep(1 * time.Second)
+				return nil, fmt.Errorf("timeout")
+			}
+			return httpmock.NewJsonResponse(http.StatusOK, factory.NewTransaction())
+		}
+	)
+	httpmock.RegisterResponder(http.MethodGet, fmt.Sprintf("%s/tx/%s", endpointOne, txid), laggyResponse)
+	httpmock.RegisterResponder(http.MethodGet, fmt.Sprintf("%s/tx/%s", endpointTwo, txid), laggyResponse)
+
+	_, err = p.GetTransaction(txid)
+	if err == nil {
+		t.Errorf("expected getTransaction to respond with timeout error, but did not")
+		return
+	}
+	if requestAttempts != expectedAttempts {
+		t.Errorf("expected initial server to be attempted %d times, but was attempted only %d", expectedAttempts, requestAttempts)
+	}
+	_, err = p.GetTransaction(txid)
+	if err != nil {
+		t.Errorf("expected getTransaction to rotate to the next server and succeed, but returned error: %s", err.Error())
+	}
 }
 
-func TestClientPool_BlockNotify(t *testing.T) {
+func TestPoolBlockNotifyWorksAfterRotation(t *testing.T) {
 	var (
 		endpointOne = "http://localhost:8332"
 		endpointTwo = "http://localhost:8336"
-		p, err      = client.NewClientPool([]string{endpointOne, endpointTwo}, nil)
 		testHash    = "0000000000000000003f1fb88ac3dab0e607e87def0e9031f7bea02cb464a04f"
 		txid        = "1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"
 		testPath    = func(host string) string { return fmt.Sprintf("%s/tx/%s", host, txid) }
-		expectedTx  = factory.NewTransaction()
+		p, cleanup  = mustPrepareClientPool([]string{endpointOne, endpointTwo})
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	mock.MockWebsocketClientOnClientPool(p)
-	mockedHTTPClient := http.Client{}
-	httpmock.ActivateNonDefault(&mockedHTTPClient)
-	defer httpmock.DeactivateAndReset()
-	for _, c := range p.Clients() {
-		c.HTTPClient = mockedHTTPClient
-	}
-	p.HTTPClient = mockedHTTPClient
-
-	mock.MockWebsocketClientOnClientPool(p)
-
-	err = p.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	client := p.PoolManager().AcquireCurrent()
-	p.PoolManager().ReleaseCurrent()
-	var p1, p2 string
-	if client.EndpointURL().Host == "localhost:8332" {
-		p1 = endpointOne
-		p2 = endpointTwo
-	} else {
-		p1 = endpointTwo
-		p2 = endpointOne
-	}
+	defer cleanup()
 
 	// GetTransaction should fail for endpoint one and succeed for endpoint two
-	httpmock.RegisterResponder(http.MethodGet, testPath(p1),
-		func(req *http.Request) (*http.Response, error) {
-			return httpmock.NewJsonResponse(http.StatusBadRequest, nil)
-		},
+	var (
+		beenBad     bool
+		badThenGood = func(req *http.Request) (*http.Response, error) {
+			if beenBad {
+				return httpmock.NewJsonResponse(http.StatusOK, factory.NewTransaction())
+			}
+			beenBad = true
+			return httpmock.NewJsonResponse(http.StatusInternalServerError, nil)
+		}
 	)
-
-	httpmock.RegisterResponder(http.MethodGet, testPath(p2),
-		func(req *http.Request) (*http.Response, error) {
-			return httpmock.NewJsonResponse(http.StatusOK, expectedTx)
-		},
-	)
+	httpmock.RegisterResponder(http.MethodGet, testPath(endpointOne), badThenGood)
+	httpmock.RegisterResponder(http.MethodGet, testPath(endpointTwo), badThenGood)
 
 	go func() {
-		client.BlockChannel() <- model.Block{Hash: testHash}
+		c := p.PoolManager().AcquireCurrentWhenReady()
+		c.BlockChannel() <- model.Block{Hash: testHash}
+		p.PoolManager().ReleaseCurrent()
 	}()
 
 	ticker := time.NewTicker(time.Second * 2)
@@ -140,14 +162,17 @@ func TestClientPool_BlockNotify(t *testing.T) {
 			t.Error("Returned incorrect block hash")
 		}
 	}
+	ticker.Stop()
 
-	p.GetTransaction(txid)
-
-	client = p.PoolManager().AcquireCurrent()
-	p.PoolManager().ReleaseCurrent()
+	// request transaction triggers rotation
+	if _, err := p.GetTransaction(txid); err != nil {
+		t.Fatal(err)
+	}
 
 	go func() {
-		client.BlockChannel() <- model.Block{Hash: testHash}
+		c := p.PoolManager().AcquireCurrentWhenReady()
+		c.BlockChannel() <- model.Block{Hash: testHash}
+		p.PoolManager().ReleaseCurrent()
 	}()
 
 	ticker = time.NewTicker(time.Second * 2)
@@ -159,63 +184,39 @@ func TestClientPool_BlockNotify(t *testing.T) {
 			t.Error("Returned incorrect block hash")
 		}
 	}
+	ticker.Stop()
 }
 
-func TestClientPool_TransactionNotify(t *testing.T) {
+func TestTransactionNotifyWorksAfterRotation(t *testing.T) {
 	var (
-		endpointOne = "http://localhost:8332"
-		endpointTwo = "http://localhost:8336"
-		p, err      = client.NewClientPool([]string{endpointOne, endpointTwo}, nil)
-		txid        = "1be612e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"
-		testPath    = func(host string) string { return fmt.Sprintf("%s/tx/%s", host, txid) }
-		expectedTx  = factory.NewTransaction()
+		endpointOne  = "http://localhost:8332"
+		endpointTwo  = "http://localhost:8336"
+		expectedTx   = factory.NewTransaction()
+		expectedTxid = "500000e4f2b79af279e0b307337924072b819b3aca09fcb20370dd9492b83428"
+		testPath     = func(host string) string { return fmt.Sprintf("%s/tx/%s", host, expectedTxid) }
+		p, cleanup   = mustPrepareClientPool([]string{endpointOne, endpointTwo})
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	mock.MockWebsocketClientOnClientPool(p)
-	mockedHTTPClient := http.Client{}
-	httpmock.ActivateNonDefault(&mockedHTTPClient)
-	defer httpmock.DeactivateAndReset()
-	for _, c := range p.Clients() {
-		c.HTTPClient = mockedHTTPClient
-	}
-	p.HTTPClient = mockedHTTPClient
-
-	mock.MockWebsocketClientOnClientPool(p)
-
-	err = p.Start()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	client := p.PoolManager().AcquireCurrent()
-	p.PoolManager().ReleaseCurrent()
-	var p1, p2 string
-	if client.EndpointURL().Host == "localhost:8332" {
-		p1 = endpointOne
-		p2 = endpointTwo
-	} else {
-		p1 = endpointTwo
-		p2 = endpointOne
-	}
+	defer cleanup()
+	expectedTx.Txid = expectedTxid
 
 	// GetTransaction should fail for endpoint one and succeed for endpoint two
-	httpmock.RegisterResponder(http.MethodGet, testPath(p1),
-		func(req *http.Request) (*http.Response, error) {
-			return httpmock.NewJsonResponse(http.StatusBadRequest, nil)
-		},
+	var (
+		beenBad     bool
+		badThenGood = func(req *http.Request) (*http.Response, error) {
+			if beenBad {
+				return httpmock.NewJsonResponse(http.StatusOK, expectedTx)
+			}
+			beenBad = true
+			return httpmock.NewJsonResponse(http.StatusInternalServerError, nil)
+		}
 	)
-
-	httpmock.RegisterResponder(http.MethodGet, testPath(p2),
-		func(req *http.Request) (*http.Response, error) {
-			return httpmock.NewJsonResponse(http.StatusOK, expectedTx)
-		},
-	)
+	httpmock.RegisterResponder(http.MethodGet, testPath(endpointOne), badThenGood)
+	httpmock.RegisterResponder(http.MethodGet, testPath(endpointTwo), badThenGood)
 
 	go func() {
-		client.TxChannel() <- expectedTx
+		c := p.PoolManager().AcquireCurrentWhenReady()
+		c.TxChannel() <- expectedTx
+		p.PoolManager().ReleaseCurrent()
 	}()
 
 	ticker := time.NewTicker(time.Second * 2)
@@ -227,14 +228,17 @@ func TestClientPool_TransactionNotify(t *testing.T) {
 			t.Error("Returned incorrect tx hash")
 		}
 	}
+	ticker.Stop()
 
-	p.GetTransaction(txid)
-
-	client = p.PoolManager().AcquireCurrent()
-	p.PoolManager().ReleaseCurrent()
+	// request transaction triggers rotation
+	if _, err := p.GetTransaction(expectedTxid); err != nil {
+		t.Fatal(err)
+	}
 
 	go func() {
-		client.TxChannel() <- expectedTx
+		c := p.PoolManager().AcquireCurrentWhenReady()
+		c.TxChannel() <- expectedTx
+		p.PoolManager().ReleaseCurrent()
 	}()
 
 	ticker = time.NewTicker(time.Second * 2)
@@ -246,4 +250,5 @@ func TestClientPool_TransactionNotify(t *testing.T) {
 			t.Error("Returned incorrect tx hash")
 		}
 	}
+	ticker.Stop()
 }
