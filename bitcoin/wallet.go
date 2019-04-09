@@ -236,6 +236,18 @@ func (w *BitcoinWallet) Spend(amount int64, addr btc.Address, feeLevel wi.FeeLev
 	return &ch, nil
 }
 
+func (w *BitcoinWallet) SpendAll(addr btc.Address, feeLevel wi.FeeLevel, referenceID string) (*chainhash.Hash, error) {
+	tx, err := w.buildSpendAllTx(addr, feeLevel)
+	if err != nil {
+		return nil, err
+	}
+	if err := w.Broadcast(tx); err != nil {
+		return nil, err
+	}
+	ch := tx.TxHash()
+	return &ch, nil
+}
+
 func (w *BitcoinWallet) BumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 	return w.bumpFee(txid)
 }

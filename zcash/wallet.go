@@ -236,6 +236,22 @@ func (w *ZCashWallet) Spend(amount int64, addr btcutil.Address, feeLevel wi.FeeL
 	return chainhash.NewHashFromStr(txid)
 }
 
+func (w *ZCashWallet) SpendAll(addr btcutil.Address, feeLevel wi.FeeLevel, referenceID string) (*chainhash.Hash, error) {
+	tx, err := w.buildSpendAllTx(addr, feeLevel)
+	if err != nil {
+		return nil, err
+	}
+	txid, err := w.Broadcast(tx)
+	if err != nil {
+		return nil, err
+	}
+	ch, err := chainhash.NewHashFromStr(txid)
+	if err != nil {
+		return nil, err
+	}
+	return ch, nil
+}
+
 func (w *ZCashWallet) BumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 	return w.bumpFee(txid)
 }
