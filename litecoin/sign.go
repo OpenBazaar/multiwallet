@@ -144,28 +144,7 @@ func (w *LitecoinWallet) buildSpendAllTx(addr btc.Address, feeLevel wi.FeeLevel)
 	}
 	coinMap := util.GatherCoins(height, utxos, w.ScriptToAddress, w.km.GetKeyForScript)
 
-	totalIn := int64(0)
-	additionalPrevScripts := make(map[wire.OutPoint][]byte)
-	additionalKeysByAddress := make(map[string]*btc.WIF)
-
-	for coin, key := range coinMap {
-		outpoint := wire.NewOutPoint(coin.Hash(), coin.Index())
-		in := wire.NewTxIn(outpoint, nil, nil)
-		additionalPrevScripts[*outpoint] = coin.PkScript()
-		tx.TxIn = append(tx.TxIn, in)
-		totalIn += int64(coin.Value().ToUnit(btc.AmountSatoshi))
-
-		addr, err := key.Address(w.params)
-		if err != nil {
-			continue
-		}
-		privKey, err := key.ECPrivKey()
-		if err != nil {
-			continue
-		}
-		wif, _ := btc.NewWIF(privKey, w.params, true)
-		additionalKeysByAddress[addr.EncodeAddress()] = wif
-	}
+	totalIn, _, additionalPrevScripts, additionalKeysByAddress := util.LoadAllInputs(tx, coinMap, w.params)
 
 	// outputs
 	script, err := laddr.PayToAddrScript(addr)

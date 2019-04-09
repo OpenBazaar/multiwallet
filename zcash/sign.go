@@ -167,33 +167,9 @@ func (w *ZCashWallet) buildSpendAllTx(addr btc.Address, feeLevel wi.FeeLevel) (*
 	if err != nil {
 		return nil, err
 	}
-	inVals := make(map[wire.OutPoint]int64)
 	coinMap := util.GatherCoins(height, utxos, w.ScriptToAddress, w.km.GetKeyForScript)
 
-	totalIn := int64(0)
-	additionalPrevScripts := make(map[wire.OutPoint][]byte)
-	additionalKeysByAddress := make(map[string]*btc.WIF)
-
-	for coin, key := range coinMap {
-		outpoint := wire.NewOutPoint(coin.Hash(), coin.Index())
-		in := wire.NewTxIn(outpoint, nil, nil)
-		additionalPrevScripts[*outpoint] = coin.PkScript()
-		tx.TxIn = append(tx.TxIn, in)
-		val := int64(coin.Value().ToUnit(btc.AmountSatoshi))
-		totalIn += val
-		inVals[*outpoint] = val
-
-		addr, err := key.Address(w.params)
-		if err != nil {
-			continue
-		}
-		privKey, err := key.ECPrivKey()
-		if err != nil {
-			continue
-		}
-		wif, _ := btc.NewWIF(privKey, w.params, true)
-		additionalKeysByAddress[addr.EncodeAddress()] = wif
-	}
+	totalIn, inVals, additionalPrevScripts, additionalKeysByAddress := util.LoadAllInputs(tx, coinMap, w.params)
 
 	// outputs
 	script, err := zaddr.PayToAddrScript(addr)
