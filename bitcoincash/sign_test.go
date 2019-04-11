@@ -3,6 +3,8 @@ package bitcoincash
 import (
 	"bytes"
 	"encoding/hex"
+	"github.com/OpenBazaar/multiwallet/util"
+	"github.com/gcash/bchd/txscript"
 	"os"
 	"testing"
 	"time"
@@ -20,6 +22,8 @@ import (
 	"github.com/btcsuite/btcutil/hdkeychain"
 	bcw "github.com/cpacia/BitcoinCash-Wallet"
 	"github.com/cpacia/bchutil"
+	bchhash "github.com/gcash/bchd/chaincfg/chainhash"
+	bchwire "github.com/gcash/bchd/wire"
 )
 
 type FeeResponse struct {
@@ -68,6 +72,27 @@ func newMockWallet() (*BitcoinCashWallet, error) {
 	return bw, nil
 }
 
+func waitForTxnSync(t *testing.T, txnStore wallet.Txns) {
+	// Look for a known txn, this sucks a bit. It would be better to check if the
+	// number of stored txns matched the expected, but not all the mock
+	// transactions are relevant, so the numbers don't add up.
+	// Even better would be for the wallet to signal that the initial sync was
+	// done.
+	lastTxn := mock.MockTransactions[len(mock.MockTransactions)-2]
+	txHash, err := chainhash.NewHashFromStr(lastTxn.Txid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 100; i++ {
+		if _, err := txnStore.Get(*txHash); err == nil {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatal("timeout waiting for wallet to sync transactions")
+}
+
 func TestBitcoinCashWallet_buildTx(t *testing.T) {
 	w, err := newMockWallet()
 	if err != nil {
@@ -107,6 +132,91 @@ func TestBitcoinCashWallet_buildTx(t *testing.T) {
 	_, err = w.buildTx(1, addr, wallet.NORMAL, nil)
 	if err != wallet.ErrorDustAmount {
 		t.Error("Failed to throw dust error")
+	}
+}
+
+func TestBitcoinCashWallet_buildSpendAllTx(t *testing.T) {
+	w, err := newMockWallet()
+	if err != nil {
+		t.Error(err)
+	}
+	w.ws.Start()
+	time.Sleep(time.Second / 2)
+
+	waitForTxnSync(t, w.db.Txns())
+	addr, err := w.DecodeAddress("qpyafty5hf6uwjtd8y5tvgzeawfeyfhj55ke8l2dy7")
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Test build spendAll tx
+	tx, err := w.buildSpendAllTx(addr, wallet.NORMAL)
+	if err != nil {
+		t.Error(err)
+	}
+	utxos, err := w.db.Utxos().GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	spendableUtxos := 0
+	for _, u := range utxos {
+		if !u.WatchOnly {
+			spendableUtxos++
+		}
+	}
+	if len(tx.TxIn) != spendableUtxos {
+		t.Error("Built tx does not spend all available utxos")
+	}
+	if !containsOutput(tx, addr) {
+		t.Error("Built tx does not contain the requested output")
+	}
+	if !validInputs(tx, w.db) {
+		t.Error("Built tx does not contain valid inputs")
+	}
+	if len(tx.TxOut) != 1 {
+		t.Error("Built tx should only have one output")
+	}
+
+	bchTx := bchwire.MsgTx{
+		Version:  tx.Version,
+		LockTime: tx.LockTime,
+	}
+	for _, in := range tx.TxIn {
+		hash := bchhash.Hash(in.PreviousOutPoint.Hash)
+		op := bchwire.NewOutPoint(&hash, in.PreviousOutPoint.Index)
+		newIn := bchwire.TxIn{
+			PreviousOutPoint: *op,
+			Sequence:         in.Sequence,
+			SignatureScript:  in.SignatureScript,
+		}
+		bchTx.TxIn = append(bchTx.TxIn, &newIn)
+	}
+	for _, out := range tx.TxOut {
+		newOut := bchwire.TxOut{
+			Value:    out.Value,
+			PkScript: out.PkScript,
+		}
+		bchTx.TxOut = append(bchTx.TxOut, &newOut)
+	}
+
+	// Verify the signatures on each input using the scripting engine
+	for i, in := range tx.TxIn {
+		var prevScript []byte
+		var amt int64
+		for _, u := range utxos {
+			if util.OutPointsEqual(u.Op, in.PreviousOutPoint) {
+				prevScript = u.ScriptPubkey
+				amt = u.Value
+				break
+			}
+		}
+		vm, err := txscript.NewEngine(prevScript, &bchTx, i, txscript.StandardVerifyFlags, nil, nil, amt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := vm.Execute(); err != nil {
+			t.Error(err)
+		}
 	}
 }
 

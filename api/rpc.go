@@ -175,7 +175,7 @@ func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) 
 	default:
 		feeLevel = wallet.NORMAL
 	}
-	txid, err := wal.Spend(int64(in.Amount), addr, feeLevel, "")
+	txid, err := wal.Spend(int64(in.Amount), addr, feeLevel, "", false)
 	if err != nil {
 		return nil, err
 	}
