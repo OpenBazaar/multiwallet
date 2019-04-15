@@ -3,7 +3,9 @@ package zcash
 import (
 	"bytes"
 	"encoding/hex"
+	"math/big"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -303,7 +305,8 @@ func TestZCashWallet_newUnsignedTransaction(t *testing.T) {
 	}
 
 	inputSource := func(target btcutil.Amount) (total btcutil.Amount, inputs []*wire.TxIn, inputValues []btcutil.Amount, scripts [][]byte, err error) {
-		total += btcutil.Amount(utxos[0].Value)
+		val0, _ := new(big.Int).SetString(utxos[0].Value, 10)
+		total += btcutil.Amount(val0.Int64())
 		in := wire.NewTxIn(&utxos[0].Op, []byte{}, [][]byte{})
 		in.Sequence = 0 // Opt-in RBF so we can bump fees
 		inputs = append(inputs, in)
@@ -345,7 +348,7 @@ func TestZCashWallet_CreateMultisigSignature(t *testing.T) {
 		t.Error(err)
 	}
 
-	sigs, err := w.CreateMultisigSignature(ins, outs, key1, redeemScript, 50)
+	sigs, err := w.CreateMultisigSignature(ins, outs, key1, redeemScript, *big.NewInt(50))
 	if err != nil {
 		t.Error(err)
 	}
@@ -387,7 +390,7 @@ func buildTxData(w *ZCashWallet) ([]wallet.TransactionInput, []wallet.Transactio
 	}
 
 	out := wallet.TransactionOutput{
-		Value:   20000,
+		Value:   *big.NewInt(20000),
 		Address: addr,
 	}
 	return []wallet.TransactionInput{in1, in2}, []wallet.TransactionOutput{out}, redeemScriptBytes, nil
@@ -413,21 +416,21 @@ func TestZCashWallet_Multisign(t *testing.T) {
 		t.Error(err)
 	}
 
-	sigs1, err := w.CreateMultisigSignature(ins, outs, key1, redeemScript, 50)
+	sigs1, err := w.CreateMultisigSignature(ins, outs, key1, redeemScript, *big.NewInt(50))
 	if err != nil {
 		t.Error(err)
 	}
 	if len(sigs1) != 2 {
 		t.Error(err)
 	}
-	sigs2, err := w.CreateMultisigSignature(ins, outs, key2, redeemScript, 50)
+	sigs2, err := w.CreateMultisigSignature(ins, outs, key2, redeemScript, *big.NewInt(50))
 	if err != nil {
 		t.Error(err)
 	}
 	if len(sigs2) != 2 {
 		t.Error(err)
 	}
-	_, err = w.Multisign(ins, outs, sigs1, sigs2, redeemScript, 50, false)
+	_, err = w.Multisign(ins, outs, sigs1, sigs2, redeemScript, *big.NewInt(50), false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -497,7 +500,8 @@ func TestZCashWallet_sweepAddress(t *testing.T) {
 	var in wallet.TransactionInput
 	var key *hdkeychain.ExtendedKey
 	for _, ut := range utxos {
-		if ut.Value > 0 && !ut.WatchOnly {
+		val0, _ := strconv.ParseInt(ut.Value, 10, 64)
+		if val0 > 0 && !ut.WatchOnly {
 			addr, err := w.ScriptToAddress(ut.ScriptPubkey)
 			if err != nil {
 				t.Error(err)
@@ -512,7 +516,7 @@ func TestZCashWallet_sweepAddress(t *testing.T) {
 			}
 			in = wallet.TransactionInput{
 				LinkedAddress: addr,
-				Value:         ut.Value,
+				Value:         *big.NewInt(val0),
 				OutpointIndex: ut.Op.Index,
 				OutpointHash:  h,
 			}
@@ -527,7 +531,8 @@ func TestZCashWallet_sweepAddress(t *testing.T) {
 
 	// 1 of 2 P2WSH
 	for _, ut := range utxos {
-		if ut.Value > 0 && ut.WatchOnly {
+		val0, _ := strconv.ParseInt(ut.Value, 10, 64)
+		if val0 > 0 && ut.WatchOnly {
 			addr, err := w.ScriptToAddress(ut.ScriptPubkey)
 			if err != nil {
 				t.Error(err)
@@ -538,7 +543,7 @@ func TestZCashWallet_sweepAddress(t *testing.T) {
 			}
 			in = wallet.TransactionInput{
 				LinkedAddress: addr,
-				Value:         ut.Value,
+				Value:         *big.NewInt(val0),
 				OutpointIndex: ut.Op.Index,
 				OutpointHash:  h,
 			}
