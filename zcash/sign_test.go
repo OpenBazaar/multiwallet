@@ -69,6 +69,27 @@ func newMockWallet() (*ZCashWallet, error) {
 	return bw, nil
 }
 
+func waitForTxnSync(t *testing.T, txnStore wallet.Txns) {
+	// Look for a known txn, this sucks a bit. It would be better to check if the
+	// number of stored txns matched the expected, but not all the mock
+	// transactions are relevant, so the numbers don't add up.
+	// Even better would be for the wallet to signal that the initial sync was
+	// done.
+	lastTxn := mock.MockTransactions[len(mock.MockTransactions)-2]
+	txHash, err := chainhash.NewHashFromStr(lastTxn.Txid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < 100; i++ {
+		if _, err := txnStore.Get(*txHash); err == nil {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatal("timeout waiting for wallet to sync transactions")
+}
+
 func TestZCashWallet_buildTx(t *testing.T) {
 	w, err := newMockWallet()
 	w.ws.Start()
@@ -107,6 +128,49 @@ func TestZCashWallet_buildTx(t *testing.T) {
 	_, err = w.buildTx(1, addr, wallet.NORMAL, nil)
 	if err != wallet.ErrorDustAmount {
 		t.Error("Failed to throw dust error")
+	}
+}
+
+func TestZCashWallet_buildSpendAllTx(t *testing.T) {
+	w, err := newMockWallet()
+	if err != nil {
+		t.Error(err)
+	}
+	w.ws.Start()
+	time.Sleep(time.Second / 2)
+
+	waitForTxnSync(t, w.db.Txns())
+	addr, err := w.DecodeAddress("t1hASvMj8e6TXWryuB3L5TKXJB7XfNioZP3")
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Test build spendAll tx
+	tx, err := w.buildSpendAllTx(addr, wallet.NORMAL)
+	if err != nil {
+		t.Error(err)
+	}
+	utxos, err := w.db.Utxos().GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	spendableUtxos := 0
+	for _, u := range utxos {
+		if !u.WatchOnly {
+			spendableUtxos++
+		}
+	}
+	if len(tx.TxIn) != spendableUtxos {
+		t.Error("Built tx does not spend all available utxos")
+	}
+	if !containsOutput(tx, addr) {
+		t.Error("Built tx does not contain the requested output")
+	}
+	if !validInputs(tx, w.db) {
+		t.Error("Built tx does not contain valid inputs")
+	}
+	if len(tx.TxOut) != 1 {
+		t.Error("Built tx should only have one output")
 	}
 }
 

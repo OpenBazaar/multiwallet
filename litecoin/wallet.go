@@ -15,7 +15,6 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/ltcsuite/ltcutil"
 	"github.com/ltcsuite/ltcwallet/wallet/txrules"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
@@ -111,7 +110,8 @@ func (w *LitecoinWallet) CurrencyCode() string {
 }
 
 func (w *LitecoinWallet) IsDust(amount big.Int) bool {
-	return txrules.IsDustAmount(ltcutil.Amount(amount.Int64()), 25, txrules.DefaultRelayFeePerKb)
+	amt := btcutil.Amount(amount.Int64())
+	return txrules.IsDustAmount(amt, 25, txrules.DefaultRelayFeePerKb)
 }
 
 func (w *LitecoinWallet) MasterPrivateKey() *hd.ExtendedKey {
@@ -230,11 +230,23 @@ func (w *LitecoinWallet) GetFeePerByte(feeLevel wi.FeeLevel) big.Int {
 	return *big.NewInt(int64(w.fp.GetFeePerByte(feeLevel)))
 }
 
-func (w *LitecoinWallet) Spend(amount big.Int, addr btcutil.Address, feeLevel wi.FeeLevel, referenceID string) (*chainhash.Hash, error) {
-	tx, err := w.buildTx(amount.Int64(), addr, feeLevel, nil)
-	if err != nil {
-		return nil, err
+func (w *LitecoinWallet) Spend(amount big.Int, addr btcutil.Address, feeLevel wi.FeeLevel, referenceID string, spendAll bool) (*chainhash.Hash, error) {
+	var (
+		tx  *wire.MsgTx
+		err error
+	)
+	if spendAll {
+		tx, err = w.buildSpendAllTx(addr, feeLevel)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		tx, err = w.buildTx(amount.Int64(), addr, feeLevel, nil)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	// Broadcast
 	if err := w.Broadcast(tx); err != nil {
 		return nil, err

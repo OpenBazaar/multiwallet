@@ -130,6 +130,67 @@ func TestLitecoinWallet_buildTx(t *testing.T) {
 	}
 }
 
+func TestLitecoinWallet_buildSpendAllTx(t *testing.T) {
+	w, err := newMockWallet()
+	if err != nil {
+		t.Error(err)
+	}
+	w.ws.Start()
+	time.Sleep(time.Second / 2)
+
+	waitForTxnSync(t, w.db.Txns())
+	addr, err := w.DecodeAddress("Lep9b95MtHofxS72Hjdg4Wfmr43sHetrZT")
+	if err != nil {
+		t.Error(err)
+	}
+
+	// Test build spendAll tx
+	tx, err := w.buildSpendAllTx(addr, wallet.NORMAL)
+	if err != nil {
+		t.Error(err)
+	}
+	utxos, err := w.db.Utxos().GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	spendableUtxos := 0
+	for _, u := range utxos {
+		if !u.WatchOnly {
+			spendableUtxos++
+		}
+	}
+	if len(tx.TxIn) != spendableUtxos {
+		t.Error("Built tx does not spend all available utxos")
+	}
+	if !containsOutput(tx, addr) {
+		t.Error("Built tx does not contain the requested output")
+	}
+	if !validInputs(tx, w.db) {
+		t.Error("Built tx does not contain valid inputs")
+	}
+	if len(tx.TxOut) != 1 {
+		t.Error("Built tx should only have one output")
+	}
+
+	// Verify the signatures on each input using the scripting engine
+	for i, in := range tx.TxIn {
+		var prevScript []byte
+		for _, u := range utxos {
+			if util.OutPointsEqual(u.Op, in.PreviousOutPoint) {
+				prevScript = u.ScriptPubkey
+				break
+			}
+		}
+		vm, err := txscript.NewEngine(prevScript, tx, i, txscript.StandardVerifyFlags, nil, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := vm.Execute(); err != nil {
+			t.Error(err)
+		}
+	}
+}
+
 func containsOutput(tx *wire.MsgTx, addr btcutil.Address) bool {
 	for _, o := range tx.TxOut {
 		script, _ := laddr.PayToAddrScript(addr)
