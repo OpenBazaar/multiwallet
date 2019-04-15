@@ -3,15 +3,10 @@ package bitcoin
 import (
 	"bytes"
 	"encoding/hex"
-	"github.com/OpenBazaar/multiwallet/util"
+	"math/big"
 	"testing"
 	"time"
 
-	"github.com/OpenBazaar/multiwallet/cache"
-	"github.com/OpenBazaar/multiwallet/datastore"
-	"github.com/OpenBazaar/multiwallet/keys"
-	"github.com/OpenBazaar/multiwallet/model/mock"
-	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/spvwallet"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -20,6 +15,13 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
+
+	"github.com/OpenBazaar/multiwallet/cache"
+	"github.com/OpenBazaar/multiwallet/datastore"
+	"github.com/OpenBazaar/multiwallet/keys"
+	"github.com/OpenBazaar/multiwallet/model/mock"
+	"github.com/OpenBazaar/multiwallet/service"
+	"github.com/OpenBazaar/multiwallet/util"
 )
 
 type FeeResponse struct {
@@ -348,7 +350,8 @@ func TestBitcoinWallet_newUnsignedTransaction(t *testing.T) {
 	}
 
 	inputSource := func(target btcutil.Amount) (total btcutil.Amount, inputs []*wire.TxIn, inputValues []btcutil.Amount, scripts [][]byte, err error) {
-		total += btcutil.Amount(utxos[0].Value)
+		val, _ := new(big.Int).SetString(utxos[0].Value, 10)
+		total += btcutil.Amount(val.Int64())
 		in := wire.NewTxIn(&utxos[0].Op, []byte{}, [][]byte{})
 		in.Sequence = 0 // Opt-in RBF so we can bump fees
 		inputs = append(inputs, in)
@@ -390,7 +393,7 @@ func TestBitcoinWallet_CreateMultisigSignature(t *testing.T) {
 		t.Error(err)
 	}
 
-	sigs, err := w.CreateMultisigSignature(ins, outs, key1, redeemScript, 50)
+	sigs, err := w.CreateMultisigSignature(ins, outs, key1, redeemScript, *big.NewInt(50))
 	if err != nil {
 		t.Error(err)
 	}
@@ -432,7 +435,7 @@ func buildTxData(w *BitcoinWallet) ([]wallet.TransactionInput, []wallet.Transact
 	}
 
 	out := wallet.TransactionOutput{
-		Value:   20000,
+		Value:   *big.NewInt(20000),
 		Address: addr,
 	}
 	return []wallet.TransactionInput{in1, in2}, []wallet.TransactionOutput{out}, redeemScriptBytes, nil
@@ -458,21 +461,21 @@ func TestBitcoinWallet_Multisign(t *testing.T) {
 		t.Error(err)
 	}
 
-	sigs1, err := w.CreateMultisigSignature(ins, outs, key1, redeemScript, 50)
+	sigs1, err := w.CreateMultisigSignature(ins, outs, key1, redeemScript, *big.NewInt(50))
 	if err != nil {
 		t.Error(err)
 	}
 	if len(sigs1) != 2 {
 		t.Error(err)
 	}
-	sigs2, err := w.CreateMultisigSignature(ins, outs, key2, redeemScript, 50)
+	sigs2, err := w.CreateMultisigSignature(ins, outs, key2, redeemScript, *big.NewInt(50))
 	if err != nil {
 		t.Error(err)
 	}
 	if len(sigs2) != 2 {
 		t.Error(err)
 	}
-	txBytes, err := w.Multisign(ins, outs, sigs1, sigs2, redeemScript, 50, false)
+	txBytes, err := w.Multisign(ins, outs, sigs1, sigs2, redeemScript, *big.NewInt(50), false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -549,7 +552,8 @@ func TestBitcoinWallet_sweepAddress(t *testing.T) {
 	var in wallet.TransactionInput
 	var key *hdkeychain.ExtendedKey
 	for _, ut := range utxos {
-		if ut.Value > 0 && !ut.WatchOnly {
+		val, _ := new(big.Int).SetString(ut.Value, 10)
+		if val.Int64() > 0 && !ut.WatchOnly {
 			addr, err := w.ScriptToAddress(ut.ScriptPubkey)
 			if err != nil {
 				t.Error(err)
@@ -564,7 +568,7 @@ func TestBitcoinWallet_sweepAddress(t *testing.T) {
 			}
 			in = wallet.TransactionInput{
 				LinkedAddress: addr,
-				Value:         ut.Value,
+				Value:         *val,
 				OutpointIndex: ut.Op.Index,
 				OutpointHash:  h,
 			}
@@ -579,7 +583,8 @@ func TestBitcoinWallet_sweepAddress(t *testing.T) {
 
 	// 1 of 2 P2WSH
 	for _, ut := range utxos {
-		if ut.Value > 0 && ut.WatchOnly {
+		val, _ := new(big.Int).SetString(ut.Value, 10)
+		if val.Int64() > 0 && ut.WatchOnly {
 			addr, err := w.ScriptToAddress(ut.ScriptPubkey)
 			if err != nil {
 				t.Error(err)
@@ -590,7 +595,7 @@ func TestBitcoinWallet_sweepAddress(t *testing.T) {
 			}
 			in = wallet.TransactionInput{
 				LinkedAddress: addr,
-				Value:         ut.Value,
+				Value:         *val,
 				OutpointIndex: ut.Op.Index,
 				OutpointHash:  h,
 			}

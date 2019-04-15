@@ -1,11 +1,11 @@
 package address
 
 import (
-	"errors"
-
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
+
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcutil"
