@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net"
+	"sync"
 
 	"github.com/OpenBazaar/multiwallet"
 	"github.com/OpenBazaar/multiwallet/api/pb"
@@ -12,6 +13,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/zcash"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcutil"
+	"github.com/golang/protobuf/ptypes"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -217,8 +219,33 @@ func (s *server) EstimateFee(ctx context.Context, in *pb.EstimateFeeData) (*pb.F
 }
 
 func (s *server) WalletNotify(in *pb.CoinSelection, stream pb.API_WalletNotifyServer) error {
-	// Stub
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
+	if err != nil {
+		return err
+	}
+	cb := func(tx wallet.TransactionCallback) {
+		ts, err := ptypes.TimestampProto(tx.Timestamp)
+		if err != nil {
+			return
+		}
+		resp := &pb.Tx{
+			Txid:      tx.Txid,
+			Value:     tx.Value,
+			Height:    tx.Height,
+			Timestamp: ts,
+			WatchOnly: tx.WatchOnly,
+		}
+		if err := stream.Send(resp); err != nil {
+			return
+		}
+	}
+	wal.AddTransactionListener(cb)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	wg.Wait()
 	return nil
+
 }
 
 func (s *server) GetKey(ctx context.Context, in *pb.Address) (*pb.Key, error) {
