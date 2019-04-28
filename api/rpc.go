@@ -11,7 +11,9 @@ import (
 	"github.com/OpenBazaar/multiwallet/litecoin"
 	"github.com/OpenBazaar/multiwallet/zcash"
 	"github.com/OpenBazaar/wallet-interface"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcutil"
+	"github.com/golang/protobuf/ptypes"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -134,14 +136,60 @@ func (s *server) HasKey(ctx context.Context, in *pb.Address) (*pb.BoolResponse, 
 }
 
 func (s *server) Transactions(ctx context.Context, in *pb.CoinSelection) (*pb.TransactionList, error) {
-	// Stub
-	var list []*pb.Tx
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
+	if err != nil {
+		return nil, err
+	}
+	txs, err := wal.Transactions()
+	if err != nil {
+		return nil, err
+	}
+	var list = make([]*pb.Tx, 0, len(txs))
+	for _, tx := range txs {
+		ts, err := ptypes.TimestampProto(tx.Timestamp)
+		if err != nil {
+			return nil, err
+		}
+		respTx := &pb.Tx{
+			Txid:      tx.Txid,
+			Value:     tx.Value,
+			Height:    tx.Height,
+			WatchOnly: tx.WatchOnly,
+			Timestamp: ts,
+			Raw:       tx.Bytes,
+		}
+		list = append(list, respTx)
+	}
 	return &pb.TransactionList{Transactions: list}, nil
 }
 
 func (s *server) GetTransaction(ctx context.Context, in *pb.Txid) (*pb.Tx, error) {
-	// Stub
-	respTx := &pb.Tx{}
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
+	if err != nil {
+		return nil, err
+	}
+	ch, err := chainhash.NewHashFromStr(in.Hash)
+	if err != nil {
+		return nil, err
+	}
+	tx, err := wal.GetTransaction(*ch)
+	if err != nil {
+		return nil, err
+	}
+	ts, err := ptypes.TimestampProto(tx.Timestamp)
+	if err != nil {
+		return nil, err
+	}
+	respTx := &pb.Tx{
+		Txid:      tx.Txid,
+		Value:     tx.Value,
+		Height:    tx.Height,
+		WatchOnly: tx.WatchOnly,
+		Timestamp: ts,
+		Raw:       tx.Bytes,
+	}
 	return respTx, nil
 }
 
