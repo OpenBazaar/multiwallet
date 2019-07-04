@@ -20,7 +20,6 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcutil/hdkeychain"
-	bcw "github.com/cpacia/BitcoinCash-Wallet"
 	"github.com/cpacia/bchutil"
 	bchhash "github.com/gcash/bchd/chaincfg/chainhash"
 	bchwire "github.com/gcash/bchd/wire"
@@ -54,7 +53,7 @@ func newMockWallet() (*BitcoinCashWallet, error) {
 		return nil, err
 	}
 
-	fp := bcw.NewFeeProvider(2000, 300, 200, 100, nil)
+	fp := NewFeeProvider(2000, 300, 200, 100, nil)
 
 	bw := &BitcoinCashWallet{
 		params: params,
