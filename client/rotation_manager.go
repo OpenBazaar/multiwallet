@@ -94,7 +94,9 @@ func (r *rotationManager) AcquireCurrent() *blockbook.BlockBookClient {
 // AcquireCurrentWhenReady will block until the current client is ready for use. This method
 // should always be used before the AcquireCurrent variety to minimize time within a read lock.
 func (r *rotationManager) AcquireCurrentWhenReady() *blockbook.BlockBookClient {
+	r.rLock()
 	if r.started {
+		r.rUnlock()
 		return r.AcquireCurrent()
 	}
 	var t = time.NewTicker(1 * time.Second)
@@ -104,6 +106,7 @@ func (r *rotationManager) AcquireCurrentWhenReady() *blockbook.BlockBookClient {
 			break
 		}
 	}
+	r.rUnlock()
 	return r.AcquireCurrent()
 }
 
