@@ -11,7 +11,6 @@ import (
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
@@ -28,7 +27,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/multiwallet/model"
 	"github.com/OpenBazaar/multiwallet/service"
-	"github.com/OpenBazaar/multiwallet/util"	
+	"github.com/OpenBazaar/multiwallet/util"
 )
 
 type BitcoinCashWallet struct {
@@ -221,15 +220,9 @@ func (w *BitcoinCashWallet) GetTransaction(txid chainhash.Hash) (wi.Txn, error) 
 		}
 		outs := []wi.TransactionOutput{}
 		for i, out := range tx.TxOut {
-			var addr btcutil.Address
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(out.PkScript, w.params)
+			addr, err := bchutil.ExtractPkScriptAddrs(out.PkScript, w.params)
 			if err != nil {
 				log.Printf("error extracting address from txn pkscript: %v\n", err)
-			}
-			if len(addrs) == 0 {
-				addr = nil
-			} else {
-				addr = addrs[0]
 			}
 			tout := wi.TransactionOutput{
 				Address: addr,

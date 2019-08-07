@@ -11,7 +11,6 @@ import (
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
@@ -224,15 +223,9 @@ func (w *ZCashWallet) GetTransaction(txid chainhash.Hash) (wi.Txn, error) {
 		}
 		outs := []wi.TransactionOutput{}
 		for i, out := range tx.TxOut {
-			var addr btcutil.Address
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(out.PkScript, w.params)
+			addr, err := zaddr.ExtractPkScriptAddrs(out.PkScript, w.params)
 			if err != nil {
 				log.Printf("error extracting address from txn pkscript: %v\n", err)
-			}
-			if len(addrs) == 0 {
-				addr = nil
-			} else {
-				addr = addrs[0]
 			}
 			tout := wi.TransactionOutput{
 				Address: addr,
