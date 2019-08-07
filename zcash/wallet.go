@@ -175,6 +175,14 @@ func (w *ZCashWallet) HasKey(addr btcutil.Address) bool {
 func (w *ZCashWallet) Balance() (confirmed, unconfirmed int64) {
 	utxos, _ := w.db.Utxos().GetAll()
 	txns, _ := w.db.Txns().GetAll(false)
+	// Zcash transactions have additional data embedded in them
+	// that is not expected by the BtcDecode deserialize function.
+	// We strip off the extra data here so the derserialize function
+	// does not error. This will have no affect on the balance calculation
+	// as the metadata is not used in the calculation.
+	for i, tx := range txns {
+		txns[i].Bytes = tx.Bytes[4 : len(tx.Bytes)-15]
+	}
 	return util.CalcBalance(utxos, txns)
 }
 
