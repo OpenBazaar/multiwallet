@@ -273,6 +273,9 @@ func TestBitcoinWallet_GenerateMultisigScript(t *testing.T) {
 		"53" + // OP_3
 		"ae" // OP_CHECKMULTISIG
 	rsBytes, err := hex.DecodeString(rs)
+	if err != nil {
+		t.Error(err)
+	}
 	if !bytes.Equal(rsBytes, redeemScript) {
 		t.Error("Returned invalid redeem script")
 	}
@@ -310,6 +313,9 @@ func TestBitcoinWallet_GenerateMultisigScript(t *testing.T) {
 		"ac" + // OP_CHECKSIG
 		"68" // OP_ENDIF
 	rsBytes, err = hex.DecodeString(rs)
+	if err != nil {
+		t.Error(err)
+	}
 	if !bytes.Equal(rsBytes, redeemScript) {
 		t.Error("Returned invalid redeem script")
 	}
@@ -626,7 +632,7 @@ func TestBitcoinWallet_estimateSpendFee(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if fee <= 0 {
+	if fee == 0 {
 		t.Error("Returned incorrect fee")
 	}
 }
