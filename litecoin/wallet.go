@@ -172,10 +172,7 @@ func (w *LitecoinWallet) AddressToScript(addr btcutil.Address) ([]byte, error) {
 
 func (w *LitecoinWallet) HasKey(addr btcutil.Address) bool {
 	_, err := w.km.GetKeyForScript(addr.ScriptAddress())
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 func (w *LitecoinWallet) Balance() (confirmed, unconfirmed int64) {
