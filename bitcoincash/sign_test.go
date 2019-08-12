@@ -53,7 +53,7 @@ func newMockWallet() (*BitcoinCashWallet, error) {
 		return nil, err
 	}
 
-	fp := NewFeeProvider(2000, 300, 200, 100, nil)
+	fp := util.NewFeeProvider(2000, 300, 200, 100, nil)
 
 	bw := &BitcoinCashWallet{
 		params: params,

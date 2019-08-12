@@ -34,7 +34,7 @@ type BitcoinCashWallet struct {
 	params *chaincfg.Params
 	client model.APIClient
 	ws     *service.WalletService
-	fp     *FeeProvider
+	fp     *util.FeeProvider
 
 	mPrivKey *hd.ExtendedKey
 	mPubKey  *hd.ExtendedKey
@@ -72,7 +72,7 @@ func NewBitcoinCashWallet(cfg config.CoinConfig, mnemonic string, params *chainc
 		go exchangeRates.Run()
 	}
 
-	fp := NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, exchangeRates)
+	fp := util.NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, exchangeRates)
 
 	return &BitcoinCashWallet{cfg.DB, km, params, c, wm, fp, mPrivKey, mPubKey, exchangeRates}, nil
 }
