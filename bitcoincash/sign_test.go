@@ -307,6 +307,9 @@ func TestBitcoinCashWallet_GenerateMultisigScript(t *testing.T) {
 		"53" + // OP_3
 		"ae" // OP_CHECKMULTISIG
 	rsBytes, err := hex.DecodeString(rs)
+	if err != nil {
+		t.Error(err)
+	}
 	if !bytes.Equal(rsBytes, redeemScript) {
 		t.Error("Returned invalid redeem script")
 	}
