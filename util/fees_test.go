@@ -38,16 +38,16 @@ func TestFeeProvider_GetFeePerByte(t *testing.T) {
 	fp := NewFeeProvider(2000, 360, 320, 280, &mockExchangeRate{})
 
 	// Test using exchange rates
-	if fp.GetFeePerByte(wallet.PRIOIRTY) != 101 {
+	if fp.GetFeePerByte(wallet.PRIOIRTY) != 50 {
 		t.Error("Returned incorrect fee per byte")
 	}
-	if fp.GetFeePerByte(wallet.NORMAL) != 50 {
+	if fp.GetFeePerByte(wallet.NORMAL) != 10 {
 		t.Error("Returned incorrect fee per byte")
 	}
-	if fp.GetFeePerByte(wallet.ECONOMIC) != 10 {
+	if fp.GetFeePerByte(wallet.ECONOMIC) != 1 {
 		t.Error("Returned incorrect fee per byte")
 	}
-	if fp.GetFeePerByte(wallet.FEE_BUMP) != 202 {
+	if fp.GetFeePerByte(wallet.FEE_BUMP) != 101 {
 		t.Error("Returned incorrect fee per byte")
 	}
 

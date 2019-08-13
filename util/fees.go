@@ -98,5 +98,9 @@ func (fp *FeeProvider) GetFeePerByte(feeLevel wallet.FeeLevel) uint64 {
 		return fp.maxFee
 	}
 
+	if uint64(feePerByte) == 0 {
+		return 1
+	}
+
 	return uint64(feePerByte)
 }
