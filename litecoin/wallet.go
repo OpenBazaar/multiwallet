@@ -150,13 +150,12 @@ func (w *LitecoinWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
 	for {
 		key, _ := w.km.GetCurrentKey(purpose)
 		addr, _ = litecoinAddress(key, w.params)
-		fmt.Println(addr)
 
 		if !strings.HasPrefix(strings.ToLower(addr.String()), "ltc1") {
 			break
 		}
 		if err := w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress()); err != nil {
-			w.log.Error("Error marking key as used: %s", err)
+			w.log.Errorf("Error marking key as used: %s", err)
 		}
 	}
 	return btcutil.Address(addr)
