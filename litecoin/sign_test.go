@@ -51,7 +51,7 @@ func newMockWallet() (*LitecoinWallet, error) {
 		return nil, err
 	}
 
-	fp := util.NewFeeDefaultProvider(2000, 300, 200, 100)
+	fp := util.NewFeeProvider(2000, 300, 200, 100, nil)
 
 	bw := &LitecoinWallet{
 		params: params,
