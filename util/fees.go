@@ -41,6 +41,8 @@ const (
 	EconomicTarget FeeTarget = 0.1
 	NormalTarget   FeeTarget = 1
 	PriorityTarget FeeTarget = 5
+
+	AverageTransactionSize = 226
 )
 
 func NewFeeProvider(maxFee, priorityFee, normalFee, economicFee uint64, exchangeRates wallet.ExchangeRates) *FeeProvider {
@@ -92,7 +94,7 @@ func (fp *FeeProvider) GetFeePerByte(feeLevel wallet.FeeLevel) uint64 {
 		target = NormalTarget
 	}
 
-	feePerByte := (((float64(target) / 100) / rate) * 100000000) / 226
+	feePerByte := (((float64(target) / 100) / rate) * 100000000) / AverageTransactionSize
 
 	if uint64(feePerByte) > fp.maxFee {
 		return fp.maxFee
