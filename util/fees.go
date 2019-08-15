@@ -35,12 +35,12 @@ type FeeProvider struct {
 // We will target a fee per byte such that it would equal
 // 1 USD cent for economic, 5 USD cents for normal and
 // 10 USD cents for priority for a median (226 byte) transaction.
-type FeeTarget float64
+type FeeTargetInUSDCents float64
 
 const (
-	EconomicTarget FeeTarget = 0.1
-	NormalTarget   FeeTarget = 1
-	PriorityTarget FeeTarget = 5
+	EconomicTarget FeeTargetInUSDCents = 0.1
+	NormalTarget   FeeTargetInUSDCents = 1
+	PriorityTarget FeeTargetInUSDCents = 5
 
 	AverageTransactionSize = 226
 )
@@ -80,7 +80,7 @@ func (fp *FeeProvider) GetFeePerByte(feeLevel wallet.FeeLevel) uint64 {
 		return defaultFee()
 	}
 
-	var target FeeTarget
+	var target FeeTargetInUSDCents
 	switch feeLevel {
 	case wallet.PRIOIRTY:
 		target = PriorityTarget
