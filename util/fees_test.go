@@ -14,16 +14,16 @@ func (cb *ClosingBuffer) Close() (err error) {
 	return
 }
 
-type mockExchangeRate struct{}
-
-var returnRate float64 = 438
+type mockExchangeRate struct {
+	rate float64
+}
 
 func (m *mockExchangeRate) GetExchangeRate(currencyCode string) (float64, error) {
 	return 0, nil
 }
 
 func (m *mockExchangeRate) GetLatestRate(currencyCode string) (float64, error) {
-	return returnRate, nil
+	return m.rate, nil
 }
 
 func (m *mockExchangeRate) GetAllRates(usecache bool) (map[string]float64, error) {
@@ -35,7 +35,8 @@ func (m *mockExchangeRate) UnitsPerCoin() int {
 }
 
 func TestFeeProvider_GetFeePerByte(t *testing.T) {
-	fp := NewFeeProvider(2000, 360, 320, 280, &mockExchangeRate{})
+	er := &mockExchangeRate{438}
+	fp := NewFeeProvider(2000, 360, 320, 280, er)
 
 	// Test using exchange rates
 	if fp.GetFeePerByte(wallet.PRIOIRTY) != 50 {
@@ -52,7 +53,7 @@ func TestFeeProvider_GetFeePerByte(t *testing.T) {
 	}
 
 	// Test exchange rate is limited at max if bad exchange rate is returned
-	returnRate = 0.1
+	er.rate = 0.1
 	if fp.GetFeePerByte(wallet.PRIOIRTY) != 2000 {
 		t.Error("Returned incorrect fee per byte")
 	}
