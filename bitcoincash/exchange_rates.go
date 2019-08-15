@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/OpenBazaar/multiwallet/util"
 	"golang.org/x/net/proxy"
 	"net"
 	"net/http"
 	"reflect"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -25,10 +25,6 @@ type ExchangeRateDecoder interface {
 }
 
 type OpenBazaarDecoder struct{}
-type KrakenDecoder struct{}
-type BitfinexDecoder struct{}
-type BittrexDecoder struct{}
-type PoloniexDecoder struct{}
 
 type BitcoinCashPriceFetcher struct {
 	sync.Mutex
@@ -49,8 +45,6 @@ func NewBitcoinCashPriceFetcher(dialer proxy.Dialer) *BitcoinCashPriceFetcher {
 
 	b.providers = []*ExchangeRateProvider{
 		{"https://ticker.openbazaar.org/api", b.cache, client, OpenBazaarDecoder{}},
-		{"https://poloniex.com/public?command=returnTicker", b.cache, client, PoloniexDecoder{}},
-		{"https://api.kraken.com/0/public/Ticker?pair=BCHUSD", b.cache, client, KrakenDecoder{}},
 	}
 	return &b
 }
@@ -58,6 +52,8 @@ func NewBitcoinCashPriceFetcher(dialer proxy.Dialer) *BitcoinCashPriceFetcher {
 func (b *BitcoinCashPriceFetcher) GetExchangeRate(currencyCode string) (float64, error) {
 	b.Lock()
 	defer b.Unlock()
+
+	currencyCode = util.NormalizeCurrencyCode(currencyCode)
 	price, ok := b.cache[currencyCode]
 	if !ok {
 		return 0, errors.New("Currency not tracked")
@@ -69,6 +65,8 @@ func (b *BitcoinCashPriceFetcher) GetLatestRate(currencyCode string) (float64, e
 	b.fetchCurrentRates()
 	b.Lock()
 	defer b.Unlock()
+
+	currencyCode = util.NormalizeCurrencyCode(currencyCode)
 	price, ok := b.cache[currencyCode]
 	if !ok {
 		return 0, errors.New("Currency not tracked")
@@ -115,7 +113,7 @@ func (b *BitcoinCashPriceFetcher) Run() {
 
 func (provider *ExchangeRateProvider) fetch() (err error) {
 	if len(provider.fetchUrl) == 0 {
-		err = errors.New("Provider has no fetchUrl")
+		err = errors.New("provider has no fetchUrl")
 		return err
 	}
 	resp, err := provider.client.Get(provider.fetchUrl)
@@ -161,81 +159,5 @@ func (b OpenBazaarDecoder) decode(dat interface{}, cache map[string]float64) (er
 			cache[k] = price * (1 / bchRate)
 		}
 	}
-	return nil
-}
-
-func (b KrakenDecoder) decode(dat interface{}, cache map[string]float64) (err error) {
-	obj, ok := dat.(map[string]interface{})
-	if !ok {
-		return errors.New("KrackenDecoder type assertion failure")
-	}
-	result, ok := obj["result"]
-	if !ok {
-		return errors.New("KrakenDecoder: field `result` not found")
-	}
-	resultMap, ok := result.(map[string]interface{})
-	if !ok {
-		return errors.New("KrackenDecoder type assertion failure")
-	}
-	pair, ok := resultMap["BCHUSD"]
-	if !ok {
-		return errors.New("KrakenDecoder: field `BCHUSD` not found")
-	}
-	pairMap, ok := pair.(map[string]interface{})
-	if !ok {
-		return errors.New("KrackenDecoder type assertion failure")
-	}
-	c, ok := pairMap["c"]
-	if !ok {
-		return errors.New("KrakenDecoder: field `c` not found")
-	}
-	cList, ok := c.([]interface{})
-	if !ok {
-		return errors.New("KrackenDecoder type assertion failure")
-	}
-	rateStr, ok := cList[0].(string)
-	if !ok {
-		return errors.New("KrackenDecoder type assertion failure")
-	}
-	price, err := strconv.ParseFloat(rateStr, 64)
-	if err != nil {
-		return err
-	}
-	rate := price
-
-	if rate == 0 {
-		return errors.New("Bitcoin-BitcoinCash price data not available")
-	}
-	cache["USD"] = rate
-	return nil
-}
-
-func (b PoloniexDecoder) decode(dat interface{}, cache map[string]float64) (err error) {
-	data, ok := dat.(map[string]interface{})
-	if !ok {
-		return errors.New(reflect.TypeOf(b).Name() + ".decode: Type assertion failed")
-	}
-	var rate float64
-	v, ok := data["USDT_BCH"]
-	if !ok {
-		return errors.New(reflect.TypeOf(b).Name() + ".decode: Type assertion failed")
-	}
-	val, ok := v.(map[string]interface{})
-	if !ok {
-		return errors.New(reflect.TypeOf(b).Name() + ".decode: Type assertion failed")
-	}
-	s, ok := val["last"].(string)
-	if !ok {
-		return errors.New(reflect.TypeOf(b).Name() + ".decode: Type assertion failed, missing 'last' (string) field")
-	}
-	price, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return err
-	}
-	rate = price
-	if rate == 0 {
-		return errors.New("BitcoinCash price data not available")
-	}
-	cache["USD"] = rate
 	return nil
 }
