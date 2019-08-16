@@ -4,25 +4,42 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	gonet "net"
 	"net/http"
 	"testing"
-	"time"
+
+	"gopkg.in/jarcoal/httpmock.v1"
 )
 
-func setupBitcoinPriceFetcher() (b BitcoinCashPriceFetcher) {
-	b = BitcoinCashPriceFetcher{
-		cache: make(map[string]float64),
-	}
-	client := &http.Client{Transport: &http.Transport{Dial: gonet.Dial}, Timeout: time.Minute}
-	b.providers = []*ExchangeRateProvider{
-		{"https://ticker.openbazaar.org/api", b.cache, client, OpenBazaarDecoder{}},
-	}
-	return b
+func setupBitcoinPriceFetcher() (BitcoinCashPriceFetcher, func()) {
+	var (
+		url          = "https://ticker.openbazaar.org/api"
+		mockResponse = `{
+		"BCH": {
+			"last": 20.00000,
+			"type": "crypto"
+		},
+		"USD": {
+			"last": 10000.00,
+			"type": "fiat"
+		}
+	}`
+		exchangeCache = make(map[string]float64)
+	)
+
+	httpmock.Activate()
+	httpmock.RegisterResponder("GET", url,
+		httpmock.NewStringResponder(200, mockResponse))
+
+	return BitcoinCashPriceFetcher{
+		cache:     exchangeCache,
+		providers: []*ExchangeRateProvider{{url, exchangeCache, &http.Client{}, OpenBazaarDecoder{}}},
+	}, httpmock.DeactivateAndReset
 }
 
 func TestFetchCurrentRates(t *testing.T) {
-	b := setupBitcoinPriceFetcher()
+	b, teardown := setupBitcoinPriceFetcher()
+	defer teardown()
+
 	err := b.fetchCurrentRates()
 	if err != nil {
 		t.Error("Failed to fetch bitcoin exchange rates")
@@ -30,24 +47,23 @@ func TestFetchCurrentRates(t *testing.T) {
 }
 
 func TestGetLatestRate(t *testing.T) {
-	b := setupBitcoinPriceFetcher()
-	price, err := b.GetLatestRate("USD")
-	if err != nil || price == 0 {
-		t.Error("Incorrect return at GetLatestRate (price, err)", price, err)
-	}
-	b.cache["USD"] = 650.00
+	b, teardown := setupBitcoinPriceFetcher()
+	defer teardown()
+
 	price, ok := b.cache["USD"]
-	if !ok || price != 650 {
-		t.Error("Failed to fetch exchange rates from cache")
+	if !ok && price == 500.00 {
+		t.Errorf("incorrect cache value, expected (%f) but got (%f)", 500.00, price)
 	}
-	price, err = b.GetLatestRate("USD")
-	if err != nil || price == 650.00 {
+	price, err := b.GetLatestRate("USD")
+	if err != nil && price == 500.00 {
 		t.Error("Incorrect return at GetLatestRate (price, err)", price, err)
 	}
 }
 
 func TestGetAllRates(t *testing.T) {
-	b := setupBitcoinPriceFetcher()
+	b, teardown := setupBitcoinPriceFetcher()
+	defer teardown()
+
 	b.cache["USD"] = 650.00
 	b.cache["EUR"] = 600.00
 	priceMap, err := b.GetAllRates(true)
@@ -65,7 +81,9 @@ func TestGetAllRates(t *testing.T) {
 }
 
 func TestGetExchangeRate(t *testing.T) {
-	b := setupBitcoinPriceFetcher()
+	b, teardown := setupBitcoinPriceFetcher()
+	defer teardown()
+
 	b.cache["USD"] = 650.00
 	r, err := b.GetExchangeRate("USD")
 	if err != nil {

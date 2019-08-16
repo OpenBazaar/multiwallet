@@ -433,7 +433,6 @@
     "github.com/btcsuite/btcwallet/wallet/txauthor",
     "github.com/btcsuite/btcwallet/wallet/txrules",
     "github.com/btcsuite/golangcrypto/ripemd160",
-    "github.com/cpacia/BitcoinCash-Wallet/exchangerates",
     "github.com/cpacia/bchutil",
     "github.com/gcash/bchd/chaincfg/chainhash",
     "github.com/gcash/bchd/txscript",
