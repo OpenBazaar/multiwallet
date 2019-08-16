@@ -2,8 +2,9 @@ package util
 
 import (
 	"bytes"
-	"github.com/OpenBazaar/wallet-interface"
 	"testing"
+
+	"github.com/OpenBazaar/wallet-interface"
 )
 
 type ClosingBuffer struct {

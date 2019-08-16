@@ -1,20 +1,16 @@
 package util
 
 import (
-	"github.com/OpenBazaar/wallet-interface"
 	"net/http"
-	"time"
+
+	"github.com/OpenBazaar/wallet-interface"
 )
 
 type httpClient interface {
 	Get(string) (*http.Response, error)
 }
 
-type feeCache struct {
-	fees        *Fees
-	lastUpdated time.Time
-}
-
+// Fees describe
 type Fees struct {
 	FastestFee  uint64
 	HalfHourFee uint64
@@ -28,13 +24,11 @@ type FeeProvider struct {
 	economicFee uint64
 
 	exchangeRates wallet.ExchangeRates
-
-	cache *feeCache
 }
 
 // We will target a fee per byte such that it would equal
-// 1 USD cent for economic, 5 USD cents for normal and
-// 10 USD cents for priority for a median (226 byte) transaction.
+// 0.1 USD cent for economic, 1 USD cents for normal and
+// 5 USD cents for priority for a median (226 byte) transaction.
 type FeeTargetInUSDCents float64
 
 const (
@@ -52,7 +46,6 @@ func NewFeeProvider(maxFee, priorityFee, normalFee, economicFee uint64, exchange
 		normalFee:     normalFee,
 		economicFee:   economicFee,
 		exchangeRates: exchangeRates,
-		cache:         new(feeCache),
 	}
 }
 
