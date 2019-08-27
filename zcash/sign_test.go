@@ -32,7 +32,7 @@ type FeeResponse struct {
 func newMockWallet() (*ZCashWallet, error) {
 	mockDb := datastore.NewMockMultiwalletDatastore()
 
-	db, err := mockDb.GetDatastoreForWallet(wallet.BitcoinCash)
+	db, err := mockDb.GetDatastoreForWallet(wallet.Zcash)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func newMockWallet() (*ZCashWallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.BitcoinCash, zcashCashAddress)
+	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.Zcash, zcashAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func newMockWallet() (*ZCashWallet, error) {
 		fp:     fp,
 	}
 	cli := mock.NewMockApiClient(bw.AddressToScript)
-	ws, err := service.NewWalletService(db, km, cli, params, wallet.BitcoinCash, cache.NewMockCacher())
+	ws, err := service.NewWalletService(db, km, cli, params, wallet.Zcash, cache.NewMockCacher())
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +251,7 @@ func TestZCashWallet_GenerateMultisigScript(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if addr.String() != "t3ZZqETXWTohq3xXHxD9yzfq4UxpcACLkVc" {
+	if addr.String() != "t3S5yuHPzajqHcaJ6WDTGAwTuK9VDvWYj7r" {
 		t.Error("Returned invalid address")
 	}
 
