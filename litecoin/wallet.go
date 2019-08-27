@@ -152,7 +152,7 @@ func (w *LitecoinWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
 		if err != nil {
 			w.log.Errorf("Error generating current key: %s", err)
 		}
-		addr, err := w.km.KeyToAddress(key)
+		addr, err = w.km.KeyToAddress(key)
 		if err != nil {
 			w.log.Errorf("Error converting key to address: %s", err)
 		}
@@ -174,7 +174,7 @@ func (w *LitecoinWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
 		if err != nil {
 			w.log.Errorf("Error generating next unused key: %s", err)
 		}
-		addr, err := w.km.KeyToAddress(key)
+		addr, err = w.km.KeyToAddress(key)
 		if err != nil {
 			w.log.Errorf("Error converting key to address: %s", err)
 		}
