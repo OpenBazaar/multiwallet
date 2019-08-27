@@ -149,11 +149,11 @@ func (w *BitcoinCashWallet) ChildKey(keyBytes []byte, chaincode []byte, isPrivat
 func (w *BitcoinCashWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
 	key, err := w.km.GetCurrentKey(purpose)
 	if err != nil {
-		w.log.Error("CurrentAddress Error: %s", err)
+		w.log.Errorf("Error generating current key: %s", err)
 	}
 	addr, err := w.km.KeyToAddress(key)
 	if err != nil {
-		w.log.Error("CurrentAddress Error: %s", err)
+		w.log.Errorf("Error converting key to address: %s", err)
 	}
 	return addr
 }
@@ -161,14 +161,14 @@ func (w *BitcoinCashWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Addres
 func (w *BitcoinCashWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
 	key, err := w.km.GetNextUnused(purpose)
 	if err != nil {
-		w.log.Error("NewAddress Error: %s", err)
+		w.log.Errorf("Error generating next unused key: %s", err)
 	}
-	addr, err := key.Address(w.params)
+	addr, err := w.km.KeyToAddress(key)
 	if err != nil {
-		w.log.Error("NewAddress Error: %s", err)
+		w.log.Errorf("Error converting key to address: %s", err)
 	}
 	if err := w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress()); err != nil {
-		w.log.Error("NewAddress Error: %s", err)
+		w.log.Errorf("Error marking key as used: %s", err)
 	}
 	return addr
 }
