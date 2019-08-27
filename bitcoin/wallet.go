@@ -148,7 +148,7 @@ func (w *BitcoinWallet) CurrentAddress(purpose wi.KeyPurpose) btc.Address {
 	if err != nil {
 		w.log.Error("CurrentAddress Error: %s", err)
 	}
-	addr, err := key.Address(w.params)
+	addr, err := keyToAddress(key, w.params)
 	if err != nil {
 		w.log.Error("CurrentAddress Error: %s", err)
 	}
@@ -160,9 +160,9 @@ func (w *BitcoinWallet) NewAddress(purpose wi.KeyPurpose) btc.Address {
 	if err != nil {
 		w.log.Error("NewAddress Error: %s", err)
 	}
-	addr, err := key.Address(w.params)
+	addr, err := keyToAddress(key, w.params)
 	if err != nil {
-		w.log.Error("NewAddress Error: %s", err)
+		w.log.Error("CurrentAddress Error: %s", err)
 	}
 	if err := w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress()); err != nil {
 		w.log.Error("NewAddress Error: %s", err)

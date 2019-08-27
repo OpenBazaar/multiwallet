@@ -53,7 +53,7 @@ func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Par
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(cfg.DB.Keys(), params, mPrivKey, wi.Zcash, zcashCashAddress)
+	km, err := keys.NewKeyManager(cfg.DB.Keys(), params, mPrivKey, wi.Zcash, zcashAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Par
 	}, nil
 }
 
-func zcashCashAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
+func zcashAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
 	addr, err := key.Address(params)
 	if err != nil {
 		return nil, err
@@ -150,10 +150,11 @@ func (w *ZCashWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
 	if err != nil {
 		w.log.Error("CurrentAddress Error: %s", err)
 	}
-	addr, err := key.Address(w.params)
+	addr, err := zcashAddress(key, w.params)
 	if err != nil {
 		w.log.Error("CurrentAddress Error: %s", err)
 	}
+
 	return addr
 }
 
@@ -162,9 +163,9 @@ func (w *ZCashWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
 	if err != nil {
 		w.log.Error("NewAddress Error: %s", err)
 	}
-	addr, err := key.Address(w.params)
+	addr, err := zcashAddress(key, w.params)
 	if err != nil {
-		w.log.Error("NewAddress Error: %s", err)
+		w.log.Error("CurrentAddress Error: %s", err)
 	}
 	if err := w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress()); err != nil {
 		w.log.Error("NewAddress Error: %s", err)

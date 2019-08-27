@@ -174,9 +174,9 @@ func (w *LitecoinWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
 		if err != nil {
 			w.log.Error("NewAddress Error: %s", err)
 		}
-		addr, err := key.Address(w.params)
+		addr, err = litecoinAddress(key, w.params)
 		if err != nil {
-			w.log.Error("NewAddress Error: %s", err)
+			w.log.Error("CurrentAddress Error: %s", err)
 		}
 		if err := w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress()); err != nil {
 			w.log.Error("NewAddress Error: %s", err)

@@ -46,7 +46,7 @@ func newMockWallet() (*ZCashWallet, error) {
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.BitcoinCash, zcashCashAddress)
+	km, err := keys.NewKeyManager(db.Keys(), params, master, wallet.BitcoinCash, zcashAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func newMockWallet() (*ZCashWallet, error) {
 		fp:     fp,
 	}
 	cli := mock.NewMockApiClient(bw.AddressToScript)
-	ws, err := service.NewWalletService(db, km, cli, params, wallet.BitcoinCash, cache.NewMockCacher())
+	ws, err := service.NewWalletService(db, km, cli, params, wallet.Zcash, cache.NewMockCacher())
 	if err != nil {
 		return nil, err
 	}
