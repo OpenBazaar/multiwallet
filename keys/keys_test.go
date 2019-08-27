@@ -218,6 +218,56 @@ func TestKeyManager_GetFreshKey(t *testing.T) {
 	}
 }
 
+func TestKeyManager_GetNextUnused(t *testing.T) {
+	km, err := createKeyManager()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Since the lookahead window has already been generated, GetNextUnused
+	// should return the key with index 1.
+	key, err := km.GetNextUnused(wallet.EXTERNAL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nextUnused, err := km.GenerateChildKey(wallet.EXTERNAL, uint32(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if key.String() != nextUnused.String() {
+		t.Errorf("Derived incorrect key. Expected %s got %s", nextUnused.String(), key.String())
+	}
+
+	// Next let's mark all the keys as used and make sure GetNextUnused still
+	// generates a lookahead window and returns the next unused key.
+	allKeys := km.GetKeys()
+	for _, key := range allKeys {
+		addr, err := key.Address(&chaincfg.MainNetParams)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := km.datastore.MarkKeyAsUsed(addr.ScriptAddress()); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	key, err = km.GetNextUnused(wallet.EXTERNAL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nextUnused, err = km.GenerateChildKey(wallet.EXTERNAL, uint32(21))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if key.String() != nextUnused.String() {
+		t.Errorf("Derived incorrect key. Expected %s got %s", nextUnused.String(), key.String())
+	}
+}
+
 func TestKeyManager_GetKeys(t *testing.T) {
 	km, err := createKeyManager()
 	if err != nil {

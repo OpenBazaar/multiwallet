@@ -144,17 +144,30 @@ func (w *BitcoinWallet) ChildKey(keyBytes []byte, chaincode []byte, isPrivateKey
 }
 
 func (w *BitcoinWallet) CurrentAddress(purpose wi.KeyPurpose) btc.Address {
-	key, _ := w.km.GetCurrentKey(purpose)
-	addr, _ := key.Address(w.params)
-	return btc.Address(addr)
+	key, err := w.km.GetCurrentKey(purpose)
+	if err != nil {
+		w.log.Error("CurrentAddress Error: %s", err)
+	}
+	addr, err := key.Address(w.params)
+	if err != nil {
+		w.log.Error("CurrentAddress Error: %s", err)
+	}
+	return addr
 }
 
 func (w *BitcoinWallet) NewAddress(purpose wi.KeyPurpose) btc.Address {
-	i, _ := w.db.Keys().GetUnused(purpose)
-	key, _ := w.km.GenerateChildKey(purpose, uint32(i[1]))
-	addr, _ := key.Address(w.params)
-	w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress())
-	return btc.Address(addr)
+	key, err := w.km.GetNextUnused(purpose)
+	if err != nil {
+		w.log.Error("NewAddress Error: %s", err)
+	}
+	addr, err := key.Address(w.params)
+	if err != nil {
+		w.log.Error("NewAddress Error: %s", err)
+	}
+	if err := w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress()); err != nil {
+		w.log.Error("NewAddress Error: %s", err)
+	}
+	return addr
 }
 
 func (w *BitcoinWallet) DecodeAddress(addr string) (btc.Address, error) {
