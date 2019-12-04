@@ -619,7 +619,9 @@ func (ws *WalletService) getStoredAddresses() map[string]storedAddress {
 			}
 			addr = ltcAddr
 		}
-		addrs[addr.String()] = storedAddress{addr, true}
+		if _, ok := addrs[addr.String()]; !ok {
+			addrs[addr.String()] = storedAddress{addr, true}
+		}
 	}
 
 	return addrs
