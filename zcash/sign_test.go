@@ -653,7 +653,7 @@ func TestCalcSignatureHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected, err := hex.DecodeString("f3148f80dfab5e573d5edfe7a850f5fd39234f80b5429d3a57edcc11e34c585b")
+	expected, err := hex.DecodeString("8df91420215909927be677a978c36b528e1e7b4ba343acefdd259fe57f3f1f85")
 	if err != nil {
 		t.Fatal(err)
 	}
