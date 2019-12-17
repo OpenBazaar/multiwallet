@@ -522,7 +522,7 @@ func (ws *WalletService) saveSingleTxToDB(u model.Transaction, chainHeight int32
 	cb.Value = value
 	cb.WatchOnly = (hits == 0)
 	saved, err := ws.db.Txns().Get(*txHash)
-	if err != nil {
+	if err != nil || saved.WatchOnly != cb.WatchOnly {
 		ts := time.Now()
 		if u.Confirmations > 0 {
 			ts = time.Unix(u.BlockTime, 0)
