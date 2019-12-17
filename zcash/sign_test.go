@@ -311,7 +311,7 @@ func TestZCashWallet_newUnsignedTransaction(t *testing.T) {
 	}
 
 	// Regular transaction
-	authoredTx, _, err := newUnsignedTransaction(outputs, btcutil.Amount(1000), inputSource, changeSource)
+	authoredTx, err := newUnsignedTransaction(outputs, btcutil.Amount(1000), inputSource, changeSource)
 	if err != nil {
 		t.Error(err)
 	}
@@ -324,7 +324,7 @@ func TestZCashWallet_newUnsignedTransaction(t *testing.T) {
 
 	// Insufficient funds
 	outputs[0].Value = 1000000000
-	_, _, err = newUnsignedTransaction(outputs, btcutil.Amount(1000), inputSource, changeSource)
+	_, err = newUnsignedTransaction(outputs, btcutil.Amount(1000), inputSource, changeSource)
 	if err == nil {
 		t.Error("Failed to return insuffient funds error")
 	}
