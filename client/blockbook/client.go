@@ -100,8 +100,9 @@ type BlockBookClient struct {
 	apiUrl            *url.URL
 	blockNotifyChan   chan model.Block
 	closeChan         chan<- error
-	listenLock        sync.Mutex
+	listenLock        sync.RWMutex
 	listenQueue       []string
+	listenAddrs       []string
 	proxyDialer       proxy.Dialer
 	txNotifyChan      chan model.Transaction
 	websocketWatchdog *wsWatchdog
@@ -136,7 +137,7 @@ func NewBlockBookClient(apiUrl string, proxyDialer proxy.Dialer) (*BlockBookClie
 		proxyDialer:     proxyDialer,
 		blockNotifyChan: bch,
 		txNotifyChan:    tch,
-		listenLock:      sync.Mutex{},
+		listenLock:      sync.RWMutex{},
 	}
 	ic.websocketWatchdog = newWebsocketWatchdog(ic)
 	ic.RequestFunc = ic.doRequest
@@ -514,18 +515,17 @@ func (i *BlockBookClient) ListenAddresses(addrs ...btcutil.Address) {
 		convertedAddrs = append(convertedAddrs, maybeConvertCashAddress(addr))
 	}
 
-	args = append(args, convertedAddrs)
 	i.socketMutex.RLock()
 	defer i.socketMutex.RUnlock()
 	if i.SocketClient != nil {
+		i.listenAddrs = convertedAddrs
+
+		args = append(args, convertedAddrs)
 		i.SocketClient.Emit("subscribe", args)
 	} else {
-		for _, addr := range addrs {
-			i.listenQueue = append(i.listenQueue, maybeConvertCashAddress(addr))
-		}
+		i.listenQueue = append(i.listenQueue, convertedAddrs...)
 	}
 }
-
 
 func connectSocket(u *url.URL, proxyDialer proxy.Dialer) (model.SocketClient, error) {
 	socketClient, err := gosocketio.Dial(
@@ -626,6 +626,10 @@ func (i *BlockBookClient) setupListeners() error {
 			}
 		}
 	})
+
+	// Add stored watch addresses to listenQueue if there are any
+	i.listenQueue = append(i.listenQueue, i.listenAddrs...)
+	
 	for _, addr := range i.listenQueue {
 		var args []interface{}
 		args = append(args, "bitcoind/addresstxid")

@@ -148,14 +148,8 @@ func (w *LitecoinWallet) ChildKey(keyBytes []byte, chaincode []byte, isPrivateKe
 func (w *LitecoinWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
 	var addr btcutil.Address
 	for {
-		key, err := w.km.GetCurrentKey(purpose)
-		if err != nil {
-			w.log.Errorf("Error generating current key: %s", err)
-		}
-		addr, err = w.km.KeyToAddress(key)
-		if err != nil {
-			w.log.Errorf("Error converting key to address: %s", err)
-		}
+		key, _ := w.km.GetCurrentKey(purpose)
+		addr, _ = litecoinAddress(key, w.params)
 
 		if !strings.HasPrefix(strings.ToLower(addr.String()), "ltc1") {
 			break
@@ -164,28 +158,23 @@ func (w *LitecoinWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
 			w.log.Errorf("Error marking key as used: %s", err)
 		}
 	}
-	return addr
+	return btcutil.Address(addr)
 }
 
 func (w *LitecoinWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
 	var addr btcutil.Address
 	for {
-		key, err := w.km.GetNextUnused(purpose)
-		if err != nil {
-			w.log.Errorf("Error generating next unused key: %s", err)
-		}
-		addr, err = w.km.KeyToAddress(key)
-		if err != nil {
-			w.log.Errorf("Error converting key to address: %s", err)
-		}
+		i, _ := w.db.Keys().GetUnused(purpose)
+		key, _ := w.km.GenerateChildKey(purpose, uint32(i[1]))
+		addr, _ = litecoinAddress(key, w.params)
 		if err := w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress()); err != nil {
-			w.log.Errorf("Error marking key as used: %s", err)
+			w.log.Error("Error marking key as used: %s", err)
 		}
 		if !strings.HasPrefix(strings.ToLower(addr.String()), "ltc1") {
 			break
 		}
 	}
-	return addr
+	return btcutil.Address(addr)
 }
 
 func (w *LitecoinWallet) DecodeAddress(addr string) (btcutil.Address, error) {
@@ -344,15 +333,18 @@ func (w *LitecoinWallet) GenerateMultisigScript(keys []hd.ExtendedKey, threshold
 
 func (w *LitecoinWallet) AddWatchedAddresses(addrs ...btcutil.Address) error {
 
+	var watchedScripts [][]byte
 	for _, addr := range addrs {
 		script, err := w.AddressToScript(addr)
 		if err != nil {
 			return err
 		}
-		err = w.db.WatchedScripts().Put(script)
-		if err != nil {
-			return err
-		}
+		watchedScripts = append(watchedScripts, script)
+	}
+
+	err = w.db.WatchedScripts().PutAll(watchedScripts)
+	if err != nil {
+		return err
 	}
 
 	w.client.ListenAddresses(addrs...)
@@ -368,7 +360,7 @@ func (w *LitecoinWallet) AddWatchedScript(script []byte) error {
 	if err != nil {
 		return err
 	}
-	w.client.ListenAddresses([]btcutil.Address{addr}...)
+	w.client.ListenAddresses(addr)
 	return nil
 }
 

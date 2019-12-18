@@ -53,7 +53,7 @@ func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Par
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(cfg.DB.Keys(), params, mPrivKey, wi.Zcash, zcashAddress)
+	km, err := keys.NewKeyManager(cfg.DB.Keys(), params, mPrivKey, wi.Zcash, zcashCashAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Par
 	}, nil
 }
 
-func zcashAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
+func zcashCashAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btcutil.Address, error) {
 	addr, err := key.Address(params)
 	if err != nil {
 		return nil, err
@@ -146,30 +146,17 @@ func (w *ZCashWallet) ChildKey(keyBytes []byte, chaincode []byte, isPrivateKey b
 }
 
 func (w *ZCashWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
-	key, err := w.km.GetCurrentKey(purpose)
-	if err != nil {
-		w.log.Errorf("Error generating current key: %s", err)
-	}
-	addr, err := w.km.KeyToAddress(key)
-	if err != nil {
-		w.log.Errorf("Error converting key to address: %s", err)
-	}
-	return addr
+	key, _ := w.km.GetCurrentKey(purpose)
+	addr, _ := zcashCashAddress(key, w.params)
+	return btcutil.Address(addr)
 }
 
 func (w *ZCashWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
-	key, err := w.km.GetNextUnused(purpose)
-	if err != nil {
-		w.log.Errorf("Error generating next unused key: %s", err)
-	}
-	addr, err := w.km.KeyToAddress(key)
-	if err != nil {
-		w.log.Errorf("Error converting key to address: %s", err)
-	}
-	if err := w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress()); err != nil {
-		w.log.Errorf("Error marking key as used: %s", err)
-	}
-	return addr
+	i, _ := w.db.Keys().GetUnused(purpose)
+	key, _ := w.km.GenerateChildKey(purpose, uint32(i[1]))
+	addr, _ := zcashCashAddress(key, w.params)
+	w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress())
+	return btcutil.Address(addr)
 }
 
 func (w *ZCashWallet) DecodeAddress(addr string) (btcutil.Address, error) {
@@ -342,15 +329,18 @@ func (w *ZCashWallet) GenerateMultisigScript(keys []hd.ExtendedKey, threshold in
 
 func (w *ZCashWallet) AddWatchedAddresses(addrs ...btcutil.Address) error {
 
+	var watchedScripts [][]byte
 	for _, addr := range addrs {
 		script, err := w.AddressToScript(addr)
 		if err != nil {
 			return err
 		}
-		err = w.db.WatchedScripts().Put(script)
-		if err != nil {
-			return err
-		}
+		watchedScripts = append(watchedScripts, script)
+	}
+
+	err = w.db.WatchedScripts().PutAll(watchedScripts)
+	if err != nil {
+		return err
 	}
 
 	w.client.ListenAddresses(addrs...)
@@ -366,7 +356,7 @@ func (w *ZCashWallet) AddWatchedScript(script []byte) error {
 	if err != nil {
 		return err
 	}
-	w.client.ListenAddresses([]btcutil.Address{addr}...)
+	w.client.ListenAddresses(addr)
 	return nil
 }
 
