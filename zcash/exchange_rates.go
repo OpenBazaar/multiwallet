@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/OpenBazaar/multiwallet/util"
-	"net"
 	"net/http"
 	"reflect"
 	"strconv"
