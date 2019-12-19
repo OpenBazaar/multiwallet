@@ -42,6 +42,8 @@ type ZCashWallet struct {
 	log           *logging.Logger
 }
 
+var _ = wi.Wallet(&ZCashWallet{})
+
 func NewZCashWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher, disableExchangeRates bool) (*ZCashWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
@@ -338,7 +340,7 @@ func (w *ZCashWallet) AddWatchedAddresses(addrs ...btcutil.Address) error {
 		watchedScripts = append(watchedScripts, script)
 	}
 
-	err = w.db.WatchedScripts().PutAll(watchedScripts)
+	err := w.db.WatchedScripts().PutAll(watchedScripts)
 	if err != nil {
 		return err
 	}

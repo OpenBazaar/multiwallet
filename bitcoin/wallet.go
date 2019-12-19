@@ -45,6 +45,8 @@ type BitcoinWallet struct {
 	log           *logging.Logger
 }
 
+var _ = wi.Wallet(&BitcoinWallet{})
+
 func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher, disableExchangeRates bool) (*BitcoinWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
@@ -336,7 +338,7 @@ func (w *BitcoinWallet) AddWatchedAddresses(addrs ...btc.Address) error {
 		watchedScripts = append(watchedScripts, script)
 	}
 
-	err = w.db.WatchedScripts().PutAll(watchedScripts)
+	err := w.db.WatchedScripts().PutAll(watchedScripts)
 	if err != nil {
 		return err
 	}

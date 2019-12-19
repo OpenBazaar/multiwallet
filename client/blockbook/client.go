@@ -100,9 +100,8 @@ type BlockBookClient struct {
 	apiUrl            *url.URL
 	blockNotifyChan   chan model.Block
 	closeChan         chan<- error
-	listenLock        sync.RWMutex
+	listenLock        sync.Mutex
 	listenQueue       []string
-	listenAddrs       []string
 	proxyDialer       proxy.Dialer
 	txNotifyChan      chan model.Transaction
 	websocketWatchdog *wsWatchdog
@@ -137,7 +136,7 @@ func NewBlockBookClient(apiUrl string, proxyDialer proxy.Dialer) (*BlockBookClie
 		proxyDialer:     proxyDialer,
 		blockNotifyChan: bch,
 		txNotifyChan:    tch,
-		listenLock:      sync.RWMutex{},
+		listenLock:      sync.Mutex{},
 	}
 	ic.websocketWatchdog = newWebsocketWatchdog(ic)
 	ic.RequestFunc = ic.doRequest
@@ -505,23 +504,24 @@ func (i *BlockBookClient) TransactionNotify() <-chan model.Transaction {
 }
 
 func (i *BlockBookClient) ListenAddresses(addrs ...btcutil.Address) {
+	if len(addrs) == 0 {
+		return
+	}
+
 	i.listenLock.Lock()
 	defer i.listenLock.Unlock()
-	var args []interface{}
-	args = append(args, "bitcoind/addresstxid")
+	i.socketMutex.RLock()
+	defer i.socketMutex.RUnlock()
 
 	var convertedAddrs []string
 	for _, addr := range addrs {
 		convertedAddrs = append(convertedAddrs, maybeConvertCashAddress(addr))
 	}
 
-	i.socketMutex.RLock()
-	defer i.socketMutex.RUnlock()
 	if i.SocketClient != nil {
-		i.listenAddrs = convertedAddrs
-
-		args = append(args, convertedAddrs)
-		i.SocketClient.Emit("subscribe", args)
+		var args = []string{"bitcoind/addresstxid"}
+		args = append(args, convertedAddrs...)
+		i.SocketClient.Emit("subscribe", protocol.ToArgArray(args))
 	} else {
 		i.listenQueue = append(i.listenQueue, convertedAddrs...)
 	}
@@ -553,12 +553,12 @@ func connectSocket(u *url.URL, proxyDialer proxy.Dialer) (model.SocketClient, er
 }
 
 func (i *BlockBookClient) setupListeners() error {
+	i.listenLock.Lock()
+	defer i.listenLock.Unlock()
+
 	if i.SocketClient != nil {
 		return nil
 	}
-
-	i.listenLock.Lock()
-	defer i.listenLock.Unlock()
 
 	client, err := connectSocket(i.apiUrl, i.proxyDialer)
 	if err != nil {
@@ -627,16 +627,14 @@ func (i *BlockBookClient) setupListeners() error {
 		}
 	})
 
-	// Add stored watch addresses to listenQueue if there are any
-	i.listenQueue = append(i.listenQueue, i.listenAddrs...)
-	
-	for _, addr := range i.listenQueue {
-		var args []interface{}
-		args = append(args, "bitcoind/addresstxid")
-		args = append(args, []string{addr})
-		i.SocketClient.Emit("subscribe", args)
+	// Subscribe to queued addresses
+	if len(i.listenQueue) != 0 {
+		var args = []string{"bitcoind/addresstxid"}
+		args = append(args, i.listenQueue...)
+		i.SocketClient.Emit("subscribe", protocol.ToArgArray(args))
+		i.listenQueue = []string{}
 	}
-	i.listenQueue = []string{}
+
 	Log.Infof("websocket connected (%s)", i.String())
 	return nil
 }
