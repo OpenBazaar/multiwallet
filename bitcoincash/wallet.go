@@ -3,6 +3,7 @@ package bitcoincash
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/op/go-logging"
 	"io"
@@ -331,16 +332,20 @@ func (w *BitcoinCashWallet) GenerateMultisigScript(keys []hd.ExtendedKey, thresh
 }
 
 func (w *BitcoinCashWallet) AddWatchedAddress(addr btcutil.Address) error {
-	script, err := w.AddressToScript(addr)
-	if err != nil {
-		return err
+	if !w.HasKey(addr) {
+		script, err := w.AddressToScript(addr)
+		if err != nil {
+			return err
+		}
+		err = w.db.WatchedScripts().Put(script)
+		if err != nil {
+			return err
+		}
+		w.client.ListenAddress(addr)
+		return nil
+	} else {
+		return errors.New("Could not add address because it corresponds to an already-existing key in key manager")
 	}
-	err = w.db.WatchedScripts().Put(script)
-	if err != nil {
-		return err
-	}
-	w.client.ListenAddress(addr)
-	return nil
 }
 
 func (w *BitcoinCashWallet) AddWatchedScript(script []byte) error {
