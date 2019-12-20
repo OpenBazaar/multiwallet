@@ -45,6 +45,8 @@ type BitcoinWallet struct {
 	log           *logging.Logger
 }
 
+var _ = wi.Wallet(&BitcoinWallet{})
+
 func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher, disableExchangeRates bool) (*BitcoinWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
@@ -338,21 +340,26 @@ func (w *BitcoinWallet) GenerateMultisigScript(keys []hd.ExtendedKey, threshold 
 	return w.generateMultisigScript(keys, threshold, timeout, timeoutKey)
 }
 
-func (w *BitcoinWallet) AddWatchedAddress(addr btc.Address) error {
-	if !w.HasKey(addr) {
-		script, err := w.AddressToScript(addr)
-		if err != nil {
-			return err
+func (w *BitcoinWallet) AddWatchedAddresses(addrs ...btc.Address) error {
+
+	var watchedScripts [][]byte
+	for _, addr := range addrs {
+		if !w.HasKey(addr) {
+			script, err := w.AddressToScript(addr)
+			if err != nil {
+				return err
+			}
+			watchedScripts = append(watchedScripts, script)
 		}
-		err = w.db.WatchedScripts().Put(script)
-		if err != nil {
-			return err
-		}
-		w.client.ListenAddress(addr)
-		return nil
-	} else {
-		return errors.New("Could not add address because it corresponds to an already-existing key in key manager")
 	}
+
+	err := w.db.WatchedScripts().PutAll(watchedScripts)
+	if err != nil {
+		return err
+	}
+
+	w.client.ListenAddresses(addrs...)
+	return nil
 }
 
 func (w *BitcoinWallet) AddTransactionListener(callback func(wi.TransactionCallback)) {
