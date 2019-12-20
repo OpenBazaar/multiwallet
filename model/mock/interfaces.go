@@ -88,7 +88,7 @@ func (m *MockAPIClient) TransactionNotify() <-chan model.Transaction {
 	return m.txChan
 }
 
-func (m *MockAPIClient) ListenAddresses(addrs []btcutil.Address) {
+func (m *MockAPIClient) ListenAddresses(addrs ...btcutil.Address) {
 	m.listeningAddrs = append(m.listeningAddrs, addrs...)
 }
 
