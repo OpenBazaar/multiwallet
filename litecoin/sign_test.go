@@ -73,7 +73,7 @@ func TestWalletService_VerifyWatchScriptFilter(t *testing.T) {
 	// Verify that AddWatchedAddress should never add a script which already represents a key from its own wallet
 	w, err := newMockWallet()
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	keys := w.km.GetKeys()
 
@@ -81,9 +81,17 @@ func TestWalletService_VerifyWatchScriptFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	err = w.AddWatchedAddresses(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	err = w.AddWatchedAddress(addr)
-	if err == nil {
+	watchScripts, err := w.db.WatchedScripts().GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(watchScripts) != 0 {
 		t.Error("Put watched scripts fails on key manager owned key")
 	}
 }
@@ -92,16 +100,25 @@ func TestWalletService_VerifyWatchScriptPut(t *testing.T) {
 	// Verify that AddWatchedAddress should add a script which does not represent a key from its own wallet
 	w, err := newMockWallet()
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	addr, err := w.DecodeAddress("LhyLNfBkoKshT7R8Pce6vkB9T2cP2o84hx")
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
-	err = w.AddWatchedAddress(addr)
+	err = w.AddWatchedAddresses(addr)
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	watchScripts, err := w.db.WatchedScripts().GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(watchScripts) == 0 {
 		t.Error("Put watched scripts fails on non-key manager owned key")
 	}
 }
