@@ -71,6 +71,61 @@ func newMockWallet() (*BitcoinCashWallet, error) {
 	return bw, nil
 }
 
+func TestWalletService_VerifyWatchScriptFilter(t *testing.T) {
+	// Verify that AddWatchedAddress should never add a script which already represents a key from its own wallet
+	w, err := newMockWallet()
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := w.km.GetKeys()
+
+	addr, err := w.km.KeyToAddress(keys[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = w.AddWatchedAddresses(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	watchScripts, err := w.db.WatchedScripts().GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(watchScripts) != 0 {
+		t.Error("Put watched scripts fails on key manager owned key")
+	}
+}
+
+func TestWalletService_VerifyWatchScriptPut(t *testing.T) {
+	// Verify that AddWatchedAddress should add a script which does not represent a key from its own wallet
+	w, err := newMockWallet()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addr, err := w.DecodeAddress("qqx0p0ja3xddkvwldaqwcvrkkgrzx6rjwuzla4ca90")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = w.AddWatchedAddresses(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	watchScripts, err := w.db.WatchedScripts().GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(watchScripts) == 0 {
+		t.Error("Put watched scripts fails on non-key manager owned key")
+	}
+
+}
+
 func waitForTxnSync(t *testing.T, txnStore wallet.Txns) {
 	// Look for a known txn, this sucks a bit. It would be better to check if the
 	// number of stored txns matched the expected, but not all the mock

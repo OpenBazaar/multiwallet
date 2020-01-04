@@ -346,11 +346,13 @@ func (w *ZCashWallet) AddWatchedAddresses(addrs ...btcutil.Address) error {
 
 	var watchedScripts [][]byte
 	for _, addr := range addrs {
-		script, err := w.AddressToScript(addr)
-		if err != nil {
-			return err
+		if !w.HasKey(addr) {
+			script, err := w.AddressToScript(addr)
+			if err != nil {
+				return err
+			}
+			watchedScripts = append(watchedScripts, script)
 		}
-		watchedScripts = append(watchedScripts, script)
 	}
 
 	err := w.db.WatchedScripts().PutAll(watchedScripts)
