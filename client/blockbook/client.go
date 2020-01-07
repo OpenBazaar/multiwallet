@@ -338,6 +338,9 @@ func (i *BlockBookClient) GetRawTransaction(txid string) ([]byte, error) {
 	return nil, nil
 }
 
+// GetTransactions returns the transactions for a given address. If a single address
+// query fails this method will not return an error. Instead it will log the error
+// and returns the transactions for the other addresses.
 func (i *BlockBookClient) GetTransactions(addrs []btcutil.Address) ([]model.Transaction, error) {
 	var txs []model.Transaction
 	type txsOrError struct {
@@ -424,6 +427,9 @@ func (i *BlockBookClient) getTransactions(addr string) ([]model.Transaction, err
 	return ret, nil
 }
 
+// GetUtxos returns the utxos for a given address. If a single address
+// query fails this method will not return an error. Instead it will log the error
+// and returns the transactions for the other addresses.
 func (i *BlockBookClient) GetUtxos(addrs []btcutil.Address) ([]model.Utxo, error) {
 	var ret []model.Utxo
 	type utxoOrError struct {
