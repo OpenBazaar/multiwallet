@@ -69,6 +69,60 @@ func newMockWallet() (*ZCashWallet, error) {
 	return bw, nil
 }
 
+func TestWalletService_VerifyWatchScriptFilter(t *testing.T) {
+	// Verify that AddWatchedAddress should never add a script which already represents a key from its own wallet
+	w, err := newMockWallet()
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := w.km.GetKeys()
+
+	addr, err := w.km.KeyToAddress(keys[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = w.AddWatchedAddresses(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	watchScripts, err := w.db.WatchedScripts().GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(watchScripts) != 0 {
+		t.Error("Put watched scripts fails on key manager owned key")
+	}
+}
+
+func TestWalletService_VerifyWatchScriptPut(t *testing.T) {
+	// Verify that AddWatchedAddress should add a script which does not represent a key from its own wallet
+	w, err := newMockWallet()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addr, err := w.DecodeAddress("t1aZvxRLCGVeMPFXvqfnBgHVEbi4c6g8MVa")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = w.AddWatchedAddresses(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	watchScripts, err := w.db.WatchedScripts().GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(watchScripts) == 0 {
+		t.Error("Put watched scripts fails on non-key manager owned key")
+	}
+}
+
 func waitForTxnSync(t *testing.T, txnStore wallet.Txns) {
 	// Look for a known txn, this sucks a bit. It would be better to check if the
 	// number of stored txns matched the expected, but not all the mock
@@ -311,7 +365,7 @@ func TestZCashWallet_newUnsignedTransaction(t *testing.T) {
 	}
 
 	// Regular transaction
-	authoredTx, _, err := newUnsignedTransaction(outputs, btcutil.Amount(1000), inputSource, changeSource)
+	authoredTx, err := newUnsignedTransaction(outputs, btcutil.Amount(1000), inputSource, changeSource)
 	if err != nil {
 		t.Error(err)
 	}
@@ -324,7 +378,7 @@ func TestZCashWallet_newUnsignedTransaction(t *testing.T) {
 
 	// Insufficient funds
 	outputs[0].Value = 1000000000
-	_, _, err = newUnsignedTransaction(outputs, btcutil.Amount(1000), inputSource, changeSource)
+	_, err = newUnsignedTransaction(outputs, btcutil.Amount(1000), inputSource, changeSource)
 	if err == nil {
 		t.Error("Failed to return insuffient funds error")
 	}
@@ -653,7 +707,7 @@ func TestCalcSignatureHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected, err := hex.DecodeString("f3148f80dfab5e573d5edfe7a850f5fd39234f80b5429d3a57edcc11e34c585b")
+	expected, err := hex.DecodeString("8df91420215909927be677a978c36b528e1e7b4ba343acefdd259fe57f3f1f85")
 	if err != nil {
 		t.Fatal(err)
 	}
