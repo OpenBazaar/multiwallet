@@ -3,7 +3,6 @@ package litecoin
 import (
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -44,18 +43,21 @@ func NewLitecoinPriceFetcher(dialer proxy.Dialer) *LitecoinPriceFetcher {
 	z := LitecoinPriceFetcher{
 		cache: make(map[string]float64),
 	}
-	dial := net.Dial
+
+	var client *http.Client
 	if dialer != nil {
-		dial = dialer.Dial
+		dial := dialer.Dial
+		tbTransport := &http.Transport{Dial: dial}
+		client = &http.Client{Transport: tbTransport, Timeout: time.Minute}
+	} else {
+		client = &http.Client{Timeout: time.Minute}
 	}
-	tbTransport := &http.Transport{Dial: dial}
-	client := &http.Client{Transport: tbTransport, Timeout: time.Minute}
 
 	z.providers = []*ExchangeRateProvider{
-		//{"https://ticker.openbazaar.org/api", z.cache, client, OpenBazaarDecoder{}, nil},
-		//{"https://bittrex.com/api/v1.1/public/getticker?market=btc-ltc", z.cache, client, BittrexDecoder{}, bp},
-		//{"https://api.bitfinex.com/v1/pubticker/ltcbtc", z.cache, client, BitfinexDecoder{}, bp},
-		//{"https://poloniex.com/public?command=returnTicker", z.cache, client, PoloniexDecoder{}, bp},
+		{"https://ticker.openbazaar.org/api", z.cache, client, OpenBazaarDecoder{}, nil},
+		{"https://bittrex.com/api/v1.1/public/getticker?market=btc-ltc", z.cache, client, BittrexDecoder{}, bp},
+		{"https://api.bitfinex.com/v1/pubticker/ltcbtc", z.cache, client, BitfinexDecoder{}, bp},
+		{"https://poloniex.com/public?command=returnTicker", z.cache, client, PoloniexDecoder{}, bp},
 		{"https://api.kraken.com/0/public/Ticker?pair=LTCXBT", z.cache, client, KrakenDecoder{}, bp},
 	}
 	go z.run()
