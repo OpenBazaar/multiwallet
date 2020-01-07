@@ -360,7 +360,8 @@ func (i *BlockBookClient) GetTransactions(addrs []btcutil.Address) ([]model.Tran
 	}()
 	for toe := range txChan {
 		if toe.Err != nil {
-			return nil, toe.Err
+			Log.Errorf("Error querying address from blockbook: %s", toe.Err.Error())
+			continue
 		}
 		txs = append(txs, toe.Txs...)
 	}
@@ -486,7 +487,8 @@ func (i *BlockBookClient) GetUtxos(addrs []btcutil.Address) ([]model.Utxo, error
 	}()
 	for toe := range utxoChan {
 		if toe.Err != nil {
-			return nil, toe.Err
+			Log.Errorf("Error querying utxos from blockbook: %s", toe.Err.Error())
+			continue
 		}
 		if toe.Utxo != nil {
 			ret = append(ret, *toe.Utxo)
