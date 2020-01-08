@@ -538,15 +538,21 @@ func (i *BlockBookClient) ListenAddresses(addrs ...btcutil.Address) {
 	i.socketMutex.RLock()
 	defer i.socketMutex.RUnlock()
 
+	var args []interface{}
+	args = append(args, "bitcoind/addresstxid")
+
 	var convertedAddrs []string
+	var socketaddrs []interface{}
 	for _, addr := range addrs {
-		convertedAddrs = append(convertedAddrs, maybeConvertCashAddress(addr))
+		convertedAddr := maybeConvertCashAddress(addr)
+		convertedAddrs = append(convertedAddrs, convertedAddr)
+		socketaddrs = append(socketaddrs, convertedAddr)
 	}
 
+	args = append(args, socketaddrs)
+
 	if i.SocketClient != nil {
-		var args = []string{"bitcoind/addresstxid"}
-		args = append(args, convertedAddrs...)
-		i.SocketClient.Emit("subscribe", protocol.ToArgArray(args))
+		i.SocketClient.Emit("subscribe", args)
 	} else {
 		i.listenQueue = append(i.listenQueue, convertedAddrs...)
 	}
