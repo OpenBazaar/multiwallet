@@ -661,7 +661,7 @@ func (i *BlockBookClient) setupListeners() error {
 	// Subscribe to queued addresses
 	if len(i.listenQueue) != 0 {
 		var args = []interface{}{"bitcoind/addresstxid", i.listenQueue}
-		i.SocketClient.Emit("subscribe", protocol.ToArgArray(args))
+		i.SocketClient.Emit("subscribe", args)
 		i.listenQueue = []string{}
 	}
 
