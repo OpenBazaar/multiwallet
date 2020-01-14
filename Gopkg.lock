@@ -33,7 +33,7 @@
   version = "v0.13.8"
 
 [[projects]]
-  branch = "master"
+  branch = "ethereum-master"
   digest = "1:3861bd7ece0e78ea465eb4c2ee12391a2759755220c89729a7033b4af98b42e3"
   name = "github.com/OpenBazaar/spvwallet"
   packages = [

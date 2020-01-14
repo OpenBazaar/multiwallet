@@ -30,7 +30,7 @@
   name = "github.com/OpenBazaar/golang-socketio"
 
 [[constraint]]
-  branch = "master"
+  branch = "ethereum-master"
   name = "github.com/OpenBazaar/spvwallet"
 
 [[constraint]]
