@@ -34,7 +34,7 @@
   name = "github.com/OpenBazaar/spvwallet"
 
 [[constraint]]
-  branch = "master"
+  branch = "ethereum-master"
   name = "github.com/OpenBazaar/wallet-interface"
 
 [[constraint]]
