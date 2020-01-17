@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/hex"
+	"math/big"
 	"strconv"
 	"testing"
 	"time"
@@ -87,21 +88,21 @@ func TestWalletService_syncTxs(t *testing.T) {
 	if !ok {
 		t.Error("failed to return tx")
 	}
-	if tx.Value != 2717080 || tx.WatchOnly {
+	if tx.Value != "2717080" || tx.WatchOnly {
 		t.Error("failed to return incorrect value for tx")
 	}
 	tx, ok = txMap["ff2b865c3b73439912eebf4cce9a15b12c7d7bcdd14ae1110a90541426c4e7c5"]
 	if !ok {
 		t.Error("failed to return tx")
 	}
-	if tx.Value != -1717080 || tx.WatchOnly {
+	if tx.Value != "-1717080" || tx.WatchOnly {
 		t.Error("failed to return incorrect value for tx")
 	}
 	tx, ok = txMap["1d4288fa682fa376fbae73dbd74ea04b9ea33011d63315ca9d2d50d081e671d5"]
 	if !ok {
 		t.Error("failed to return tx")
 	}
-	if tx.Value != 10000000 || tx.WatchOnly {
+	if tx.Value != "10000000" || tx.WatchOnly {
 		t.Error("failed to return incorrect value for tx")
 	}
 }
@@ -137,21 +138,21 @@ func TestWalletService_syncUtxos(t *testing.T) {
 	if !ok {
 		t.Error("failed to return correct utxo")
 	}
-	if u.Value != 1000000 || u.WatchOnly {
+	if u.Value != "1000000" || u.WatchOnly {
 		t.Error("returned incorrect value")
 	}
 	u, ok = utxoMap["1d4288fa682fa376fbae73dbd74ea04b9ea33011d63315ca9d2d50d081e671d5:1"]
 	if !ok {
 		t.Error("failed to return correct utxo")
 	}
-	if u.Value != 10000000 || u.WatchOnly {
+	if u.Value != "10000000" || u.WatchOnly {
 		t.Error("returned incorrect value")
 	}
 	u, ok = utxoMap["830bf683ab8eec1a75d891689e2989f846508bc7d500cb026ef671c2d1dce20c:1"]
 	if !ok {
 		t.Error("failed to return correct utxo")
 	}
-	if u.Value != 751918 || !u.WatchOnly {
+	if u.Value != "751918" || !u.WatchOnly {
 		t.Error("returned incorrect value")
 	}
 }
@@ -230,7 +231,7 @@ func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 	if txns[0].Txid != mock.MockTransactions[0].Txid {
 		t.Error("saved incorrect transaction")
 	}
-	if txns[0].Value != 2717080 {
+	if txns[0].Value != "2717080" {
 		t.Error("saved incorrect value")
 	}
 	if txns[0].WatchOnly {
@@ -253,7 +254,7 @@ func TestWalletService_ProcessIncomingTransaction(t *testing.T) {
 	if utxos[0].Op.Index != 1 {
 		t.Error("saved incorrect outpoint index")
 	}
-	if utxos[0].Value != 2717080 {
+	if utxos[0].Value != "2717080" {
 		t.Error("saved incorrect value")
 	}
 
@@ -380,8 +381,8 @@ func TestWalletService_listenersFired(t *testing.T) {
 	if ch.String() != mock.MockTransactions[0].Txid {
 		t.Errorf("expected hash to be %s, but was %s", mock.MockTransactions[0].Txid, ch.String())
 	}
-	if response.Value != 2717080 {
-		t.Errorf("expected tx value to be 2717080, but was %d", response.Value)
+	if response.Value.Cmp(big.NewInt(2717080)) != 0 {
+		t.Errorf("expected tx value to be 2717080, but was %s", response.Value.String())
 	}
 	if response.Height != 0 {
 		t.Error("returned incorrect height")
@@ -430,7 +431,7 @@ func TestWalletService_listenersFired(t *testing.T) {
 	if ch.String() != mock.MockTransactions[0].Txid {
 		t.Error("returned incorrect txid")
 	}
-	if response.Value != 2717080 {
+	if response.Value.Cmp(big.NewInt(2717080)) != 0 {
 		t.Error("returned incorrect value")
 	}
 	if response.Height != int32(mock.MockBlocks[0].Height) {
