@@ -3,14 +3,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:18b76b347462546265e3e02da73a6b4115fd1268dd00a87625e92b6d35023c3e"
+  digest = "1:9f438ced0b98101978ebd63588a0e671406334aa2c711940351507e396b3de8d"
   name = "github.com/OpenBazaar/go-ethwallet"
   packages = [
     "util",
     "wallet",
   ]
   pruneopts = "UT"
-  revision = "c1f276ca78b07ac424a60d4a26ab683213489f9c"
+  revision = "0d5cc6fff3a2f43ab3013c75ff6af14e2acc27df"
 
 [[projects]]
   branch = "master"

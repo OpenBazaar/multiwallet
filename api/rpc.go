@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"math/big"
 	"net"
 
 	"github.com/OpenBazaar/multiwallet"
@@ -110,7 +111,7 @@ func (s *server) Balance(ctx context.Context, in *pb.CoinSelection) (*pb.Balance
 		return nil, err
 	}
 	c, u := wal.Balance()
-	return &pb.Balances{Confirmed: uint64(c), Unconfirmed: uint64(u)}, nil
+	return &pb.Balances{Confirmed: c.Value.Uint64(), Unconfirmed: u.Value.Uint64()}, nil
 }
 
 func (s *server) MasterPrivateKey(ctx context.Context, in *pb.CoinSelection) (*pb.Key, error) {
@@ -175,7 +176,7 @@ func (s *server) Spend(ctx context.Context, in *pb.SpendInfo) (*pb.Txid, error) 
 	default:
 		feeLevel = wallet.NORMAL
 	}
-	txid, err := wal.Spend(int64(in.Amount), addr, feeLevel, "", false)
+	txid, err := wal.Spend(*big.NewInt(int64(in.Amount)), addr, feeLevel, "", false)
 	if err != nil {
 		return nil, err
 	}
