@@ -1,12 +1,13 @@
 package zcash
 
 import (
+	"testing"
+	"time"
+
 	"github.com/OpenBazaar/multiwallet/datastore"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
-	"testing"
-	"time"
 )
 
 func TestZCashWallet_Balance(t *testing.T) {
@@ -39,7 +40,7 @@ func TestZCashWallet_Balance(t *testing.T) {
 
 	err = db.Utxos().Put(wallet.Utxo{
 		AtHeight: 500,
-		Value:    1000,
+		Value:    "1000",
 		Op:       *wire.NewOutPoint(ch1, 0),
 	})
 	if err != nil {
@@ -47,7 +48,7 @@ func TestZCashWallet_Balance(t *testing.T) {
 	}
 	err = db.Utxos().Put(wallet.Utxo{
 		AtHeight: 0,
-		Value:    2000,
+		Value:    "2000",
 		Op:       *wire.NewOutPoint(ch2, 0),
 	})
 	if err != nil {
@@ -56,7 +57,7 @@ func TestZCashWallet_Balance(t *testing.T) {
 
 	// Test unconfirmed
 	confirmed, unconfirmed := w.Balance()
-	if confirmed != 1000 || unconfirmed != 2000 {
+	if confirmed.Value.String() != "1000" || unconfirmed.Value.String() != "2000" {
 		t.Error("Returned incorrect balance")
 	}
 
@@ -71,7 +72,7 @@ func TestZCashWallet_Balance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Txns().Put(buf, "37aface44f82f6f319957b501030da2595b35d8bbc953bbe237f378c5f715bdd", 0, 0, time.Now(), false); err != nil {
+	if err := db.Txns().Put(buf, "37aface44f82f6f319957b501030da2595b35d8bbc953bbe237f378c5f715bdd", "0", 0, time.Now(), false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -85,11 +86,11 @@ func TestZCashWallet_Balance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Txns().Put(buf2, "2d08e0e877ff9d034ca272666d01626e96a0cf9e17004aafb4ae9d5aa109dd20", 0, 1999, time.Now(), false); err != nil {
+	if err := db.Txns().Put(buf2, "2d08e0e877ff9d034ca272666d01626e96a0cf9e17004aafb4ae9d5aa109dd20", "0", 1999, time.Now(), false); err != nil {
 		t.Fatal(err)
 	}
 	confirmed, unconfirmed = w.Balance()
-	if confirmed != 3000 || unconfirmed != 0 {
+	if confirmed.Value.String() != "3000" || unconfirmed.Value.String() != "0" {
 		t.Error("Returned incorrect balance")
 	}
 }

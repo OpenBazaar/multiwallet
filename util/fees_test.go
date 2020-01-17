@@ -31,7 +31,7 @@ func (m *mockExchangeRate) GetAllRates(usecache bool) (map[string]float64, error
 	return make(map[string]float64), nil
 }
 
-func (m *mockExchangeRate) UnitsPerCoin() int {
+func (m *mockExchangeRate) UnitsPerCoin() int64 {
 	return 0
 }
 

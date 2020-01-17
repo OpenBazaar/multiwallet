@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"strconv"
+	"testing"
+
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -11,7 +14,6 @@ import (
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
-	"testing"
 )
 
 func TestNewCoin(t *testing.T) {
@@ -88,21 +90,21 @@ func buildTestData() (uint32, []wallet.Utxo, func(script []byte) (btcutil.Addres
 	op3 := wire.NewOutPoint(ch3, 2)
 	utxos := []wallet.Utxo{
 		{
-			Value:        100000,
+			Value:        "100000",
 			WatchOnly:    false,
 			AtHeight:     300000,
 			ScriptPubkey: scriptBytes1,
 			Op:           *op1,
 		},
 		{
-			Value:        50000,
+			Value:        "50000",
 			WatchOnly:    false,
 			AtHeight:     350000,
 			ScriptPubkey: scriptBytes2,
 			Op:           *op2,
 		},
 		{
-			Value:        99000,
+			Value:        "99000",
 			WatchOnly:    true,
 			AtHeight:     250000,
 			ScriptPubkey: scriptBytes3,
@@ -174,7 +176,11 @@ func TestGatherCoins(t *testing.T) {
 			t.Error(err)
 		}
 		k := keyMap[hex.EncodeToString(addr.ScriptAddress())]
-		if coin.Value() != btcutil.Amount(u.Value) {
+		intVal, err := strconv.ParseInt(u.Value, 10, 64)
+		if err != nil {
+			t.Fatalf("unable to parse value (%+v): %s", u.Value, err.Error())
+		}
+		if coin.Value() != btcutil.Amount(intVal) {
 			t.Error("Returned incorrect value")
 		}
 		if coin.Hash().String() != u.Op.Hash.String() {
@@ -215,8 +221,12 @@ func TestLoadAllInputs(t *testing.T) {
 			t.Error("Watch only output found in input values map")
 		}
 
-		if !u.WatchOnly && val != u.Value {
-			t.Errorf("Returned incorrect input value for outpoint %s. Expected %d, got %d", u.Op, u.Value, val)
+		intVal, err := strconv.ParseInt(u.Value, 10, 64)
+		if err != nil {
+			t.Fatalf("parsing value (%+v): %s", u.Value, err.Error())
+		}
+		if !u.WatchOnly && val != intVal {
+			t.Errorf("Returned incorrect input value for outpoint %s. Expected %d, got %d", u.Op, intVal, val)
 		}
 
 		prevScript, ok := additionalPrevScripts[u.Op]

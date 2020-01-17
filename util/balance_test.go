@@ -32,12 +32,12 @@ func TestCalcBalance(t *testing.T) {
 	// Test confirmed and unconfirmed
 	utxos = append(utxos, wallet.Utxo{
 		AtHeight: 500,
-		Value:    1000,
+		Value:    "1000",
 		Op:       *wire.NewOutPoint(ch1, 0),
 	})
 	utxos = append(utxos, wallet.Utxo{
 		AtHeight: 0,
-		Value:    2000,
+		Value:    "2000",
 		Op:       *wire.NewOutPoint(ch2, 0),
 	})
 
