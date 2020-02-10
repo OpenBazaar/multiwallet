@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
 	"strconv"
 	"time"
@@ -25,7 +24,7 @@ import (
 	"github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/btcsuite/btcwallet/wallet/txrules"
-	logging "github.com/op/go-logging"
+	"github.com/op/go-logging"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
 )
@@ -126,7 +125,7 @@ func (w *ZCashWallet) CurrencyCode() string {
 }
 
 func (w *ZCashWallet) IsDust(amount big.Int) bool {
-	if amount.Cmp(big.NewInt(math.MaxInt64)) >= 0 {
+	if amount.IsInt64() {
 		return false
 	}
 	return txrules.IsDustAmount(btcutil.Amount(amount.Int64()), 25, txrules.DefaultRelayFeePerKb)

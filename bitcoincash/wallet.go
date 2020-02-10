@@ -7,7 +7,6 @@ import (
 	"github.com/op/go-logging"
 	"io"
 	"log"
-	"math"
 	"math/big"
 	"strconv"
 	"time"
@@ -127,7 +126,7 @@ func (w *BitcoinCashWallet) CurrencyCode() string {
 }
 
 func (w *BitcoinCashWallet) IsDust(amount big.Int) bool {
-	if amount.Cmp(big.NewInt(math.MaxInt64)) >= 0 {
+	if amount.IsInt64() {
 		return false
 	}
 	return txrules.IsDustAmount(btcutil.Amount(amount.Int64()), 25, txrules.DefaultRelayFeePerKb)

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/big"
 	"strconv"
 	"time"
@@ -28,8 +27,8 @@ import (
 	btc "github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/btcsuite/btcwallet/wallet/txrules"
-	logging "github.com/op/go-logging"
-	bip39 "github.com/tyler-smith/go-bip39"
+	"github.com/op/go-logging"
+	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
 )
 
@@ -124,7 +123,7 @@ func (w *BitcoinWallet) CurrencyCode() string {
 }
 
 func (w *BitcoinWallet) IsDust(amount big.Int) bool {
-	if amount.Cmp(big.NewInt(math.MaxInt64)) >= 0 {
+	if amount.IsInt64() {
 		return false
 	}
 	return txrules.IsDustAmount(btc.Amount(amount.Int64()), 25, txrules.DefaultRelayFeePerKb)
