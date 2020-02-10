@@ -7,6 +7,8 @@ import (
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
+	"math"
+	"math/big"
 	"strings"
 	"testing"
 )
@@ -68,4 +70,24 @@ func createWalletAndSeed() (*LitecoinWallet, []byte, error) {
 		km:     km,
 		params: &chaincfg.MainNetParams,
 	}, seed, nil
+}
+
+func TestLitecoinWallet_IsDust(t *testing.T) {
+	ds := datastore.NewMockMultiwalletDatastore()
+	db, err := ds.GetDatastoreForWallet(wallet.Litecoin)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := LitecoinWallet{
+		db: db,
+	}
+
+	if !w.IsDust(*big.NewInt(0)) {
+		t.Error("Zero amount did not return dust")
+	}
+
+	if w.IsDust(*new(big.Int).SetUint64(math.MaxInt64 + 1)) {
+		t.Error("> max int64 returned false")
+	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"strconv"
 	"time"
@@ -123,6 +124,9 @@ func (w *BitcoinWallet) CurrencyCode() string {
 }
 
 func (w *BitcoinWallet) IsDust(amount big.Int) bool {
+	if amount.Cmp(big.NewInt(math.MaxInt64)) >= 0 {
+		return false
+	}
 	return txrules.IsDustAmount(btc.Amount(amount.Int64()), 25, txrules.DefaultRelayFeePerKb)
 }
 

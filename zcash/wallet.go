@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"strconv"
 	"time"
@@ -125,6 +126,9 @@ func (w *ZCashWallet) CurrencyCode() string {
 }
 
 func (w *ZCashWallet) IsDust(amount big.Int) bool {
+	if amount.Cmp(big.NewInt(math.MaxInt64)) >= 0 {
+		return false
+	}
 	return txrules.IsDustAmount(btcutil.Amount(amount.Int64()), 25, txrules.DefaultRelayFeePerKb)
 }
 

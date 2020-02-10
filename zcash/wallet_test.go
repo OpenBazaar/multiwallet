@@ -1,6 +1,8 @@
 package zcash
 
 import (
+	"math"
+	"math/big"
 	"testing"
 	"time"
 
@@ -92,5 +94,25 @@ func TestZCashWallet_Balance(t *testing.T) {
 	confirmed, unconfirmed = w.Balance()
 	if confirmed.Value.String() != "3000" || unconfirmed.Value.String() != "0" {
 		t.Error("Returned incorrect balance")
+	}
+}
+
+func TestZCashWallet_IsDust(t *testing.T) {
+	ds := datastore.NewMockMultiwalletDatastore()
+	db, err := ds.GetDatastoreForWallet(wallet.Zcash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := ZCashWallet{
+		db: db,
+	}
+
+	if !w.IsDust(*big.NewInt(0)) {
+		t.Error("Zero amount did not return dust")
+	}
+
+	if w.IsDust(*new(big.Int).SetUint64(math.MaxInt64 + 1)) {
+		t.Error("> max int64 returned false")
 	}
 }

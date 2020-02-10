@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -125,6 +126,9 @@ func (w *LitecoinWallet) CurrencyCode() string {
 }
 
 func (w *LitecoinWallet) IsDust(amount big.Int) bool {
+	if amount.Cmp(big.NewInt(math.MaxInt64)) >= 0 {
+		return false
+	}
 	return txrules.IsDustAmount(ltcutil.Amount(amount.Int64()), 25, txrules.DefaultRelayFeePerKb)
 }
 
