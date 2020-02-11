@@ -310,6 +310,9 @@ func (w *ZCashWallet) Spend(amount big.Int, addr btcutil.Address, feeLevel wi.Fe
 			return nil, err
 		}
 	} else {
+		if !amount.IsInt64() {
+			return nil, fmt.Errorf("amount (%s) is too large", amount.String())
+		}
 		tx, err = w.buildTx(amount.Int64(), addr, feeLevel, nil)
 		if err != nil {
 			return nil, err
