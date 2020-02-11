@@ -7,6 +7,8 @@ import (
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
+	"math"
+	"math/big"
 	"strings"
 	"testing"
 )
@@ -68,4 +70,28 @@ func createWalletAndSeed() (*LitecoinWallet, []byte, error) {
 		km:     km,
 		params: &chaincfg.MainNetParams,
 	}, seed, nil
+}
+
+func TestLitecoinWallet_IsDust(t *testing.T) {
+	ds := datastore.NewMockMultiwalletDatastore()
+	db, err := ds.GetDatastoreForWallet(wallet.Litecoin)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := LitecoinWallet{
+		db: db,
+	}
+
+	if w.IsDust(*big.NewInt(0)) {
+		t.Error("expected zero to be dust, but was not")
+	}
+
+	overflowedInt := *new(big.Int).Add(big.NewInt(math.MaxInt64), big.NewInt(1))
+	if overflowedInt.IsInt64() {
+		t.Error("expected big.Int to be overflowed, but wasn't")
+	}
+	if w.IsDust(overflowedInt) {
+		t.Error("expected overflowed big.Int to not be dust, but was")
+	}
 }
