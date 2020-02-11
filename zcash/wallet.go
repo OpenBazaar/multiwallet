@@ -125,7 +125,7 @@ func (w *ZCashWallet) CurrencyCode() string {
 }
 
 func (w *ZCashWallet) IsDust(amount big.Int) bool {
-	if amount.IsInt64() {
+	if !amount.IsInt64() || amount.Cmp(big.NewInt(0)) <= 0 {
 		return false
 	}
 	return txrules.IsDustAmount(btcutil.Amount(amount.Int64()), 25, txrules.DefaultRelayFeePerKb)

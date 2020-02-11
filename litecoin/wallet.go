@@ -125,7 +125,7 @@ func (w *LitecoinWallet) CurrencyCode() string {
 }
 
 func (w *LitecoinWallet) IsDust(amount big.Int) bool {
-	if amount.IsInt64() {
+	if !amount.IsInt64() || amount.Cmp(big.NewInt(0)) <= 0 {
 		return false
 	}
 	return txrules.IsDustAmount(ltcutil.Amount(amount.Int64()), 25, txrules.DefaultRelayFeePerKb)

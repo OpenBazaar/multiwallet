@@ -83,11 +83,15 @@ func TestLitecoinWallet_IsDust(t *testing.T) {
 		db: db,
 	}
 
-	if !w.IsDust(*big.NewInt(0)) {
-		t.Error("Zero amount did not return dust")
+	if w.IsDust(*big.NewInt(0)) {
+		t.Error("expected zero to be dust, but was not")
 	}
 
-	if w.IsDust(*new(big.Int).SetUint64(math.MaxInt64 + 1)) {
-		t.Error("> max int64 returned false")
+	overflowedInt := *new(big.Int).Add(big.NewInt(math.MaxInt64), big.NewInt(1))
+	if overflowedInt.IsInt64() {
+		t.Error("expected big.Int to be overflowed, but wasn't")
+	}
+	if w.IsDust(overflowedInt) {
+		t.Error("expected overflowed big.Int to not be dust, but was")
 	}
 }
