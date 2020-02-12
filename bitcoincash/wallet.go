@@ -126,10 +126,14 @@ func (w *BitcoinCashWallet) CurrencyCode() string {
 }
 
 func (w *BitcoinCashWallet) IsDust(amount big.Int) bool {
+	return isTxSizeDust(amount, 25)
+}
+
+func isTxSizeDust(amount big.Int, size int) bool {
 	if !amount.IsInt64() || amount.Cmp(big.NewInt(0)) <= 0 {
 		return false
 	}
-	return txrules.IsDustAmount(btcutil.Amount(amount.Int64()), 25, txrules.DefaultRelayFeePerKb)
+	return txrules.IsDustAmount(btcutil.Amount(amount.Int64()), size, txrules.DefaultRelayFeePerKb)
 }
 
 func (w *BitcoinCashWallet) MasterPrivateKey() *hd.ExtendedKey {
@@ -294,6 +298,9 @@ func (w *BitcoinCashWallet) Spend(amount big.Int, addr btcutil.Address, feeLevel
 			return nil, err
 		}
 	} else {
+		if !amount.IsInt64() {
+			return nil, fmt.Errorf("amount (%s) is too large", amount.String())
+		}
 		tx, err = w.buildTx(amount.Int64(), addr, feeLevel, nil)
 		if err != nil {
 			return nil, err

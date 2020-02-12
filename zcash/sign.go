@@ -51,7 +51,7 @@ func (w *ZCashWallet) buildTx(amount int64, addr btc.Address, feeLevel wi.FeeLev
 	if err != nil {
 		return nil, err
 	}
-	if txrules.IsDustAmount(btc.Amount(amount), len(script), txrules.DefaultRelayFeePerKb) {
+	if isTxSizeDust(*big.NewInt(amount), len(script)) {
 		return nil, wi.ErrorDustAmount
 	}
 
@@ -192,7 +192,7 @@ func (w *ZCashWallet) buildSpendAllTx(addr btc.Address, feeLevel wi.FeeLevel) (*
 	fee := int64(estimatedSize) * feePerByte
 
 	// Check for dust output
-	if txrules.IsDustAmount(btc.Amount(totalIn-fee), len(script), txrules.DefaultRelayFeePerKb) {
+	if isTxSizeDust(*big.NewInt(totalIn - fee), len(script)) {
 		return nil, wi.ErrorDustAmount
 	}
 
@@ -272,8 +272,7 @@ func newUnsignedTransaction(outputs []*wire.TxOut, feePerKb btc.Amount, fetchInp
 		}
 		changeIndex := -1
 		changeAmount := inputAmount - targetAmount - maxRequiredFee
-		if changeAmount != 0 && !txrules.IsDustAmount(changeAmount,
-			P2PKHOutputSize, txrules.DefaultRelayFeePerKb) {
+		if changeAmount != 0 && !isTxSizeDust(*big.NewInt(int64(changeAmount)), P2PKHOutputSize) {
 			changeScript, err := fetchChange()
 			if err != nil {
 				return nil, err

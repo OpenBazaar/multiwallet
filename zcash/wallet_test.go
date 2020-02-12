@@ -1,8 +1,10 @@
 package zcash
 
 import (
+	"fmt"
 	"math"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,5 +120,26 @@ func TestZCashWallet_IsDust(t *testing.T) {
 	}
 	if w.IsDust(overflowedInt) {
 		t.Error("expected overflowed big.Int to not be dust, but was")
+	}
+}
+
+func TestZCashWallet_SpendFailsWhenTooLarge(t *testing.T) {
+	ds := datastore.NewMockMultiwalletDatastore()
+	db, err := ds.GetDatastoreForWallet(wallet.BitcoinCash)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := ZCashWallet{
+		db: db,
+	}
+
+	overflowedInt := new(big.Int).Add(big.NewInt(math.MaxInt64), big.NewInt(1))
+	_, err = w.Spend(*overflowedInt, nil, wallet.ECONOMIC, "", false)
+	if err == nil {
+		t.Fatalf("expected overflowed amount to return an error, but did not")
+	}
+	if !strings.Contains(err.Error(), fmt.Sprintf("(%s) is too large", overflowedInt.String())) {
+		t.Errorf("expected error to contain (is too large), but was (%s)", err.Error())
 	}
 }
