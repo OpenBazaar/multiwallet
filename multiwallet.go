@@ -10,6 +10,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/client/blockbook"
 	"github.com/OpenBazaar/multiwallet/config"
 	"github.com/OpenBazaar/multiwallet/litecoin"
+	"github.com/developertask/multiwallet/gleecbtc"
 	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/zcash"
 	"github.com/OpenBazaar/wallet-interface"
@@ -84,6 +85,23 @@ func NewMultiWallet(cfg *config.Config) (MultiWallet, error) {
 			}
 			if cfg.Params.Name == chaincfg.MainNetParams.Name {
 				multiwallet[wallet.Litecoin] = w
+			} else {
+				multiwallet[wallet.TestnetLitecoin] = w
+			}
+			//case wallet.Ethereum:
+			//w, err = eth.NewEthereumWallet(coin, cfg.Mnemonic, cfg.Proxy)
+			//if err != nil {
+			//return nil, err
+			//}
+			//multiwallet[coin.CoinType] = w
+		}
+		case wallet.Gleecbtc:
+			w, err = gleecbtc.NewLitecoinWallet(coin, cfg.Mnemonic, cfg.Params, cfg.Proxy, cfg.Cache, cfg.DisableExchangeRates)
+			if err != nil {
+				return nil, err
+			}
+			if cfg.Params.Name == chaincfg.MainNetParams.Name {
+				multiwallet[wallet.Gleecbtc] = w
 			} else {
 				multiwallet[wallet.TestnetLitecoin] = w
 			}
