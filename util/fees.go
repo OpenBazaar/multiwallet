@@ -18,10 +18,11 @@ type Fees struct {
 }
 
 type FeeProvider struct {
-	maxFee      uint64
-	priorityFee uint64
-	normalFee   uint64
-	economicFee uint64
+	maxFee           uint64
+	priorityFee      uint64
+	normalFee        uint64
+	economicFee      uint64
+	superEconomicFee uint64
 
 	exchangeRates wallet.ExchangeRates
 }
@@ -39,13 +40,14 @@ const (
 	AverageTransactionSize = 226
 )
 
-func NewFeeProvider(maxFee, priorityFee, normalFee, economicFee uint64, exchangeRates wallet.ExchangeRates) *FeeProvider {
+func NewFeeProvider(maxFee, priorityFee, normalFee, economicFee, superEconomicFee uint64, exchangeRates wallet.ExchangeRates) *FeeProvider {
 	return &FeeProvider{
-		maxFee:        maxFee,
-		priorityFee:   priorityFee,
-		normalFee:     normalFee,
-		economicFee:   economicFee,
-		exchangeRates: exchangeRates,
+		maxFee:           maxFee,
+		priorityFee:      priorityFee,
+		normalFee:        normalFee,
+		economicFee:      economicFee,
+		superEconomicFee: superEconomicFee,
+		exchangeRates:    exchangeRates,
 	}
 }
 
@@ -81,6 +83,8 @@ func (fp *FeeProvider) GetFeePerByte(feeLevel wallet.FeeLevel) uint64 {
 		target = NormalTarget
 	case wallet.ECONOMIC:
 		target = EconomicTarget
+	case wallet.SUPER_ECONOMIC:
+		return fp.superEconomicFee
 	case wallet.FEE_BUMP:
 		target = PriorityTarget * 2
 	default:
