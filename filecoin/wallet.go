@@ -1,10 +1,10 @@
-package bitcoin
+package filecoin
 
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 	"fmt"
+	"github.com/OpenBazaar/multiwallet/keys"
 	"io"
 	"math/big"
 	"strconv"
@@ -13,47 +13,39 @@ import (
 	"github.com/OpenBazaar/multiwallet/cache"
 	"github.com/OpenBazaar/multiwallet/client"
 	"github.com/OpenBazaar/multiwallet/config"
-	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/multiwallet/model"
-	"github.com/OpenBazaar/multiwallet/service"
 	"github.com/OpenBazaar/multiwallet/util"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	btc "github.com/btcsuite/btcutil"
+	"github.com/btcsuite/btcutil"
 	hd "github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/btcsuite/btcwallet/wallet/txrules"
+	faddr "github.com/filecoin-project/go-address"
 	"github.com/op/go-logging"
 	"github.com/tyler-smith/go-bip39"
 	"golang.org/x/net/proxy"
 )
 
-type BitcoinWallet struct {
+type FilecoinWallet struct {
 	db     wi.Datastore
-	km     *keys.KeyManager
 	params *chaincfg.Params
 	client model.APIClient
-	ws     *service.WalletService
-	fp     *util.FeeProvider
 
 	mPrivKey *hd.ExtendedKey
 	mPubKey  *hd.ExtendedKey
+
+	addr faddr.Address
 
 	exchangeRates wi.ExchangeRates
 	log           *logging.Logger
 }
 
 var (
-	_                         = wi.Wallet(&BitcoinWallet{})
-	BitcoinCurrencyDefinition = wi.CurrencyDefinition{
-		Code:         "BTC",
-		Divisibility: 8,
-	}
+	_ = wi.Wallet(&FilecoinWallet{})
 )
 
-func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher, disableExchangeRates bool) (*BitcoinWallet, error) {
+func NewFilecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.Params, proxy proxy.Dialer, cache cache.Cacher, disableExchangeRates bool) (*FilecoinWallet, error) {
 	seed := bip39.NewSeed(mnemonic, "")
 
 	mPrivKey, err := hd.NewMaster(seed, params)
@@ -64,7 +56,23 @@ func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.P
 	if err != nil {
 		return nil, err
 	}
-	km, err := keys.NewKeyManager(cfg.DB.Keys(), params, mPrivKey, wi.Bitcoin, keyToAddress)
+
+	_, external, err := keys.Bip44Derivation(mPrivKey, wi.Filecoin)
+	if err != nil {
+		return nil, err
+	}
+
+	accountHDKey, err := external.Child(0)
+	if err != nil {
+		return nil, err
+	}
+
+	accountECKey, err := accountHDKey.ECPubKey()
+	if err != nil {
+		return nil, err
+	}
+
+	accountAddr, err := faddr.NewSecp256k1Address(accountECKey.SerializeCompressed())
 	if err != nil {
 		return nil, err
 	}
@@ -73,69 +81,49 @@ func NewBitcoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.P
 	if err != nil {
 		return nil, err
 	}
-	er := util.NewBitcoinPriceFetcher(proxy)
-	if !disableExchangeRates {
-		go er.Run()
-	}
 
-	wm, err := service.NewWalletService(cfg.DB, km, c, params, wi.Bitcoin, cache)
-	if err != nil {
-		return nil, err
-	}
-
-	fp := util.NewFeeProvider(cfg.MaxFee, cfg.HighFee, cfg.MediumFee, cfg.LowFee, cfg.SuperLowFee, er)
-
-	return &BitcoinWallet{
-		db:            cfg.DB,
-		km:            km,
-		params:        params,
-		client:        c,
-		ws:            wm,
-		fp:            fp,
-		mPrivKey:      mPrivKey,
-		mPubKey:       mPubKey,
-		exchangeRates: er,
-		log:           logging.MustGetLogger("bitcoin-wallet"),
+	return &FilecoinWallet{
+		db:       cfg.DB,
+		params:   params,
+		client:   c,
+		addr:     accountAddr,
+		mPrivKey: mPrivKey,
+		mPubKey:  mPubKey,
+		log:      logging.MustGetLogger("litecoin-wallet"),
 	}, nil
 }
 
-func keyToAddress(key *hd.ExtendedKey, params *chaincfg.Params) (btc.Address, error) {
-	return key.Address(params)
-}
-
-func (w *BitcoinWallet) Start() {
+func (w *FilecoinWallet) Start() {
 	w.client.Start()
 	w.ws.Start()
 }
 
-func (w *BitcoinWallet) Params() *chaincfg.Params {
+func (w *FilecoinWallet) Params() *chaincfg.Params {
 	return w.params
 }
 
-func (w *BitcoinWallet) CurrencyCode() string {
+func (w *FilecoinWallet) CurrencyCode() string {
 	if w.params.Name == chaincfg.MainNetParams.Name {
-		return "btc"
+		return "fil"
 	} else {
-		return "tbtc"
+		return "tfil"
 	}
 }
 
-func (w *BitcoinWallet) IsDust(amount big.Int) bool {
-	if !amount.IsInt64() || amount.Cmp(big.NewInt(0)) <= 0 {
-		return false
-	}
-	return txrules.IsDustAmount(btc.Amount(amount.Int64()), 25, txrules.DefaultRelayFeePerKb)
+func (w *FilecoinWallet) IsDust(amount big.Int) bool {
+	// TODO
+	return false
 }
 
-func (w *BitcoinWallet) MasterPrivateKey() *hd.ExtendedKey {
+func (w *FilecoinWallet) MasterPrivateKey() *hd.ExtendedKey {
 	return w.mPrivKey
 }
 
-func (w *BitcoinWallet) MasterPublicKey() *hd.ExtendedKey {
+func (w *FilecoinWallet) MasterPublicKey() *hd.ExtendedKey {
 	return w.mPubKey
 }
 
-func (w *BitcoinWallet) ChildKey(keyBytes []byte, chaincode []byte, isPrivateKey bool) (*hd.ExtendedKey, error) {
+func (w *FilecoinWallet) ChildKey(keyBytes []byte, chaincode []byte, isPrivateKey bool) (*hd.ExtendedKey, error) {
 	parentFP := []byte{0x00, 0x00, 0x00, 0x00}
 	var id []byte
 	if isPrivateKey {
@@ -154,69 +142,39 @@ func (w *BitcoinWallet) ChildKey(keyBytes []byte, chaincode []byte, isPrivateKey
 	return hdKey.Child(0)
 }
 
-func (w *BitcoinWallet) CurrentAddress(purpose wi.KeyPurpose) btc.Address {
-	key, err := w.km.GetCurrentKey(purpose)
-	if err != nil {
-		w.log.Errorf("Error generating current key: %s", err)
-	}
-	addr, err := w.km.KeyToAddress(key)
-	if err != nil {
-		w.log.Errorf("Error converting key to address: %s", err)
-	}
-	return addr
+func (w *FilecoinWallet) CurrentAddress(purpose wi.KeyPurpose) btcutil.Address {
+	return &FilecoinAddress{addr: w.addr}
 }
 
-func (w *BitcoinWallet) NewAddress(purpose wi.KeyPurpose) btc.Address {
-	key, err := w.km.GetNextUnused(purpose)
-	if err != nil {
-		w.log.Errorf("Error generating next unused key: %s", err)
-	}
-	addr, err := w.km.KeyToAddress(key)
-	if err != nil {
-		w.log.Errorf("Error converting key to address: %s", err)
-	}
-	if err := w.db.Keys().MarkKeyAsUsed(addr.ScriptAddress()); err != nil {
-		w.log.Errorf("Error marking key as used: %s", err)
-	}
-	return addr
+func (w *FilecoinWallet) NewAddress(purpose wi.KeyPurpose) btcutil.Address {
+	return &FilecoinAddress{addr: w.addr}
 }
 
-func (w *BitcoinWallet) DecodeAddress(addr string) (btc.Address, error) {
-	return btc.DecodeAddress(addr, w.params)
+func (w *FilecoinWallet) DecodeAddress(addr string) (btcutil.Address, error) {
+	return laddr.DecodeAddress(addr, w.params)
 }
 
-func (w *BitcoinWallet) ScriptToAddress(script []byte) (btc.Address, error) {
-	_, addrs, _, err := txscript.ExtractPkScriptAddrs(script, w.params)
-	if err != nil {
-		return nil, err
-	}
-	if len(addrs) == 0 {
-		return nil, errors.New("unknown script")
-	}
-	return addrs[0], nil
+func (w *FilecoinWallet) ScriptToAddress(script []byte) (btcutil.Address, error) {
+	return laddr.ExtractPkScriptAddrs(script, w.params)
 }
 
-func (w *BitcoinWallet) AddressToScript(addr btc.Address) ([]byte, error) {
-	return txscript.PayToAddrScript(addr)
+func (w *FilecoinWallet) AddressToScript(addr btcutil.Address) ([]byte, error) {
+	return laddr.PayToAddrScript(addr)
 }
 
-func (w *BitcoinWallet) HasKey(addr btc.Address) bool {
-	_, err := w.km.GetKeyForScript(addr.ScriptAddress())
-	if err != nil {
-		return false
-	}
-	return true
+func (w *FilecoinWallet) HasKey(addr btcutil.Address) bool {
+	return w.addr.String() == addr.String()
 }
 
-func (w *BitcoinWallet) Balance() (wi.CurrencyValue, wi.CurrencyValue) {
+func (w *FilecoinWallet) Balance() (wi.CurrencyValue, wi.CurrencyValue) {
 	utxos, _ := w.db.Utxos().GetAll()
 	txns, _ := w.db.Txns().GetAll(false)
 	c, u := util.CalcBalance(utxos, txns)
-	return wi.CurrencyValue{Value: *big.NewInt(c), Currency: BitcoinCurrencyDefinition},
-		wi.CurrencyValue{Value: *big.NewInt(u), Currency: BitcoinCurrencyDefinition}
+	return wi.CurrencyValue{Value: *big.NewInt(c), Currency: LitecoinCurrencyDefinition},
+		wi.CurrencyValue{Value: *big.NewInt(u), Currency: LitecoinCurrencyDefinition}
 }
 
-func (w *BitcoinWallet) Transactions() ([]wi.Txn, error) {
+func (w *FilecoinWallet) Transactions() ([]wi.Txn, error) {
 	height, _ := w.ChainTip()
 	txns, err := w.db.Txns().GetAll(false)
 	if err != nil {
@@ -236,10 +194,10 @@ func (w *BitcoinWallet) Transactions() ([]wi.Txn, error) {
 			status = wi.StatusUnconfirmed
 		case confs == 0 && time.Since(tx.Timestamp) > time.Hour*6:
 			status = wi.StatusDead
-		case confs > 0 && confs < 6:
+		case confs > 0 && confs < 24:
 			status = wi.StatusPending
 			confirmations = confs
-		case confs > 5:
+		case confs > 23:
 			status = wi.StatusConfirmed
 			confirmations = confs
 		}
@@ -250,7 +208,7 @@ func (w *BitcoinWallet) Transactions() ([]wi.Txn, error) {
 	return txns, nil
 }
 
-func (w *BitcoinWallet) GetTransaction(txid chainhash.Hash) (wi.Txn, error) {
+func (w *FilecoinWallet) GetTransaction(txid chainhash.Hash) (wi.Txn, error) {
 	txn, err := w.db.Txns().Get(txid)
 	if err == nil {
 		tx := wire.NewMsgTx(1)
@@ -261,15 +219,9 @@ func (w *BitcoinWallet) GetTransaction(txid chainhash.Hash) (wi.Txn, error) {
 		}
 		outs := []wi.TransactionOutput{}
 		for i, out := range tx.TxOut {
-			var addr btc.Address
-			_, addrs, _, err := txscript.ExtractPkScriptAddrs(out.PkScript, w.params)
+			addr, err := laddr.ExtractPkScriptAddrs(out.PkScript, w.params)
 			if err != nil {
 				w.log.Errorf("error extracting address from txn pkscript: %v\n", err)
-			}
-			if len(addrs) == 0 {
-				addr = nil
-			} else {
-				addr = addrs[0]
 			}
 			tout := wi.TransactionOutput{
 				Address: addr,
@@ -283,15 +235,15 @@ func (w *BitcoinWallet) GetTransaction(txid chainhash.Hash) (wi.Txn, error) {
 	return txn, err
 }
 
-func (w *BitcoinWallet) ChainTip() (uint32, chainhash.Hash) {
+func (w *FilecoinWallet) ChainTip() (uint32, chainhash.Hash) {
 	return w.ws.ChainTip()
 }
 
-func (w *BitcoinWallet) GetFeePerByte(feeLevel wi.FeeLevel) big.Int {
+func (w *FilecoinWallet) GetFeePerByte(feeLevel wi.FeeLevel) big.Int {
 	return *big.NewInt(int64(w.fp.GetFeePerByte(feeLevel)))
 }
 
-func (w *BitcoinWallet) Spend(amount big.Int, addr btc.Address, feeLevel wi.FeeLevel, referenceID string, spendAll bool) (*chainhash.Hash, error) {
+func (w *FilecoinWallet) Spend(amount big.Int, addr btcutil.Address, feeLevel wi.FeeLevel, referenceID string, spendAll bool) (*chainhash.Hash, error) {
 	var (
 		tx  *wire.MsgTx
 		err error
@@ -308,21 +260,23 @@ func (w *BitcoinWallet) Spend(amount big.Int, addr btc.Address, feeLevel wi.FeeL
 		}
 	}
 
+	// Broadcast
 	if err := w.Broadcast(tx); err != nil {
 		return nil, err
 	}
+
 	ch := tx.TxHash()
 	return &ch, nil
 }
 
-func (w *BitcoinWallet) BumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
+func (w *FilecoinWallet) BumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 	return w.bumpFee(txid)
 }
 
-func (w *BitcoinWallet) EstimateFee(ins []wi.TransactionInput, outs []wi.TransactionOutput, feePerByte big.Int) big.Int {
+func (w *FilecoinWallet) EstimateFee(ins []wi.TransactionInput, outs []wi.TransactionOutput, feePerByte big.Int) big.Int {
 	tx := new(wire.MsgTx)
 	for _, out := range outs {
-		scriptPubKey, _ := txscript.PayToAddrScript(out.Address)
+		scriptPubKey, _ := laddr.PayToAddrScript(out.Address)
 		output := wire.NewTxOut(out.Value.Int64(), scriptPubKey)
 		tx.TxOut = append(tx.TxOut, output)
 	}
@@ -331,28 +285,28 @@ func (w *BitcoinWallet) EstimateFee(ins []wi.TransactionInput, outs []wi.Transac
 	return *big.NewInt(int64(fee))
 }
 
-func (w *BitcoinWallet) EstimateSpendFee(amount big.Int, feeLevel wi.FeeLevel) (big.Int, error) {
+func (w *FilecoinWallet) EstimateSpendFee(amount big.Int, feeLevel wi.FeeLevel) (big.Int, error) {
 	val, err := w.estimateSpendFee(amount.Int64(), feeLevel)
 	return *big.NewInt(int64(val)), err
 }
 
-func (w *BitcoinWallet) SweepAddress(ins []wi.TransactionInput, address *btc.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
+func (w *FilecoinWallet) SweepAddress(ins []wi.TransactionInput, address *btcutil.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
 	return w.sweepAddress(ins, address, key, redeemScript, feeLevel)
 }
 
-func (w *BitcoinWallet) CreateMultisigSignature(ins []wi.TransactionInput, outs []wi.TransactionOutput, key *hd.ExtendedKey, redeemScript []byte, feePerByte big.Int) ([]wi.Signature, error) {
+func (w *FilecoinWallet) CreateMultisigSignature(ins []wi.TransactionInput, outs []wi.TransactionOutput, key *hd.ExtendedKey, redeemScript []byte, feePerByte big.Int) ([]wi.Signature, error) {
 	return w.createMultisigSignature(ins, outs, key, redeemScript, feePerByte.Uint64())
 }
 
-func (w *BitcoinWallet) Multisign(ins []wi.TransactionInput, outs []wi.TransactionOutput, sigs1 []wi.Signature, sigs2 []wi.Signature, redeemScript []byte, feePerByte big.Int, broadcast bool) ([]byte, error) {
+func (w *FilecoinWallet) Multisign(ins []wi.TransactionInput, outs []wi.TransactionOutput, sigs1 []wi.Signature, sigs2 []wi.Signature, redeemScript []byte, feePerByte big.Int, broadcast bool) ([]byte, error) {
 	return w.multisign(ins, outs, sigs1, sigs2, redeemScript, feePerByte.Uint64(), broadcast)
 }
 
-func (w *BitcoinWallet) GenerateMultisigScript(keys []hd.ExtendedKey, threshold int, timeout time.Duration, timeoutKey *hd.ExtendedKey) (addr btc.Address, redeemScript []byte, err error) {
+func (w *FilecoinWallet) GenerateMultisigScript(keys []hd.ExtendedKey, threshold int, timeout time.Duration, timeoutKey *hd.ExtendedKey) (addr btcutil.Address, redeemScript []byte, err error) {
 	return w.generateMultisigScript(keys, threshold, timeout, timeoutKey)
 }
 
-func (w *BitcoinWallet) AddWatchedAddresses(addrs ...btc.Address) error {
+func (w *FilecoinWallet) AddWatchedAddresses(addrs ...btcutil.Address) error {
 
 	var watchedScripts [][]byte
 	for _, addr := range addrs {
@@ -374,15 +328,28 @@ func (w *BitcoinWallet) AddWatchedAddresses(addrs ...btc.Address) error {
 	return nil
 }
 
-func (w *BitcoinWallet) AddTransactionListener(callback func(wi.TransactionCallback)) {
+func (w *FilecoinWallet) AddWatchedScript(script []byte) error {
+	err := w.db.WatchedScripts().Put(script)
+	if err != nil {
+		return err
+	}
+	addr, err := w.ScriptToAddress(script)
+	if err != nil {
+		return err
+	}
+	w.client.ListenAddresses(addr)
+	return nil
+}
+
+func (w *FilecoinWallet) AddTransactionListener(callback func(wi.TransactionCallback)) {
 	w.ws.AddTransactionListener(callback)
 }
 
-func (w *BitcoinWallet) ReSyncBlockchain(fromTime time.Time) {
+func (w *FilecoinWallet) ReSyncBlockchain(fromTime time.Time) {
 	go w.ws.UpdateState()
 }
 
-func (w *BitcoinWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, error) {
+func (w *FilecoinWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, error) {
 	txn, err := w.db.Txns().Get(txid)
 	if err != nil {
 		return 0, 0, err
@@ -394,16 +361,16 @@ func (w *BitcoinWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, e
 	return chainTip - uint32(txn.Height) + 1, uint32(txn.Height), nil
 }
 
-func (w *BitcoinWallet) Close() {
+func (w *FilecoinWallet) Close() {
 	w.ws.Stop()
 	w.client.Close()
 }
 
-func (w *BitcoinWallet) ExchangeRates() wi.ExchangeRates {
+func (w *FilecoinWallet) ExchangeRates() wi.ExchangeRates {
 	return w.exchangeRates
 }
 
-func (w *BitcoinWallet) DumpTables(wr io.Writer) {
+func (w *FilecoinWallet) DumpTables(wr io.Writer) {
 	fmt.Fprintln(wr, "Transactions-----")
 	txns, _ := w.db.Txns().GetAll(true)
 	for _, tx := range txns {
@@ -414,10 +381,32 @@ func (w *BitcoinWallet) DumpTables(wr io.Writer) {
 	for _, u := range utxos {
 		fmt.Fprintf(wr, "Hash: %s, Index: %d, Height: %d, Value: %s, WatchOnly: %t\n", u.Op.Hash.String(), int(u.Op.Index), int(u.AtHeight), u.Value, u.WatchOnly)
 	}
+	fmt.Fprintln(wr, "\nKeys-----")
+	keys, _ := w.db.Keys().GetAll()
+	unusedInternal, _ := w.db.Keys().GetUnused(wi.INTERNAL)
+	unusedExternal, _ := w.db.Keys().GetUnused(wi.EXTERNAL)
+	internalMap := make(map[int]bool)
+	externalMap := make(map[int]bool)
+	for _, k := range unusedInternal {
+		internalMap[k] = true
+	}
+	for _, k := range unusedExternal {
+		externalMap[k] = true
+	}
+
+	for _, k := range keys {
+		var used bool
+		if k.Purpose == wi.INTERNAL {
+			used = internalMap[k.Index]
+		} else {
+			used = externalMap[k.Index]
+		}
+		fmt.Fprintf(wr, "KeyIndex: %d, Purpose: %d, Used: %t\n", k.Index, k.Purpose, used)
+	}
 }
 
 // Build a client.Transaction so we can ingest it into the wallet service then broadcast
-func (w *BitcoinWallet) Broadcast(tx *wire.MsgTx) error {
+func (w *FilecoinWallet) Broadcast(tx *wire.MsgTx) error {
 	var buf bytes.Buffer
 	tx.BtcEncode(&buf, wire.ProtocolVersion, wire.WitnessEncoding)
 	cTxn := model.Transaction{
@@ -455,7 +444,7 @@ func (w *BitcoinWallet) Broadcast(tx *wire.MsgTx) error {
 			N:        n,
 			Addr:     addr.String(),
 			Satoshis: val,
-			Value:    float64(val) / util.SatoshisPerCoin(wi.Bitcoin),
+			Value:    float64(val) / util.SatoshisPerCoin(wi.Litecoin),
 		}
 		cTxn.Inputs = append(cTxn.Inputs, input)
 	}
@@ -485,6 +474,6 @@ func (w *BitcoinWallet) Broadcast(tx *wire.MsgTx) error {
 }
 
 // AssociateTransactionWithOrder used for ORDER_PAYMENT message
-func (w *BitcoinWallet) AssociateTransactionWithOrder(cb wi.TransactionCallback) {
+func (w *FilecoinWallet) AssociateTransactionWithOrder(cb wi.TransactionCallback) {
 	w.ws.InvokeTransactionListeners(cb)
 }

@@ -30,11 +30,7 @@
   name = "github.com/OpenBazaar/golang-socketio"
 
 [[constraint]]
-  branch = "ethereum-master"
-  name = "github.com/OpenBazaar/spvwallet"
-
-[[constraint]]
-  branch = "ethereum-master"
+  branch = "filecoin"
   name = "github.com/OpenBazaar/wallet-interface"
 
 [[constraint]]
@@ -124,3 +120,7 @@
 [[prune.project]]
   name = "github.com/karalabe/usb"
   unused-packages = false
+
+[[constraint]]
+  name = "github.com/filecoin-project/go-address"
+  version = "0.0.1"

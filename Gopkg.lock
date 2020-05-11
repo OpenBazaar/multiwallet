@@ -33,23 +33,20 @@
   version = "v0.13.8"
 
 [[projects]]
-  branch = "ethereum-master"
-  digest = "1:266d74b30258b3f6cff7c970b3dc7f9f3d61c8bed3ab16da0232e5860eb0ce45"
+  branch = "master"
+  digest = "1:7af6a5867046b958340e4e67d395d5b7f89ba6d4dc4cde12807fb516c26758b4"
   name = "github.com/OpenBazaar/spvwallet"
-  packages = [
-    ".",
-    "exchangerates",
-  ]
+  packages = ["exchangerates"]
   pruneopts = "UT"
-  revision = "10951cd851492bdf52b4f7b408adcb6752312b23"
+  revision = "39f04e8d6d34bbd27049945bdbe9c8d4512f54fd"
 
 [[projects]]
-  branch = "ethereum-master"
-  digest = "1:c411c1051b3ab7c823786bf82887580f2d93898be2504e145a67419afef5ba2d"
+  branch = "filecoin"
+  digest = "1:c3ca1eaf1704d5c982c67bae49ec292ab4713fd69fe1d22e97ee5ee5d7533366"
   name = "github.com/OpenBazaar/wallet-interface"
   packages = ["."]
   pruneopts = "UT"
-  revision = "cbbb40466dcfe7d299f685fd0aa9a4fe9ea49147"
+  revision = ""
 
 [[projects]]
   digest = "1:ef98291cf6c2dd0f53949a1899e9a58d3159ad44d20f74b62467bd2a807b01ce"
@@ -68,25 +65,14 @@
   revision = "5d8d36c240c9af0ccde364594dd5fae756790b63"
 
 [[projects]]
-  digest = "1:0f98f59e9a2f4070d66f0c9c39561f68fcd1dc837b22a852d28d0003aebd1b1e"
-  name = "github.com/boltdb/bolt"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8"
-  version = "v1.3.1"
-
-[[projects]]
-  digest = "1:38e337477887a8935559e3042ce53f14fcc24fd66635b57f423965c8297ccc90"
+  digest = "1:8a6b720f7707f30e7fdada002bb8f1aa82a8108a85b122ea30280ce664febed8"
   name = "github.com/btcsuite/btcd"
   packages = [
-    "addrmgr",
     "blockchain",
     "btcec",
     "chaincfg",
     "chaincfg/chainhash",
-    "connmgr",
     "database",
-    "peer",
     "txscript",
     "wire",
   ]
@@ -104,13 +90,12 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:0faf30bd4ac78188ebeb913680b3dec83dccc62050f92fb2da3940d55e6a7977"
+  digest = "1:f907fe3e2873145351f3a7a12ce0ecf65a06e0d73648954d72dddfc3c7513ee8"
   name = "github.com/btcsuite/btcutil"
   packages = [
     ".",
     "base58",
     "bech32",
-    "bloom",
     "coinset",
     "hdkeychain",
     "txsort",
@@ -132,14 +117,6 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:1e6b2f7aa98b082c30a1303c29a702c369b2ec6d86b74a599bc8bbe2333db299"
-  name = "github.com/btcsuite/go-socks"
-  packages = ["socks"]
-  pruneopts = "UT"
-  revision = "4720035b7bfd2a9bb130b1c184f8bbe41b6f0d0f"
-
-[[projects]]
-  branch = "master"
   digest = "1:49ad1acb33bb5b40c0d197321d3cf9ee9a29eb02f4765ab7c316e08983eb7559"
   name = "github.com/btcsuite/golangcrypto"
   packages = ["ripemd160"]
@@ -147,16 +124,12 @@
   revision = "53f62d9b43e87a6c56975cf862af7edf33a8d0df"
 
 [[projects]]
-  digest = "1:91fc3f4d1842584d1342364193106e80d1d532bbd1668fbd7c61627f01d0111f"
-  name = "github.com/btcsuite/goleveldb"
-  packages = [
-    "leveldb/errors",
-    "leveldb/storage",
-    "leveldb/util",
-  ]
+  digest = "1:fe9b15f080d19c215514056bae7589d6958821766fb5f5fceb9402ec9df2f736"
+  name = "github.com/cenkalti/backoff"
+  packages = ["."]
   pruneopts = "UT"
-  revision = "3fd0373267b6461dbefe91cef614278064d05465"
-  version = "v1.0.0"
+  revision = "18fe4ce5a8550e0d0919b680ad3c080a5455bddf"
+  version = "v4.0.2"
 
 [[projects]]
   digest = "1:61406f6571eeb97717bdfaac37fa0bc5260621c4cbf3ce7635e9828dcbb5258a"
@@ -165,14 +138,6 @@
   pruneopts = "UT"
   revision = "d7df74196a9e781ede915320c11c378c1b2f3a1f"
   version = "v2.1.1"
-
-[[projects]]
-  branch = "master"
-  digest = "1:9d61b5ca59d3db0b1f1c1e9f5930b4f7c7fd954f54b70c1d83802b8805db918f"
-  name = "github.com/cevaris/ordered_map"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "3adeae072e730f1919a936e13b4923706d3f60fe"
 
 [[projects]]
   branch = "master"
@@ -287,6 +252,14 @@
   pruneopts = "T"
   revision = "017449971e1e9e220efcd97d3313a0e27f47003b"
   version = "v1.9.9"
+
+[[projects]]
+  digest = "1:f5c224aa98c70603031a14da0dbad2bb727ae1bf5039afcc2c5582549d607d72"
+  name = "github.com/filecoin-project/go-address"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "9eb47005578bc8674a2aa2df1ef692b5ba72c1e2"
+  version = "v0.0.1"
 
 [[projects]]
   branch = "master"
@@ -412,6 +385,49 @@
   version = "v1.72"
 
 [[projects]]
+  digest = "1:97b7b1549d94c885626167359549d9164bb35a9a584faa7c3a576909be0ea37f"
+  name = "github.com/ipfs/go-block-format"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "9e46c0dce5d9a041b8ea1eed8ca924b36355c61b"
+  version = "v0.0.2"
+
+[[projects]]
+  digest = "1:c35c0ab51b7bef9fd88cbc337e0a78b632259870d84b81019ea3c21d2d8dc390"
+  name = "github.com/ipfs/go-cid"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "72cd3d39d7fe1b2ab7abac0854a1bcb046a8d009"
+  version = "v0.0.5"
+
+[[projects]]
+  digest = "1:0b4439ae69776549e6489b261f66894a1390140dad53f1c3b1fbfc074478590d"
+  name = "github.com/ipfs/go-ipfs-util"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "a4bb5361e49427531f9a716ead2ce4bd9bdd7959"
+  version = "v0.0.1"
+
+[[projects]]
+  digest = "1:de4f9e95ccc7dc99747e1d208b5f137d3d00fa2f82983b5ca47e4d5c3b715204"
+  name = "github.com/ipfs/go-ipld-cbor"
+  packages = [
+    ".",
+    "encoding",
+  ]
+  pruneopts = "UT"
+  revision = "e38da3943594adf6d8685bb3f4b4116699969006"
+  version = "v0.0.4"
+
+[[projects]]
+  digest = "1:2f8a1077ac84072d884b6f215e256bb8b83f9b9b67bbe505dc19a135c1d9ecdd"
+  name = "github.com/ipfs/go-ipld-format"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c582c36b708672f99752a0b6171adec7820e0049"
+  version = "v0.2.0"
+
+[[projects]]
   digest = "1:71193da2829127d2cd7d2045175a65ef04d79176de5f1ebb185d331daa53b5c9"
   name = "github.com/jackpal/go-nat-pmp"
   packages = ["."]
@@ -486,12 +502,52 @@
   revision = "3f5f724cb5b182a5c278d6d3d55b40e7f8c2efb4"
 
 [[projects]]
-  digest = "1:5d231480e1c64a726869bc4142d270184c419749d34f167646baa21008eb0a79"
-  name = "github.com/mitchellh/go-homedir"
+  digest = "1:0d8b29788bd5eef02a1d7cff49bc557d66dccbfe5c386b6422d8a4e4752a5e14"
+  name = "github.com/minio/sha256-simd"
   packages = ["."]
   pruneopts = "UT"
-  revision = "af06845cf3004701891bf4fdb884bfe4920b3727"
-  version = "v1.1.0"
+  revision = "6de4475307716de15b286880ff321c9547086fdd"
+  version = "v0.1.1"
+
+[[projects]]
+  digest = "1:b6299badabd66eaede0651e2eaede106d8298b25564e4a7f23e335471d3e5a35"
+  name = "github.com/mr-tron/base58"
+  packages = ["base58"]
+  pruneopts = "UT"
+  revision = "b1dd383fd2c02d7933db93f157e339f1899b5163"
+  version = "v1.1.3"
+
+[[projects]]
+  digest = "1:b9fe622bbadbb060338620752b1cb3aa1473855071195ebe83813af5ebb3629b"
+  name = "github.com/multiformats/go-base32"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "a9c2755c3d1672dbe6a7e4a5d182169fa30b6a8e"
+  version = "v0.0.3"
+
+[[projects]]
+  digest = "1:58224b4515bf5354306ae816900c398d193536b4d4cfdd6c0b1f2d2f47209f6d"
+  name = "github.com/multiformats/go-multibase"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "b84fc17b7761c4c48606130d9a203faac6878797"
+  version = "v0.0.2"
+
+[[projects]]
+  digest = "1:9b6ec330cdda76d7b8fb3cb4238d7ab8ee98f672859fcb3dcc7dd395312f5770"
+  name = "github.com/multiformats/go-multihash"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "6b39927dce4869bc1726861b65ada415ee1f7fc7"
+  version = "v0.0.13"
+
+[[projects]]
+  digest = "1:6be8092c93e6eb9ec606a153d16fa042e087be8be9a91f49515dfe0d0b504a5f"
+  name = "github.com/multiformats/go-varint"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "99465703c4a9cf53a0235e52608cb055e9d39c29"
+  version = "v0.0.5"
 
 [[projects]]
   digest = "1:00e810a1a88ae7bccca5a31de78ddb0db5ce5cc27dcd5744aa452db3e65f2a9a"
@@ -534,6 +590,23 @@
   version = "v0.9.1"
 
 [[projects]]
+  branch = "master"
+  digest = "1:474ca4cef75c27b9f5c6bc904b04ec48379244839d45fa05a6d1ee9b2504890e"
+  name = "github.com/polydawn/refmt"
+  packages = [
+    ".",
+    "cbor",
+    "json",
+    "obj",
+    "obj/atlas",
+    "pretty",
+    "shared",
+    "tok",
+  ]
+  pruneopts = "UT"
+  revision = "3d65705ee9f12dc0dfcc0dc6cf9666e97b93f339"
+
+[[projects]]
   digest = "1:19a227084137c73d7a519ff90acc9fa69855c2ba134bb9c7dfe94e9ad2949c64"
   name = "github.com/prometheus/tsdb"
   packages = ["fileutil"]
@@ -564,6 +637,14 @@
   pruneopts = "UT"
   revision = "cd690d0c9e2447b1ef2a129a6b7b49077da89b8e"
   version = "1.1.0"
+
+[[projects]]
+  digest = "1:919bb3aa6d9d0b67648c219fa4925312bc3c2872da19e818fa769e9c97a2b643"
+  name = "github.com/spaolacci/murmur3"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "9f5d223c60793748f04a9d5b4b4eacddfc1f755d"
+  version = "v1.1"
 
 [[projects]]
   branch = "develop"
@@ -622,6 +703,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:5783cfa0a4f8c076895f3878f3c48dfdfc566f2a9e1a1b6f42b96ac307241649"
+  name = "github.com/whyrusleeping/cbor-gen"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "64967432584da50b86d78fc9bc343c7c7afa50d2"
+
+[[projects]]
+  branch = "master"
   digest = "1:7dca0da64f5937af74f21618cdb812c8f16a7d042316dd5bf2f1dfd086be3fc6"
   name = "github.com/wsddn/go-ecdh"
   packages = ["."]
@@ -630,9 +719,10 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:b90cae04932efcf7747730936b3ed1d52a913a97e7a658869bed2539b7a956df"
+  digest = "1:af26b9e16640f2ebf05d28d9fde51aa65dc40956afafd7fcdc760fe61ce3b051"
   name = "golang.org/x/crypto"
   packages = [
+    "blake2s",
     "curve25519",
     "pbkdf2",
     "ripemd160",
@@ -712,6 +802,17 @@
   pruneopts = "UT"
   revision = "342b2e1fbaa52c93f31447ad2c6abc048c63e475"
   version = "v0.3.2"
+
+[[projects]]
+  branch = "master"
+  digest = "1:918a46e4a2fb83df33f668f5a6bd51b2996775d073fce1800d3ec01b0a5ddd2b"
+  name = "golang.org/x/xerrors"
+  packages = [
+    ".",
+    "internal",
+  ]
+  pruneopts = "UT"
+  revision = "9bdfabe68543c54f90421aeb9a60ef8061b5b544"
 
 [[projects]]
   branch = "master"
@@ -800,7 +901,6 @@
     "github.com/OpenBazaar/golang-socketio",
     "github.com/OpenBazaar/golang-socketio/protocol",
     "github.com/OpenBazaar/golang-socketio/transport",
-    "github.com/OpenBazaar/spvwallet",
     "github.com/OpenBazaar/spvwallet/exchangerates",
     "github.com/OpenBazaar/wallet-interface",
     "github.com/btcsuite/btcd/blockchain",
@@ -818,7 +918,9 @@
     "github.com/btcsuite/btcwallet/wallet/txauthor",
     "github.com/btcsuite/btcwallet/wallet/txrules",
     "github.com/btcsuite/golangcrypto/ripemd160",
+    "github.com/cenkalti/backoff",
     "github.com/cpacia/bchutil",
+    "github.com/filecoin-project/go-address",
     "github.com/gcash/bchd/chaincfg/chainhash",
     "github.com/gcash/bchd/txscript",
     "github.com/gcash/bchd/wire",

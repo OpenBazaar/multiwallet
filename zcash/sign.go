@@ -13,7 +13,6 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/minio/blake2b-simd"
 
-	"github.com/OpenBazaar/spvwallet"
 	wi "github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -303,10 +302,10 @@ func (w *ZCashWallet) bumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 		return nil, err
 	}
 	if txn.Height > 0 {
-		return nil, spvwallet.BumpFeeAlreadyConfirmedError
+		return nil, util.BumpFeeAlreadyConfirmedError
 	}
 	if txn.Height < 0 {
-		return nil, spvwallet.BumpFeeTransactionDeadError
+		return nil, util.BumpFeeTransactionDeadError
 	}
 	// Check utxos for CPFP
 	utxos, _ := w.db.Utxos().GetAll()
@@ -339,7 +338,7 @@ func (w *ZCashWallet) bumpFee(txid chainhash.Hash) (*chainhash.Hash, error) {
 			return transactionID, nil
 		}
 	}
-	return nil, spvwallet.BumpFeeNotFoundError
+	return nil, util.BumpFeeNotFoundError
 }
 
 func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Address, key *hd.ExtendedKey, redeemScript *[]byte, feeLevel wi.FeeLevel) (*chainhash.Hash, error) {
@@ -379,7 +378,7 @@ func (w *ZCashWallet) sweepAddress(ins []wi.TransactionInput, address *btc.Addre
 	txType := P2PKH
 	if redeemScript != nil {
 		txType = P2SH_1of2_Multisig
-		_, err := spvwallet.LockTimeFromRedeemScript(*redeemScript)
+		_, err := util.LockTimeFromRedeemScript(*redeemScript)
 		if err == nil {
 			txType = P2SH_Multisig_Timelock_1Sig
 		}
