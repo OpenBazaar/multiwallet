@@ -42,7 +42,7 @@
 
 [[projects]]
   branch = "filecoin"
-  digest = "1:c3ca1eaf1704d5c982c67bae49ec292ab4713fd69fe1d22e97ee5ee5d7533366"
+  digest = "1:08cd4bad1c1471c1219ecbad6299193685e2c8313c2bd36219174e5480842d51"
   name = "github.com/OpenBazaar/wallet-interface"
   packages = ["."]
   pruneopts = "UT"

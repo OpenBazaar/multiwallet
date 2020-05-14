@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"github.com/OpenBazaar/multiwallet/keys"
+	"github.com/btcsuite/btcd/btcec"
 	"io"
 	"math/big"
 	"strconv"
@@ -36,6 +37,7 @@ type FilecoinWallet struct {
 	mPubKey  *hd.ExtendedKey
 
 	addr faddr.Address
+	key  *btcec.PrivateKey
 
 	exchangeRates wi.ExchangeRates
 	log           *logging.Logger
@@ -67,12 +69,12 @@ func NewFilecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.
 		return nil, err
 	}
 
-	accountECKey, err := accountHDKey.ECPubKey()
+	accountECKey, err := accountHDKey.ECPrivKey()
 	if err != nil {
 		return nil, err
 	}
 
-	accountAddr, err := faddr.NewSecp256k1Address(accountECKey.SerializeCompressed())
+	accountAddr, err := faddr.NewSecp256k1Address(accountECKey.PubKey().SerializeCompressed())
 	if err != nil {
 		return nil, err
 	}
@@ -89,6 +91,7 @@ func NewFilecoinWallet(cfg config.CoinConfig, mnemonic string, params *chaincfg.
 		addr:     accountAddr,
 		mPrivKey: mPrivKey,
 		mPubKey:  mPubKey,
+		key:      accountECKey,
 		log:      logging.MustGetLogger("litecoin-wallet"),
 	}, nil
 }

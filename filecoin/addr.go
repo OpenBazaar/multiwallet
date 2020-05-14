@@ -10,6 +10,14 @@ type FilecoinAddress struct {
 	addr faddr.Address
 }
 
+func NewFilecoinAddress(addrStr string) (*FilecoinAddress, error) {
+	addr, err := faddr.NewFromString(addrStr)
+	if err != nil {
+		return nil, err
+	}
+	return &FilecoinAddress{addr: addr}, nil
+}
+
 // String returns the string encoding of the transaction output
 // destination.
 //
