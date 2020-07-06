@@ -89,18 +89,18 @@ func (fs *FilecoinService) run() {
 	}
 }
 
-func (ws *FilecoinService) Stop() {
-	close(ws.doneChan)
+func (fs *FilecoinService) Stop() {
+	close(fs.doneChan)
 }
 
-func (ws *FilecoinService) ChainTip() (uint32, chainhash.Hash) {
-	ws.lock.RLock()
-	defer ws.lock.RUnlock()
-	ch, err := chainhash.NewHashFromStr(ws.bestBlock)
+func (fs *FilecoinService) ChainTip() (uint32, chainhash.Hash) {
+	fs.lock.RLock()
+	defer fs.lock.RUnlock()
+	ch, err := chainhash.NewHashFromStr(fs.bestBlock)
 	if err != nil {
 		Log.Errorf("producing BestBlock hash: %s", err.Error())
 	}
-	return ws.chainHeight, *ch
+	return fs.chainHeight, *ch
 }
 
 func (fs *FilecoinService) AddTransactionListener(callback func(callback wallet.TransactionCallback)) {
@@ -142,19 +142,19 @@ func (fs *FilecoinService) UpdateState() {
 	go fs.syncTxs()
 }
 
-func (ws *FilecoinService) syncTxs() {
-	Log.Debugf("querying for %s transactions", ws.coinType.String())
-	query := []btcutil.Address{ws.addr}
-	txs, err := ws.client.GetTransactions(query)
+func (fs *FilecoinService) syncTxs() {
+	Log.Debugf("querying for %s transactions", fs.coinType.String())
+	query := []btcutil.Address{fs.addr}
+	txs, err := fs.client.GetTransactions(query)
 	if err != nil {
-		Log.Errorf("error downloading txs for %s: %s", ws.coinType.String(), err.Error())
+		Log.Errorf("error downloading txs for %s: %s", fs.coinType.String(), err.Error())
 	} else {
-		Log.Debugf("downloaded %d %s transactions", len(txs), ws.coinType.String())
-		ws.lock.RLock()
-		chainHeight := int32(ws.chainHeight)
-		ws.lock.RUnlock()
+		Log.Debugf("downloaded %d %s transactions", len(txs), fs.coinType.String())
+		fs.lock.RLock()
+		chainHeight := int32(fs.chainHeight)
+		fs.lock.RUnlock()
 		for _, u := range txs {
-			ws.saveSingleTxToDB(u, chainHeight)
+			fs.saveSingleTxToDB(u, chainHeight)
 		}
 	}
 }

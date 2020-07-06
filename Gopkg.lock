@@ -398,7 +398,7 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "72cd3d39d7fe1b2ab7abac0854a1bcb046a8d009"
-  version = "v0.0.5"
+  version = "v0.0.6"
 
 [[projects]]
   digest = "1:0b4439ae69776549e6489b261f66894a1390140dad53f1c3b1fbfc074478590d"
@@ -700,14 +700,6 @@
   pruneopts = "UT"
   revision = "5e3853c3f4e1a44df487c7efeb064ee8b43755de"
   version = "1.0.2"
-
-[[projects]]
-  branch = "master"
-  digest = "1:5783cfa0a4f8c076895f3878f3c48dfdfc566f2a9e1a1b6f42b96ac307241649"
-  name = "github.com/whyrusleeping/cbor-gen"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "64967432584da50b86d78fc9bc343c7c7afa50d2"
 
 [[projects]]
   branch = "master"
