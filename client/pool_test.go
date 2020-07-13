@@ -10,7 +10,7 @@ import (
 	"github.com/OpenBazaar/multiwallet/model"
 	"github.com/OpenBazaar/multiwallet/model/mock"
 	"github.com/OpenBazaar/multiwallet/test/factory"
-	"gopkg.in/jarcoal/httpmock.v1"
+	"github.com/jarcoal/httpmock"
 )
 
 func replaceHTTPClientOnClientPool(p *client.ClientPool, c http.Client) {
