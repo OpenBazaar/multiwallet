@@ -261,7 +261,7 @@ func (w *ZCashWallet) Transactions() ([]wi.Txn, error) {
 }
 
 func (w *ZCashWallet) GetTransaction(txid chainhash.Hash) (wi.Txn, error) {
-	txn, err := w.db.Txns().Get(txid)
+	txn, err := w.db.Txns().Get(txid.String())
 	if err == nil {
 		tx := wire.NewMsgTx(1)
 		rbuf := bytes.NewReader(trimTxForDeserialization(txn.Bytes))
@@ -401,7 +401,7 @@ func (w *ZCashWallet) ReSyncBlockchain(fromTime time.Time) {
 }
 
 func (w *ZCashWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, error) {
-	txn, err := w.db.Txns().Get(txid)
+	txn, err := w.db.Txns().Get(txid.String())
 	if err != nil {
 		return 0, 0, err
 	}

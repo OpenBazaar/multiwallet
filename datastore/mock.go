@@ -350,15 +350,15 @@ func (m *MockTxnStore) Put(tx []byte, txid, value string, height int, timestamp 
 	return nil
 }
 
-func (m *MockTxnStore) Get(txid chainhash.Hash) (wallet.Txn, error) {
+func (m *MockTxnStore) Get(txid string) (wallet.Txn, error) {
 	m.Lock()
 	defer m.Unlock()
-	t, ok := m.txns[txid.String()]
+	t, ok := m.txns[txid]
 	if !ok {
 		return wallet.Txn{}, errors.New("Not found")
 	}
 	return wallet.Txn{
-		Txid:      txid.String(),
+		Txid:      txid,
 		Value:     t.value,
 		Height:    int32(t.height),
 		Timestamp: t.timestamp,
@@ -385,16 +385,16 @@ func (m *MockTxnStore) GetAll(includeWatchOnly bool) ([]wallet.Txn, error) {
 	return txns, nil
 }
 
-func (m *MockTxnStore) UpdateHeight(txid chainhash.Hash, height int, timestamp time.Time) error {
+func (m *MockTxnStore) UpdateHeight(txid string, height int, timestamp time.Time) error {
 	m.Lock()
 	defer m.Unlock()
-	txn, ok := m.txns[txid.String()]
+	txn, ok := m.txns[txid]
 	if !ok {
 		return errors.New("Not found")
 	}
 	txn.height = height
 	txn.timestamp = timestamp
-	m.txns[txid.String()] = txn
+	m.txns[txid] = txn
 	return nil
 }
 

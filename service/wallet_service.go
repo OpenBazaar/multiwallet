@@ -525,7 +525,7 @@ func (ws *WalletService) saveSingleTxToDB(u model.Transaction, chainHeight int32
 
 	cb.Value = *value
 	cb.WatchOnly = (hits == 0)
-	saved, err := ws.db.Txns().Get(*txHash)
+	saved, err := ws.db.Txns().Get(txHash.String())
 	if err != nil || saved.WatchOnly != cb.WatchOnly {
 		ts := time.Now()
 		if u.Confirmations > 0 {
@@ -547,7 +547,7 @@ func (ws *WalletService) saveSingleTxToDB(u model.Transaction, chainHeight int32
 		cb.Timestamp = ts
 		ws.callbackListeners(cb)
 	} else if height > 0 {
-		err := ws.db.Txns().UpdateHeight(*txHash, int(height), time.Unix(u.BlockTime, 0))
+		err := ws.db.Txns().UpdateHeight(txHash.String(), int(height), time.Unix(u.BlockTime, 0))
 		if err != nil {
 			Log.Errorf("updating height for tx (%s): %s", txHash.String(), err.Error())
 			return

@@ -11,6 +11,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcutil"
+	"github.com/ipfs/go-cid"
 	"github.com/op/go-logging"
 	"math"
 	"math/big"
@@ -217,7 +218,7 @@ func (fs *FilecoinService) saveSingleTxToDB(u model.Transaction, chainHeight int
 		height = chainHeight - (int32(u.Confirmations) - 1)
 	}
 
-	txHash, err := chainhash.NewHashFromStr(u.Txid)
+	txHash, err := cid.Decode(u.Txid)
 	if err != nil {
 		Log.Errorf("error converting to txHash for %s: %s", fs.coinType.String(), err.Error())
 		return
@@ -270,7 +271,7 @@ func (fs *FilecoinService) saveSingleTxToDB(u model.Transaction, chainHeight int
 	}
 
 	cb.Value = *value
-	saved, err := fs.db.Txns().Get(*txHash)
+	saved, err := fs.db.Txns().Get(txHash.String())
 	if err != nil {
 		ts := time.Now()
 		if u.Confirmations > 0 {
@@ -284,7 +285,7 @@ func (fs *FilecoinService) saveSingleTxToDB(u model.Transaction, chainHeight int
 		cb.Timestamp = ts
 		fs.callbackListeners(cb)
 	} else if height > 0 {
-		err := fs.db.Txns().UpdateHeight(*txHash, int(height), time.Unix(u.BlockTime, 0))
+		err := fs.db.Txns().UpdateHeight(txHash.String(), int(height), time.Unix(u.BlockTime, 0))
 		if err != nil {
 			Log.Errorf("updating height for tx (%s): %s", txHash.String(), err.Error())
 			return

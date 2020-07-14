@@ -241,7 +241,7 @@ func (w *FilecoinWallet) Transactions() ([]wi.Txn, error) {
 }
 
 func (w *FilecoinWallet) GetTransaction(txid chainhash.Hash) (wi.Txn, error) {
-	txn, err := w.db.Txns().Get(txid)
+	txn, err := w.db.Txns().Get(txid.String())
 	return txn, err
 }
 
@@ -348,7 +348,7 @@ func (w *FilecoinWallet) ReSyncBlockchain(fromTime time.Time) {
 }
 
 func (w *FilecoinWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, error) {
-	txn, err := w.db.Txns().Get(txid)
+	txn, err := w.db.Txns().Get(txid.String())
 	if err != nil {
 		return 0, 0, err
 	}

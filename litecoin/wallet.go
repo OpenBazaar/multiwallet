@@ -261,7 +261,7 @@ func (w *LitecoinWallet) Transactions() ([]wi.Txn, error) {
 }
 
 func (w *LitecoinWallet) GetTransaction(txid chainhash.Hash) (wi.Txn, error) {
-	txn, err := w.db.Txns().Get(txid)
+	txn, err := w.db.Txns().Get(txid.String())
 	if err == nil {
 		tx := wire.NewMsgTx(1)
 		rbuf := bytes.NewReader(txn.Bytes)
@@ -402,7 +402,7 @@ func (w *LitecoinWallet) ReSyncBlockchain(fromTime time.Time) {
 }
 
 func (w *LitecoinWallet) GetConfirmations(txid chainhash.Hash) (uint32, uint32, error) {
-	txn, err := w.db.Txns().Get(txid)
+	txn, err := w.db.Txns().Get(txid.String())
 	if err != nil {
 		return 0, 0, err
 	}
