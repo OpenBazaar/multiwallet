@@ -24,6 +24,7 @@ require (
 	github.com/google/go-cmp v0.4.1 // indirect
 	github.com/gorilla/websocket v1.4.2
 	github.com/hunterlong/tokenbalance v0.0.12-0.20191105170207-4f98e641e619 // indirect
+	github.com/ipfs/go-cid v0.0.6-0.20200501230655-7c82f3b81c00
 	github.com/jarcoal/httpmock v1.0.5
 	github.com/jessevdk/go-flags v1.4.0
 	github.com/joho/godotenv v1.3.0 // indirect

@@ -6,6 +6,7 @@ import (
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/sigs"
+	_ "github.com/filecoin-project/lotus/lib/sigs/secp"
 	"github.com/filecoin-project/specs-actors/actors/crypto"
 	"io"
 	"math/big"
@@ -289,7 +290,7 @@ func (w *FilecoinWallet) Spend(amount big.Int, addr btcutil.Address, feeLevel wi
 		return nil, err
 	}
 
-	ch, err := chainhash.NewHash(id.Bytes())
+	ch, err := chainhash.NewHash(id.Bytes()[:32])
 	if err != nil {
 		return nil, err
 	}
