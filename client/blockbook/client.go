@@ -647,6 +647,7 @@ func (i *BlockBookClient) setupListeners() error {
 	i.SocketClient.Emit("subscribe", protocol.ToArgArray("bitcoind/hashblock"))
 
 	i.SocketClient.On("bitcoind/addresstxid", func(h *gosocketio.Channel, arg interface{}) {
+		fmt.Println("On addr txid", arg)
 		m, ok := arg.(map[string]interface{})
 		if !ok {
 			Log.Errorf("error checking type after socket notification: %T", arg)

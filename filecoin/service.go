@@ -242,6 +242,7 @@ func (fs *FilecoinService) saveSingleTxToDB(u model.Transaction, chainHeight int
 		if in.Addr == fs.addr.String() {
 			relevant = true
 			value.Sub(value, v)
+			hits++
 		}
 	}
 	for i, out := range u.Outputs {
@@ -262,6 +263,7 @@ func (fs *FilecoinService) saveSingleTxToDB(u model.Transaction, chainHeight int
 		if out.ScriptPubKey.Addresses[0] == fs.addr.String() {
 			relevant = true
 			value.Add(value, v)
+			hits++
 		}
 	}
 
