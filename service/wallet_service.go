@@ -98,14 +98,10 @@ func (ws *WalletService) Stop() {
 	ws.doneChan <- struct{}{}
 }
 
-func (ws *WalletService) ChainTip() (uint32, chainhash.Hash) {
+func (ws *WalletService) ChainTip() (uint32, string) {
 	ws.lock.RLock()
 	defer ws.lock.RUnlock()
-	ch, err := chainhash.NewHashFromStr(ws.bestBlock)
-	if err != nil {
-		Log.Errorf("producing BestBlock hash: %s", err.Error())
-	}
-	return ws.chainHeight, *ch
+	return ws.chainHeight, ws.bestBlock
 }
 
 func (ws *WalletService) AddTransactionListener(callback func(callback wallet.TransactionCallback)) {

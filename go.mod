@@ -7,7 +7,7 @@ require (
 	github.com/OpenBazaar/golang-socketio v0.0.0-20200109001351-4147b5f0d294
 	github.com/OpenBazaar/openbazaar-go v0.14.3 // indirect
 	github.com/OpenBazaar/spvwallet v0.0.0-20200112224336-39f04e8d6d34
-	github.com/OpenBazaar/wallet-interface v0.0.0-20200511225711-6ec1fd0d9d23
+	github.com/OpenBazaar/wallet-interface v0.0.0-20200720181501-d30f5eb54286
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/btcsuite/btcutil v1.0.2
 	github.com/btcsuite/btcwallet/wallet/txauthor v1.0.0
