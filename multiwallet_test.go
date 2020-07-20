@@ -26,12 +26,12 @@ func TestMultiWallet_Filecoin(t *testing.T) {
 
 	cfg := &config.Config{
 		Mnemonic: "abcdefg",
-		Params: &chaincfg.MainNetParams,
-		Cache: cache.NewMockCacher(),
+		Params:   &chaincfg.MainNetParams,
+		Cache:    cache.NewMockCacher(),
 		Coins: []config.CoinConfig{
 			{
-				CoinType: wallet.Filecoin,
-				DB: db,
+				CoinType:   wallet.Filecoin,
+				DB:         db,
 				ClientAPIs: []string{"http://localhost:8080/api"},
 			},
 		},
@@ -45,7 +45,9 @@ func TestMultiWallet_Filecoin(t *testing.T) {
 
 	w.Start()
 
-	<-time.After(time.Second*40)
+	fmt.Println(w[wallet.Filecoin].CurrentAddress(wallet.EXTERNAL))
+
+	<-time.After(time.Second * 40)
 
 	addr, err := filecoin.NewFilecoinAddress("t3vjuvunjquznv6nlhs72utwndnr6xlaaqf3xeympz4bj4cclxtldrdlcdqvdx2fragwlo6xddd475uezjeapq")
 	if err != nil {
@@ -57,5 +59,5 @@ func TestMultiWallet_Filecoin(t *testing.T) {
 		t.Fatal(err)
 	}
 	fmt.Println(txid)
-	select{}
+	select {}
 }

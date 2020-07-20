@@ -262,7 +262,7 @@ func (i *BlockBookClient) GetTransaction(txid string) (*model.Transaction, error
 	}
 	type resOut struct {
 		model.Output
-		Spent bool `json:"spent"`
+		Spent     bool     `json:"spent"`
 		Addresses []string `json:"addresses"`
 	}
 	type resTx struct {
@@ -292,7 +292,7 @@ func (i *BlockBookClient) GetTransaction(txid string) (*model.Transaction, error
 		tx.Vin[n].Value = f
 	}
 	for n, out := range tx.Vout {
-		if out.ValueIface == "" || out.ValueIface == nil{
+		if out.ValueIface == "" || out.ValueIface == nil {
 			out.ValueIface = "0"
 		}
 		f, err := model.ToFloat(out.ValueIface)
@@ -397,7 +397,7 @@ func (i *BlockBookClient) getTransactions(addr string) ([]model.Transaction, err
 	type resAddr struct {
 		TotalPages   int      `json:"totalPages"`
 		Transactions []string `json:"transactions"`
-		Txids         []string `json:"txids"`
+		Txids        []string `json:"txids"`
 	}
 	type txOrError struct {
 		Tx  *model.Transaction

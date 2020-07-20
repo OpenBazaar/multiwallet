@@ -9,7 +9,6 @@ import (
 	"github.com/OpenBazaar/multiwallet/util"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcutil"
 	"github.com/ipfs/go-cid"
 	"github.com/op/go-logging"
@@ -94,14 +93,10 @@ func (fs *FilecoinService) Stop() {
 	close(fs.doneChan)
 }
 
-func (fs *FilecoinService) ChainTip() (uint32, chainhash.Hash) {
+func (fs *FilecoinService) ChainTip() (uint32, string) {
 	fs.lock.RLock()
 	defer fs.lock.RUnlock()
-	ch, err := chainhash.NewHashFromStr(fs.bestBlock)
-	if err != nil {
-		Log.Errorf("producing BestBlock hash: %s", err.Error())
-	}
-	return fs.chainHeight, *ch
+	return fs.chainHeight, fs.bestBlock
 }
 
 func (fs *FilecoinService) AddTransactionListener(callback func(callback wallet.TransactionCallback)) {
