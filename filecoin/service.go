@@ -237,6 +237,7 @@ func (fs *FilecoinService) saveSingleTxToDB(u model.Transaction, chainHeight int
 		if in.Addr == fs.addr.String() {
 			relevant = true
 			hits++
+			value.Sub(value, v)
 		}
 	}
 	for i, out := range u.Outputs {
@@ -259,12 +260,6 @@ func (fs *FilecoinService) saveSingleTxToDB(u model.Transaction, chainHeight int
 			value.Add(value, v)
 			hits++
 		}
-	}
-
-	if inAddr == outAddr {
-		value = big.NewInt(0)
-	} else if inAddr == fs.addr.String() {
-		value = value.Mul(value, big.NewInt(-1))
 	}
 
 	if !relevant {
