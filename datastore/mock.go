@@ -11,7 +11,6 @@ import (
 
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/btcec"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
 )
 
 type MockDatastore struct {
@@ -398,14 +397,14 @@ func (m *MockTxnStore) UpdateHeight(txid string, height int, timestamp time.Time
 	return nil
 }
 
-func (m *MockTxnStore) Delete(txid *chainhash.Hash) error {
+func (m *MockTxnStore) Delete(txid string) error {
 	m.Lock()
 	defer m.Unlock()
-	_, ok := m.txns[txid.String()]
+	_, ok := m.txns[txid]
 	if !ok {
 		return errors.New("Not found")
 	}
-	delete(m.txns, txid.String())
+	delete(m.txns, txid)
 	return nil
 }
 

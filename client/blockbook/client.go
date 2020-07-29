@@ -21,7 +21,6 @@ import (
 	"github.com/OpenBazaar/multiwallet/client/transport"
 	"github.com/OpenBazaar/multiwallet/model"
 	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcutil"
 	"github.com/cenkalti/backoff"
 	"github.com/cpacia/bchutil"
@@ -647,7 +646,6 @@ func (i *BlockBookClient) setupListeners() error {
 	i.SocketClient.Emit("subscribe", protocol.ToArgArray("bitcoind/hashblock"))
 
 	i.SocketClient.On("bitcoind/addresstxid", func(h *gosocketio.Channel, arg interface{}) {
-		fmt.Println("On addr txid", arg)
 		m, ok := arg.(map[string]interface{})
 		if !ok {
 			Log.Errorf("error checking type after socket notification: %T", arg)
@@ -659,16 +657,13 @@ func (i *BlockBookClient) setupListeners() error {
 				Log.Errorf("error checking type after socket notification: %T", arg)
 				return
 			}
-			_, err := chainhash.NewHashFromStr(txid) // Check is 256 bit hash. Might also be address
-			if err == nil {
-				tx, err := i.GetTransaction(txid)
-				if err != nil {
-					Log.Errorf("error downloading tx after socket notification: %s", err.Error())
-					return
-				}
-				tx.Time = time.Now().Unix()
-				i.txNotifyChan <- *tx
+			tx, err := i.GetTransaction(txid)
+			if err != nil {
+				Log.Errorf("error downloading tx after socket notification: %s", err.Error())
+				return
 			}
+			tx.Time = time.Now().Unix()
+			i.txNotifyChan <- *tx
 		}
 	})
 
