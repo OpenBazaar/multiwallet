@@ -337,10 +337,10 @@ func (w *FilecoinWallet) Spend(amount big.Int, addr btcutil.Address, feeLevel wi
 			},
 		},
 		Value: *amount.Mul(&amount, big.NewInt(-1)),
-		Txid: id.String(),
+		Txid: signed.Cid().String(),
 	})
 
-	return id.String(), nil
+	return signed.Cid().String(), nil
 }
 
 func (w *FilecoinWallet) EstimateFee(ins []wi.TransactionInput, outs []wi.TransactionOutput, feePerByte big.Int) big.Int {
