@@ -463,13 +463,22 @@ func (w *FilecoinWallet) Broadcast(msg *types.SignedMessage) error {
 		Confirmations: 0,
 		Time:          time.Now().Unix(),
 		RawBytes:      ser,
-	}
-	output := model.Output{
-		ScriptPubKey: model.OutScript{
-			Addresses: []string{msg.Message.To.String()},
+		Inputs: []model.Input{
+			{
+				Addr: w.addr.String(),
+				ValueIface: msg.Message.Value.String(),
+			},
+		},
+		Outputs: []model.Output {
+			{
+				ScriptPubKey: model.OutScript{
+					Addresses: []string{msg.Message.To.String()},
+				},
+				ValueIface: msg.Message.Value.String(),
+			},
 		},
 	}
-	cTxn.Outputs = append(cTxn.Outputs, output)
+
 	_, err = w.client.Broadcast(ser)
 	if err != nil {
 		return err
