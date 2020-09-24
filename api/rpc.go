@@ -188,7 +188,16 @@ func (s *server) BumpFee(ctx context.Context, in *pb.Txid) (*pb.Txid, error) {
 }
 
 func (s *server) AddWatchedScript(ctx context.Context, in *pb.Address) (*pb.Empty, error) {
-	return nil, nil
+	ct := coinType(in.Coin)
+	wal, err := s.w.WalletForCurrencyCode(ct.CurrencyCode())
+	if err != nil {
+		return nil, err
+	}
+	addr, err := wal.DecodeAddress(in.Addr)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.Empty{}, wal.AddWatchedAddress(addr)
 }
 
 func (s *server) GetConfirmations(ctx context.Context, in *pb.Txid) (*pb.Confirmations, error) {
