@@ -203,7 +203,6 @@ func (fs *FilecoinService) processIncomingBlock(block model.Block) {
 }
 
 func (fs *FilecoinService) saveSingleTxToDB(u model.Transaction, chainHeight int32) {
-	hits := 0
 	value := new(big.Int)
 
 	height := int32(0)
@@ -218,8 +217,6 @@ func (fs *FilecoinService) saveSingleTxToDB(u model.Transaction, chainHeight int
 	}
 	var relevant bool
 	cb := wallet.TransactionCallback{Txid: txHash.String(), Height: height, Timestamp: time.Unix(u.Time, 0)}
-	inAddr := u.Inputs[0].Addr
-	outAddr := u.Outputs[0].ScriptPubKey.Addresses[0]
 	for _, in := range u.Inputs {
 		faddr, err := NewFilecoinAddress(in.Addr)
 		if err != nil {
@@ -236,7 +233,6 @@ func (fs *FilecoinService) saveSingleTxToDB(u model.Transaction, chainHeight int
 
 		if in.Addr == fs.addr.String() {
 			relevant = true
-			hits++
 			value.Sub(value, v)
 		}
 	}
@@ -258,7 +254,6 @@ func (fs *FilecoinService) saveSingleTxToDB(u model.Transaction, chainHeight int
 		if out.ScriptPubKey.Addresses[0] == fs.addr.String() {
 			relevant = true
 			value.Add(value, v)
-			hits++
 		}
 	}
 
@@ -274,7 +269,7 @@ func (fs *FilecoinService) saveSingleTxToDB(u model.Transaction, chainHeight int
 		if u.Confirmations > 0 {
 			ts = time.Unix(u.BlockTime, 0)
 		}
-		err = fs.db.Txns().Put(u.RawBytes, txHash.String(), value.String(), int(height), ts, hits == 0)
+		err = fs.db.Txns().Put(u.RawBytes, txHash.String(), value.String(), int(height), ts, false)
 		if err != nil {
 			Log.Errorf("putting txid (%s): %s", txHash.String(), err.Error())
 			return

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/btcsuite/btcd/btcec"
+	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/sigs"
 	_ "github.com/filecoin-project/lotus/lib/sigs/secp"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
 	"io"
 	"math/big"
 	"time"
@@ -316,7 +316,7 @@ func (w *FilecoinWallet) Spend(amount big.Int, addr btcutil.Address, feeLevel wi
 		return "", err
 	}
 
-	myAddr, err :=  NewFilecoinAddress(w.addr.String())
+	myAddr, err := NewFilecoinAddress(w.addr.String())
 	if err != nil {
 		return "", err
 	}
@@ -325,19 +325,19 @@ func (w *FilecoinWallet) Spend(amount big.Int, addr btcutil.Address, feeLevel wi
 		Outputs: []wi.TransactionOutput{
 			{
 				Address: addr,
-				Value: amount,
+				Value:   amount,
 				OrderID: referenceID,
 			},
 		},
 		Inputs: []wi.TransactionInput{
 			{
-				Value: amount,
-				OrderID: referenceID,
+				Value:         amount,
+				OrderID:       referenceID,
 				LinkedAddress: myAddr,
 			},
 		},
 		Value: *amount.Mul(&amount, big.NewInt(-1)),
-		Txid: signed.Cid().String(),
+		Txid:  signed.Cid().String(),
 	})
 
 	return signed.Cid().String(), nil
@@ -465,11 +465,11 @@ func (w *FilecoinWallet) Broadcast(msg *types.SignedMessage) error {
 		RawBytes:      ser,
 		Inputs: []model.Input{
 			{
-				Addr: w.addr.String(),
+				Addr:       w.addr.String(),
 				ValueIface: msg.Message.Value.String(),
 			},
 		},
-		Outputs: []model.Output {
+		Outputs: []model.Output{
 			{
 				ScriptPubKey: model.OutScript{
 					Addresses: []string{msg.Message.To.String()},
