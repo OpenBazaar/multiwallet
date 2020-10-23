@@ -19,10 +19,9 @@ require (
 	github.com/filecoin-project/filecoin-ffi v0.30.4-0.20201006125140-a62d00da59d1 // indirect
 	github.com/filecoin-project/go-address v0.0.4
 	github.com/filecoin-project/go-state-types v0.0.0-20201013222834-41ea465f274f
-	github.com/filecoin-project/lotus v0.10.2
+	github.com/filecoin-project/lotus v1.1.0
 	github.com/gcash/bchd v0.16.4
 	github.com/golang/protobuf v1.4.2
-	github.com/google/go-cmp v0.4.1 // indirect
 	github.com/gorilla/websocket v1.4.2
 	github.com/hunterlong/tokenbalance v0.0.12-0.20191105170207-4f98e641e619 // indirect
 	github.com/ipfs/go-cid v0.0.7
