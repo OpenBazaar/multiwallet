@@ -12,7 +12,6 @@ import (
 	"github.com/OpenBazaar/multiwallet/keys"
 	"github.com/OpenBazaar/multiwallet/model/mock"
 	"github.com/OpenBazaar/multiwallet/service"
-	"github.com/OpenBazaar/spvwallet"
 	"github.com/OpenBazaar/wallet-interface"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -51,7 +50,7 @@ func newMockWallet() (*BitcoinWallet, error) {
 		return nil, err
 	}
 
-	fp := spvwallet.NewFeeProvider(2000, 300, 200, 100, "", nil)
+	fp := util.NewFeeProvider(2000, 300, 200, 100, 50, nil)
 
 	bw := &BitcoinWallet{
 		params: params,

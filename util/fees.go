@@ -60,6 +60,8 @@ func (fp *FeeProvider) GetFeePerByte(feeLevel wallet.FeeLevel) uint64 {
 			return fp.normalFee
 		case wallet.ECONOMIC:
 			return fp.economicFee
+		case wallet.SUPER_ECONOMIC:
+			return fp.superEconomicFee
 		case wallet.FEE_BUMP:
 			return fp.priorityFee * 2
 		default:
