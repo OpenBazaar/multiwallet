@@ -44,7 +44,7 @@
   revision = "10951cd851492bdf52b4f7b408adcb6752312b23"
 
 [[projects]]
-  branch = "ethereum-master"
+  branch = "master"
   digest = "1:c411c1051b3ab7c823786bf82887580f2d93898be2504e145a67419afef5ba2d"
   name = "github.com/OpenBazaar/wallet-interface"
   packages = ["."]
